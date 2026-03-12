@@ -4,8 +4,8 @@
     <circle cx="178" cy="15" r="1" fill="#C05828" opacity="0.6" />
     <circle cx="165" cy="10" r="0.75" fill="#C05828" opacity="0.4" />
     <g fill="none" stroke="#C05828" stroke-linecap="round" stroke-linejoin="round">
-      <path d="M 35,165 C 40,155 50,140 60,120" stroke-width="2.5" />
-      <path d="M 60,120 C 80,85 130,60 178,40" stroke-width="1.5" />
+      <path d="M 35,165 C 40,155 50,140 60,120" stroke-width="4.2" />
+      <path d="M 60,120 C 80,85 130,60 178,40" stroke-width="2.8" />
       <path
         d="M 60,120
                C 50,105 45,85 54,75 L 51,78
@@ -14,7 +14,7 @@
                C 115,28 135,24 152,24 L 148,27
                C 165,25 178,28 185,35
                C 180,42 172,48 165,50"
-        stroke-width="1.5"
+        stroke-width="2.8"
       />
       <path
         d="M 60,120
@@ -22,9 +22,9 @@
                C 115,120 125,110 135,102 L 132,105
                C 145,95 152,88 155,85 L 152,88
                C 162,75 168,62 165,50"
-        stroke-width="1.8"
+        stroke-width="3.2"
       />
-      <g stroke-width="1" opacity="0.85">
+      <g stroke-width="1.8" opacity="0.85">
         <path d="M 78, 102 C 70, 90 62, 80 55, 76" />
         <path d="M 102, 80 C 95, 65 90, 50 88, 40" />
         <path d="M 128, 62 C 122, 50 118, 35 116, 28" />
@@ -34,7 +34,7 @@
         <path d="M 128, 62 C 140, 75 148, 82 153, 86" />
         <path d="M 152, 52 C 160, 60 162, 65 164, 65" />
       </g>
-      <path d="M 33,163 C 39,152 48,139 57,119" stroke-width="0.75" opacity="0.6" />
+      <path d="M 33,163 C 39,152 48,139 57,119" stroke-width="1.2" opacity="0.6" />
     </g>
   </g>
 </svg>

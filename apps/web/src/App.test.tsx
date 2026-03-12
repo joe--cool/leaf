@@ -63,7 +63,7 @@ describe('App routes', () => {
     expect(
       (await screen.findAllByRole('heading', { name: 'Manage Tracked Items' })).length,
     ).toBeGreaterThan(0);
-    expect(screen.getByText('You can combine multiple schedules on one item.')).toBeInTheDocument();
+    expect(screen.getByText('2. Set the cadence')).toBeInTheDocument();
   });
 
   it('navigates from dashboard to tracked items', async () => {

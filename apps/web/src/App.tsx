@@ -10,6 +10,7 @@ import {
   Divider,
   Flex,
   FormControl,
+  FormHelperText,
   FormLabel,
   Grid,
   GridItem,
@@ -20,6 +21,8 @@ import {
   Input,
   Select,
   SimpleGrid,
+  Radio,
+  RadioGroup,
   Stack,
   Stat,
   StatLabel,
@@ -96,6 +99,41 @@ const weekdayOptions = [
   { value: 6, label: 'Sat' },
 ];
 
+const categoryOptions = [
+  { value: 'homework', label: 'Schoolwork' },
+  { value: 'health', label: 'Medicine or supplements' },
+  { value: 'exercise', label: 'Exercise' },
+  { value: 'other', label: 'Other routine' },
+];
+
+const scheduleKindOptions: Array<{ value: SingleScheduleKind; label: string; help: string }> = [
+  {
+    value: 'DAILY',
+    label: 'Every day',
+    help: 'Use one or more times each day.',
+  },
+  {
+    value: 'WEEKLY',
+    label: 'Selected weekdays',
+    help: 'Choose the days of the week that apply.',
+  },
+  {
+    value: 'INTERVAL_DAYS',
+    label: 'Every few days',
+    help: 'Repeat after a fixed number of days.',
+  },
+  {
+    value: 'CUSTOM_DATES',
+    label: 'Specific dates',
+    help: 'Hand-pick dates on the calendar.',
+  },
+  {
+    value: 'ONE_TIME',
+    label: 'One time',
+    help: 'Schedule a single occurrence.',
+  },
+];
+
 const navItems: Array<{ key: PageKey; path: string; label: string; summary: string }> = [
   {
     key: 'dashboard',
@@ -147,6 +185,10 @@ function toInputDateTime(date: Date): string {
 function toDayName(value: number): string {
   const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
   return days[value] ?? `Day ${value}`;
+}
+
+function getCategoryLabel(value: string): string {
+  return categoryOptions.find((option) => option.value === value)?.label ?? value;
 }
 
 function summarizeSchedule(item: Item): string {
@@ -399,6 +441,10 @@ export function App() {
     '0 24px 80px rgba(107, 85, 69, 0.12)',
     '0 24px 80px rgba(0, 0, 0, 0.34)',
   );
+  const inputBg = useColorModeValue('rgba(255, 251, 246, 0.94)', 'rgba(16, 21, 21, 0.92)');
+  const iconBg = useColorModeValue('rgba(255, 248, 240, 0.84)', 'rgba(67, 90, 73, 0.42)');
+  const iconBgStrong = useColorModeValue('rgba(255, 248, 240, 0.88)', 'rgba(79, 118, 88, 0.34)');
+  const sectionBg = useColorModeValue('rgba(250, 245, 237, 0.92)', 'rgba(18, 24, 24, 0.92)');
   const appBg = useColorModeValue('#f5efe6', '#0e1313');
   const overlayGradient = useColorModeValue(
     'radial(circle at top left, rgba(192, 88, 40, 0.15), transparent 32%), radial(circle at bottom right, rgba(74, 109, 83, 0.16), transparent 28%)',
@@ -435,9 +481,9 @@ export function App() {
     currentPage === 'dashboard'
       ? 'See workload, connected people, and the routines that need attention next.'
       : currentPage === 'items'
-        ? 'Shape schedules, notification cadence, and item categories from one composition surface.'
+        ? 'Build a routine in three parts: what it is, when it happens, and how reminders should behave.'
         : currentPage === 'profile'
-          ? 'Control digest delivery, invite reviewers, and keep accountability relationships current.'
+          ? 'Adjust weekly summaries, reviewer invitations, and account relationships without decoding internal settings.'
           : 'You are operating on behalf of the whole workspace. User governance and reviewer assignment live here.';
 
   async function refreshSetup() {
@@ -731,10 +777,11 @@ export function App() {
             <Stack spacing={6} position="relative">
               <HStack spacing={4}>
                 <Box
-                  bg="rgba(255,255,255,0.54)"
-                  _dark={{ bg: 'whiteAlpha.120' }}
+                  bg={iconBgStrong}
                   p={3}
                   borderRadius="2xl"
+                  border="1px solid"
+                  borderColor={panelBorder}
                 >
                   <Image src="/leaf.svg" alt="leaf logo" boxSize="44px" />
                 </Box>
@@ -753,8 +800,8 @@ export function App() {
                   Build steady routines with a quieter, clearer operating surface.
                 </Heading>
                 <Text mt={4} maxW="34rem" color={mutedText}>
-                  leaf turns schedules, reminders, and reviewer relationships into one coordinated
-                  workspace. The interface stays restrained so the planning work remains legible.
+                  leaf keeps planning, reminders, and reviewer follow-through in one workspace so
+                  the next action is easy to find.
                 </Text>
               </Box>
 
@@ -820,12 +867,12 @@ export function App() {
                 </Badge>
                 <Heading size="lg">Create the first administrator</Heading>
                 <Text color={mutedText}>
-                  This initializes leaf and establishes the first account that can manage users and
-                  reviewer mappings.
+                  Finish setup, create the first account, and unlock the shared workspace.
                 </Text>
                 <FormControl>
                   <FormLabel>Admin email</FormLabel>
                   <Input
+                    bg={inputBg}
                     value={setupEmail}
                     onChange={(event) => setSetupEmail(event.target.value)}
                   />
@@ -833,6 +880,7 @@ export function App() {
                 <FormControl>
                   <FormLabel>Password</FormLabel>
                   <Input
+                    bg={inputBg}
                     type="password"
                     value={setupPassword}
                     onChange={(event) => setSetupPassword(event.target.value)}
@@ -841,9 +889,13 @@ export function App() {
                 <FormControl>
                   <FormLabel>Setup token (optional)</FormLabel>
                   <Input
+                    bg={inputBg}
                     value={setupToken}
                     onChange={(event) => setSetupToken(event.target.value)}
                   />
+                  <FormHelperText color={mutedText}>
+                    Only needed if your server requires a protected first-run token.
+                  </FormHelperText>
                 </FormControl>
                 <Button
                   colorScheme="leaf"
@@ -861,15 +913,20 @@ export function App() {
                 </Badge>
                 <Heading size="lg">Enter your workspace</Heading>
                 <Text color={mutedText}>
-                  Move from planning to review without jumping between disconnected utilities.
+                  Sign in to review routines, tune reminders, and keep collaborators aligned.
                 </Text>
                 <FormControl>
                   <FormLabel>Email</FormLabel>
-                  <Input value={email} onChange={(event) => setEmail(event.target.value)} />
+                  <Input
+                    bg={inputBg}
+                    value={email}
+                    onChange={(event) => setEmail(event.target.value)}
+                  />
                 </FormControl>
                 <FormControl>
                   <FormLabel>Password</FormLabel>
                   <Input
+                    bg={inputBg}
                     type="password"
                     value={password}
                     onChange={(event) => setPassword(event.target.value)}
@@ -881,12 +938,12 @@ export function App() {
                     login().catch((error) => toast({ status: 'error', title: String(error) }))
                   }
                 >
-                  Login
+                  Sign in
                 </Button>
                 {oauthProviders.length > 0 && (
                   <>
                     <Divider />
-                    <Text color={mutedText}>Or continue with OAuth</Text>
+                    <Text color={mutedText}>Or continue with another sign-in method</Text>
                     <Stack spacing={2}>
                       {oauthProviders.map((provider) => (
                         <Button
@@ -997,7 +1054,7 @@ export function App() {
                       px={3}
                       py={1}
                     >
-                      {item.category}
+                      {getCategoryLabel(item.category)}
                     </Badge>
                   </Flex>
                 ))}
@@ -1168,22 +1225,26 @@ export function App() {
             boxShadow={statGlow}
           >
             <Heading size="md" mb={3}>
-              Weekly Digest Preferences
+              Weekly Summary
             </Heading>
             <Text color={mutedText} mb={4}>
-              Set the time and timezone for the weekly summary reviewers and users will depend on.
+              Choose when the weekly recap should arrive for you and the people depending on it.
             </Text>
             <Stack spacing={4}>
               <FormControl>
                 <FormLabel>Timezone</FormLabel>
                 <Input
+                  bg={inputBg}
                   value={prefTimezone}
                   onChange={(event) => setPrefTimezone(event.target.value)}
                 />
+                <FormHelperText color={mutedText}>
+                  Use an IANA timezone such as `America/Los_Angeles`.
+                </FormHelperText>
               </FormControl>
               <FormControl>
-                <FormLabel>Digest day (0=Sun..6=Sat)</FormLabel>
-                <Select value={prefDay} onChange={(event) => setPrefDay(event.target.value)}>
+                <FormLabel>Summary day</FormLabel>
+                <Select bg={inputBg} value={prefDay} onChange={(event) => setPrefDay(event.target.value)}>
                   {weekdayOptions.map((option) => (
                     <option key={option.value} value={option.value}>
                       {option.label}
@@ -1192,8 +1253,8 @@ export function App() {
                 </Select>
               </FormControl>
               <FormControl>
-                <FormLabel>Digest hour (0-23)</FormLabel>
-                <Select value={prefHour} onChange={(event) => setPrefHour(event.target.value)}>
+                <FormLabel>Summary time</FormLabel>
+                <Select bg={inputBg} value={prefHour} onChange={(event) => setPrefHour(event.target.value)}>
                   {Array.from({ length: 24 }, (_, hour) => hour).map((hour) => (
                     <option key={hour} value={hour}>
                       {hour.toString().padStart(2, '0')}:00
@@ -1209,7 +1270,7 @@ export function App() {
                   )
                 }
               >
-                Save Preferences
+                Save summary settings
               </Button>
             </Stack>
           </Box>
@@ -1226,23 +1287,25 @@ export function App() {
               boxShadow={statGlow}
             >
               <Heading size="md" mb={3}>
-                Invite Reviewer or Collaborator
+                Invite a reviewer
               </Heading>
               <Text color={mutedText} mb={4}>
-                Add another person to the loop directly from the account settings surface.
+                Bring another person into the review loop without leaving settings.
               </Text>
               <Stack spacing={4}>
                 <FormControl>
                   <FormLabel>Email</FormLabel>
                   <Input
+                    bg={inputBg}
                     value={inviteEmail}
                     onChange={(event) => setInviteEmail(event.target.value)}
                   />
                 </FormControl>
                 {isAdmin && adminUsers.length > 0 && (
                   <FormControl>
-                    <FormLabel>Invite for user</FormLabel>
+                    <FormLabel>Send invite on behalf of</FormLabel>
                     <Select
+                      bg={inputBg}
                       value={targetUserId}
                       onChange={(event) => setTargetUserId(event.target.value)}
                     >
@@ -1311,26 +1374,56 @@ export function App() {
               Manage Tracked Items
             </Heading>
             <Text color={mutedText} mb={5}>
-              Compose the behavior of each tracked routine, from timing model to notification
-              persistence.
+              Build each routine in sequence so the title, cadence, and reminder behavior stay easy
+              to scan later.
             </Text>
             <Stack spacing={4}>
-              <FormControl>
-                <FormLabel>Title</FormLabel>
-                <Input value={title} onChange={(event) => setTitle(event.target.value)} />
-              </FormControl>
-              <FormControl>
-                <FormLabel>Category</FormLabel>
-                <Select value={category} onChange={(event) => setCategory(event.target.value)}>
-                  <option value="homework">Homework</option>
-                  <option value="health">Medicine/Supplements</option>
-                  <option value="exercise">Exercise</option>
-                  <option value="other">Other</option>
-                </Select>
-              </FormControl>
+              <Box bg={sectionBg} borderRadius="2xl" p={4} border="1px solid" borderColor={panelBorder}>
+                <Text fontWeight="semibold" mb={1}>
+                  1. Name the routine
+                </Text>
+                <Text color={mutedText} fontSize="sm" mb={4}>
+                  Use a title someone else could understand at a glance.
+                </Text>
+                <Stack spacing={4}>
+                  <FormControl>
+                    <FormLabel>Routine name</FormLabel>
+                    <Input
+                      bg={inputBg}
+                      placeholder="Take evening supplement"
+                      value={title}
+                      onChange={(event) => setTitle(event.target.value)}
+                    />
+                  </FormControl>
+                  <FormControl>
+                    <FormLabel>Type of routine</FormLabel>
+                    <RadioGroup value={category} onChange={setCategory}>
+                      <SimpleGrid columns={{ base: 1, md: 2 }} spacing={3}>
+                        {categoryOptions.map((option) => (
+                          <Box
+                            key={option.value}
+                            as="label"
+                            bg={panelBg}
+                            border="1px solid"
+                            borderColor={category === option.value ? 'leaf.500' : panelBorder}
+                            borderRadius="xl"
+                            px={4}
+                            py={3}
+                            cursor="pointer"
+                          >
+                            <Radio value={option.value} colorScheme="leaf">
+                              {option.label}
+                            </Radio>
+                          </Box>
+                        ))}
+                      </SimpleGrid>
+                    </RadioGroup>
+                  </FormControl>
+                </Stack>
+              </Box>
 
               <Box
-                bg={panelBg}
+                bg={sectionBg}
                 borderRadius="2xl"
                 p={4}
                 border="1px solid"
@@ -1338,13 +1431,13 @@ export function App() {
               >
                 <HStack justify="space-between" align="center" mb={3}>
                   <Box>
-                    <Text fontWeight="semibold">Schedules</Text>
+                    <Text fontWeight="semibold">2. Set the cadence</Text>
                     <Text color={mutedText} fontSize="sm">
-                      You can combine multiple schedules on one item.
+                      You can combine multiple schedules on one item when one pattern is not enough.
                     </Text>
                   </Box>
                   <Button size="sm" variant="outline" onClick={addSchedule}>
-                    Add Schedule
+                    Add another schedule
                   </Button>
                 </HStack>
 
@@ -1377,8 +1470,9 @@ export function App() {
                           </Button>
                         </HStack>
                         <FormControl>
-                          <FormLabel>Label (optional)</FormLabel>
+                          <FormLabel>Schedule label (optional)</FormLabel>
                           <Input
+                            bg={inputBg}
                             placeholder="Morning, Evening, School Days..."
                             value={draft.label}
                             onChange={(event) =>
@@ -1390,28 +1484,48 @@ export function App() {
                           />
                         </FormControl>
                         <FormControl>
-                          <FormLabel>Schedule Type</FormLabel>
-                          <Select
+                          <FormLabel>Cadence</FormLabel>
+                          <RadioGroup
                             value={draft.kind}
                             onChange={(event) =>
                               updateDraftSchedule(scheduleIndex, (current) => ({
                                 ...current,
-                                kind: event.target.value as SingleScheduleKind,
+                                kind: event as SingleScheduleKind,
                               }))
                             }
                           >
-                            <option value="ONE_TIME">One time</option>
-                            <option value="DAILY">Daily</option>
-                            <option value="WEEKLY">Weekly</option>
-                            <option value="INTERVAL_DAYS">Every N days</option>
-                            <option value="CUSTOM_DATES">Custom dates</option>
-                          </Select>
+                            <SimpleGrid columns={{ base: 1, md: 2 }} spacing={3}>
+                              {scheduleKindOptions.map((option) => (
+                                <Box
+                                  key={option.value}
+                                  as="label"
+                                  bg={panelBg}
+                                  border="1px solid"
+                                  borderColor={draft.kind === option.value ? 'leaf.500' : panelBorder}
+                                  borderRadius="xl"
+                                  px={4}
+                                  py={3}
+                                  cursor="pointer"
+                                >
+                                  <Stack spacing={1}>
+                                    <Radio value={option.value} colorScheme="leaf">
+                                      {option.label}
+                                    </Radio>
+                                    <Text color={mutedText} fontSize="sm" pl={6}>
+                                      {option.help}
+                                    </Text>
+                                  </Stack>
+                                </Box>
+                              ))}
+                            </SimpleGrid>
+                          </RadioGroup>
                         </FormControl>
 
                         {draft.kind === 'ONE_TIME' && (
                           <FormControl>
-                            <FormLabel>When (local datetime)</FormLabel>
+                            <FormLabel>When should it happen?</FormLabel>
                             <Input
+                              bg={inputBg}
                               type="datetime-local"
                               value={draft.oneTimeAt}
                               onChange={(event) =>
@@ -1426,11 +1540,12 @@ export function App() {
 
                         {draft.kind === 'DAILY' && (
                           <FormControl>
-                            <FormLabel>Daily times</FormLabel>
+                            <FormLabel>Times of day</FormLabel>
                             <Stack spacing={2}>
                               {draft.dailyTimes.map((time, timeIndex) => (
                                 <HStack key={`daily-${scheduleIndex}-${timeIndex}`}>
                                   <Input
+                                    bg={inputBg}
                                     type="time"
                                     value={time}
                                     onChange={(event) =>
@@ -1453,7 +1568,7 @@ export function App() {
                                 alignSelf="start"
                                 onClick={() => addDailyTime(scheduleIndex)}
                               >
-                                Add Time
+                                Add time
                               </Button>
                             </Stack>
                           </FormControl>
@@ -1461,7 +1576,7 @@ export function App() {
 
                         {draft.kind === 'WEEKLY' && (
                           <FormControl>
-                            <FormLabel>Weekdays</FormLabel>
+                            <FormLabel>Days of the week</FormLabel>
                             <CheckboxGroup
                               value={draft.weekdays.map(String)}
                               onChange={(values) =>
@@ -1485,8 +1600,9 @@ export function App() {
                         {draft.kind === 'INTERVAL_DAYS' && (
                           <>
                             <FormControl>
-                              <FormLabel>Every N days</FormLabel>
+                              <FormLabel>Repeat every</FormLabel>
                               <Input
+                                bg={inputBg}
                                 type="number"
                                 min={1}
                                 value={draft.intervalDays}
@@ -1497,10 +1613,12 @@ export function App() {
                                   }))
                                 }
                               />
+                              <FormHelperText color={mutedText}>days</FormHelperText>
                             </FormControl>
                             <FormControl>
-                              <FormLabel>Anchor datetime</FormLabel>
+                              <FormLabel>Start counting from</FormLabel>
                               <Input
+                                bg={inputBg}
                                 type="datetime-local"
                                 value={draft.intervalAnchor}
                                 onChange={(event) =>
@@ -1516,7 +1634,7 @@ export function App() {
 
                         {draft.kind === 'CUSTOM_DATES' && (
                           <FormControl>
-                            <FormLabel>Custom dates</FormLabel>
+                            <FormLabel>Chosen dates</FormLabel>
                             <Stack spacing={2}>
                               <Box
                                 border="1px solid"
@@ -1546,6 +1664,7 @@ export function App() {
                               {draft.customDates.map((dateValue, dateIndex) => (
                                 <HStack key={`custom-${scheduleIndex}-${dateIndex}`}>
                                   <Input
+                                    bg={inputBg}
                                     type="datetime-local"
                                     value={dateValue}
                                     onChange={(event) =>
@@ -1568,7 +1687,7 @@ export function App() {
                                 alignSelf="start"
                                 onClick={() => addCustomDate(scheduleIndex)}
                               >
-                                Add Date
+                                Add date
                               </Button>
                             </Stack>
                           </FormControl>
@@ -1579,7 +1698,14 @@ export function App() {
                 </Stack>
               </Box>
 
-              <SimpleGrid columns={{ base: 1, md: 3 }} spacing={4}>
+              <Box bg={sectionBg} borderRadius="2xl" p={4} border="1px solid" borderColor={panelBorder}>
+                <Text fontWeight="semibold" mb={1}>
+                  3. Choose reminder behavior
+                </Text>
+                <Text color={mutedText} fontSize="sm" mb={4}>
+                  Only turn on repeating reminders when someone genuinely needs the extra nudge.
+                </Text>
+                <SimpleGrid columns={{ base: 1, md: 3 }} spacing={4}>
                 <FormControl
                   display="flex"
                   alignItems="center"
@@ -1589,7 +1715,7 @@ export function App() {
                   px={4}
                   py={3}
                 >
-                  <FormLabel mb={0}>Notifications</FormLabel>
+                  <FormLabel mb={0}>Desktop reminders</FormLabel>
                   <Switch
                     isChecked={notificationEnabled}
                     onChange={(event) => setNotificationEnabled(event.target.checked)}
@@ -1604,22 +1730,43 @@ export function App() {
                   px={4}
                   py={3}
                 >
-                  <FormLabel mb={0}>Hard to dismiss</FormLabel>
+                  <FormLabel mb={0}>Keep repeating until handled</FormLabel>
                   <Switch
                     isChecked={hardToDismiss}
                     onChange={(event) => setHardToDismiss(event.target.checked)}
                   />
                 </FormControl>
                 <FormControl bg={panelBg} borderRadius="2xl" px={4} py={3}>
-                  <FormLabel>Repeat min</FormLabel>
+                  <FormLabel>Reminder repeat</FormLabel>
                   <Input
+                    bg={inputBg}
                     type="number"
                     min={1}
                     value={repeatMinutes}
                     onChange={(event) => setRepeatMinutes(event.target.value)}
                   />
+                  <FormHelperText color={mutedText}>minutes</FormHelperText>
                 </FormControl>
-              </SimpleGrid>
+                </SimpleGrid>
+              </Box>
+
+              <Box bg={modeGradient} borderRadius="2xl" p={4} border="1px solid" borderColor={panelBorder}>
+                <Text fontSize="sm" color={mutedText}>
+                  Preview
+                </Text>
+                <Heading size="sm" mt={2}>
+                  {title || 'Untitled routine'}
+                </Heading>
+                <Text mt={1} color={mutedText}>
+                  {getCategoryLabel(category)}
+                </Text>
+                <Text mt={3} fontSize="sm" color={mutedText}>
+                  {draftSchedules.length === 1
+                    ? scheduleKindOptions.find((option) => option.value === draftSchedules[0]?.kind)
+                        ?.label ?? 'Cadence not set'
+                    : `${draftSchedules.length} schedules combined`}
+                </Text>
+              </Box>
 
               <Button
                 colorScheme="leaf"
@@ -1627,7 +1774,7 @@ export function App() {
                   addItem().catch((error) => toast({ status: 'error', title: String(error) }))
                 }
               >
-                Save Item
+                Save routine
               </Button>
             </Stack>
           </Box>
@@ -1644,7 +1791,7 @@ export function App() {
             h="100%"
           >
             <Heading size="md" mb={3}>
-              Existing Items
+              Existing routines
             </Heading>
             <Text color={mutedText} mb={4}>
               Live inventory of the routines already active in leaf.
@@ -1667,7 +1814,7 @@ export function App() {
                       </Text>
                     </Box>
                     <Badge colorScheme="orange" borderRadius="full" px={3} py={1}>
-                      {item.category}
+                      {getCategoryLabel(item.category)}
                     </Badge>
                   </HStack>
                 </Box>
@@ -1873,10 +2020,12 @@ export function App() {
           >
             <HStack spacing={4}>
               <Box
-                bg={adminMode ? 'clay.500' : 'whiteAlpha.700'}
-                _dark={{ bg: adminMode ? 'clay.500' : 'whiteAlpha.120' }}
+                bg={adminMode ? 'clay.500' : iconBg}
+                _dark={{ bg: adminMode ? 'clay.500' : iconBgStrong }}
                 p={3}
                 borderRadius="2xl"
+                border="1px solid"
+                borderColor={panelBorder}
               >
                 <Image src="/leaf.svg" alt="leaf logo" boxSize="42px" />
               </Box>
@@ -1893,7 +2042,7 @@ export function App() {
                   </Badge>
                 </HStack>
                 <Text color={mutedText}>
-                  Schedules, accountability, and review in a calmer product shell.
+                  Routines, reminders, and accountability in one quieter workspace.
                 </Text>
               </Box>
             </HStack>
