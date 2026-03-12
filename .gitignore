@@ -1,0 +1,13 @@
+node_modules
+.env
+.env.*
+!.env.example
+dist
+coverage
+.DS_Store
+.vite
+build
+*.log
+prisma/dev.db
+start-local.sh
+stop-local.sh

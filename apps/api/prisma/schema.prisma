@@ -1,0 +1,122 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  USER
+  ADMIN
+}
+
+enum ScheduleKind {
+  ONE_TIME
+  DAILY
+  WEEKLY
+  INTERVAL_DAYS
+  CUSTOM_DATES
+}
+
+model User {
+  id               String             @id @default(cuid())
+  email            String             @unique
+  passwordHash     String
+  name             String
+  timezone         String             @default("UTC")
+  weeklyDigestHour Int                @default(8)
+  weeklyDigestDay  Int                @default(1)
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
+  roles            UserRole[]
+  items            TrackingItem[]
+  completions      TrackingCompletion[]
+  reviewTargets    ReviewerRelation[] @relation("reviewer")
+  reviewers        ReviewerRelation[] @relation("reviewee")
+  sentInvites      Invite[]           @relation("inviter")
+  receivedInvites  Invite[]           @relation("invitee")
+  refreshTokens    RefreshToken[]
+}
+
+model UserRole {
+  id     String @id @default(cuid())
+  userId String
+  role   Role
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, role])
+}
+
+model ReviewerRelation {
+  id         String   @id @default(cuid())
+  reviewerId String
+  revieweeId String
+  createdAt  DateTime @default(now())
+
+  reviewer User @relation("reviewer", fields: [reviewerId], references: [id], onDelete: Cascade)
+  reviewee User @relation("reviewee", fields: [revieweeId], references: [id], onDelete: Cascade)
+
+  @@unique([reviewerId, revieweeId])
+}
+
+model TrackingItem {
+  id                            String      @id @default(cuid())
+  ownerId                       String
+  title                         String
+  description                   String?
+  category                      String      @default("general")
+  scheduleKind                  ScheduleKind
+  scheduleData                  Json
+  notificationEnabled           Boolean     @default(true)
+  notificationHardToDismiss     Boolean     @default(false)
+  notificationRepeatMinutes     Int         @default(15)
+  createdAt                     DateTime    @default(now())
+  updatedAt                     DateTime    @updatedAt
+
+  owner       User                 @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  completions TrackingCompletion[]
+}
+
+model TrackingCompletion {
+  id         String   @id @default(cuid())
+  itemId     String
+  userId     String
+  occurredAt DateTime
+  note       String?
+  createdAt  DateTime @default(now())
+
+  item TrackingItem @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  user User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([itemId, occurredAt])
+}
+
+model Invite {
+  id          String   @id @default(cuid())
+  inviterId   String
+  inviteeId   String?
+  inviteeMail String
+  token       String   @unique
+  type        String
+  targetUserId String?
+  acceptedAt  DateTime?
+  expiresAt   DateTime
+  createdAt   DateTime @default(now())
+
+  inviter User  @relation("inviter", fields: [inviterId], references: [id], onDelete: Cascade)
+  invitee User? @relation("invitee", fields: [inviteeId], references: [id], onDelete: SetNull)
+}
+
+model RefreshToken {
+  id        String   @id @default(cuid())
+  token     String   @unique
+  userId    String
+  expiresAt DateTime
+  revokedAt DateTime?
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
