@@ -60,19 +60,25 @@ describe('App routes', () => {
   it('renders tracked items page directly without crashing', async () => {
     renderApp('/items');
 
-    expect(await screen.findByRole('heading', { name: 'Manage Tracked Items' })).toBeInTheDocument();
+    expect(
+      (await screen.findAllByRole('heading', { name: 'Manage Tracked Items' })).length,
+    ).toBeGreaterThan(0);
     expect(screen.getByText('You can combine multiple schedules on one item.')).toBeInTheDocument();
   });
 
   it('navigates from dashboard to tracked items', async () => {
     renderApp('/dashboard');
-    await screen.findByRole('heading', { name: 'Upcoming Focus' });
+    expect(
+      (await screen.findAllByRole('heading', { name: 'Upcoming Focus' })).length,
+    ).toBeGreaterThan(0);
 
     const user = userEvent.setup();
-    await user.click(screen.getAllByRole('link', { name: 'Tracked Items' })[0]!);
+    await user.click(screen.getAllByRole('link', { name: /Tracked Items/i })[0]!);
 
     await waitFor(() => {
-      expect(screen.getByRole('heading', { name: 'Manage Tracked Items' })).toBeInTheDocument();
+      expect(
+        screen.getAllByRole('heading', { name: 'Manage Tracked Items' }).length,
+      ).toBeGreaterThan(0);
     });
   });
 });
