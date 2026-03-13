@@ -31,31 +31,6 @@ Main UX gaps:
 
 ## Recommended implementation order
 
-### Split member work into `My Items` and `Routines`
-
-Why:
-
-- The docs call for `My Items` as the member action surface and `Routines` as the management surface.
-- The current `Tracked Items` page mixes creation, schedule definition, reminder settings, preview, and list management into one page.
-
-Root-level scope:
-
-- Update navigation labels and route structure to expose both surfaces.
-- Move occurrence/action UX into `My Items`.
-- Keep routine definition and editing in `Routines`.
-
-Review before closing:
-
-- Check that labels, headings, and navigation consistently use `My Items` and `Routines` instead of the old mixed terminology.
-- Check that the member action page is centered on due or actionable work, not routine configuration.
-- Check that routine creation and management still work cleanly from the separate `Routines` page.
-- Check that direct routing, navigation state, and empty states make sense on both pages.
-
-Validation:
-
-- A member can act on what is due now without entering the routine builder.
-- A member can still create and edit routines from a separate management page.
-
 ### Create a dedicated `Reviewees` workspace for guides
 
 Why:
@@ -211,3 +186,7 @@ Validation:
 - Each item above is intentionally atomic at the surface level, not at the component level.
 - This makes each task large enough to produce a visible UX improvement but small enough to validate in one pass.
 - Recommended execution order is the same as the section order in this document.
+
+## UX Review Notes
+
+- 2026-03-13: Split the old `Tracked Items` surface into `My Items` and `Routines`, moved the member-facing page toward due and upcoming work, and kept routine creation and schedule management on the separate builder page.

@@ -68,22 +68,22 @@ describe('App routes', () => {
     cleanup();
   });
 
-  it('renders tracked items page directly without crashing', async () => {
-    renderApp('/items');
+  it('renders routines page directly without crashing', async () => {
+    renderApp('/routines');
 
-    expect((await screen.findAllByRole('heading', { name: 'Tracked Items' })).length).toBeGreaterThan(0);
+    expect((await screen.findAllByRole('heading', { name: 'Routines' })).length).toBeGreaterThan(0);
     expect(screen.getByText('2. Set the cadence')).toBeInTheDocument();
   });
 
-  it('navigates from dashboard to tracked items', async () => {
+  it('navigates from dashboard to my items', async () => {
     renderApp('/dashboard');
     expect((await screen.findAllByRole('heading', { name: 'Overview' })).length).toBeGreaterThan(0);
 
     const user = userEvent.setup();
-    await user.click(screen.getAllByRole('link', { name: /Tracked Items/i })[0]!);
+    await user.click(screen.getAllByRole('link', { name: /My Items/i })[0]!);
 
     await waitFor(() => {
-      expect(screen.getAllByRole('heading', { name: 'Tracked Items' }).length).toBeGreaterThan(0);
+      expect(screen.getAllByRole('heading', { name: 'My Items' }).length).toBeGreaterThan(0);
     });
   });
 
@@ -159,8 +159,8 @@ describe('App routes', () => {
     expect(screen.getByText('Admin')).toBeInTheDocument();
   });
 
-  it('updates the default tracked-item text when the category changes', async () => {
-    renderApp('/items');
+  it('updates the default routine text when the category changes', async () => {
+    renderApp('/routines');
 
     const user = userEvent.setup();
     const titleInput = (await screen.findByLabelText('Routine name')) as HTMLInputElement;

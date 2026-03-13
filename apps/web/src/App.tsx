@@ -80,8 +80,16 @@ type AdminUser = {
   roles: Array<{ role: string }>;
 };
 
-type PageKey = 'dashboard' | 'profile' | 'items' | 'admin';
+type PageKey = 'dashboard' | 'profile' | 'my-items' | 'routines' | 'admin';
 type SingleScheduleKind = Exclude<ScheduleKind, 'MULTI'>;
+type ActionBucket = 'due' | 'upcoming' | 'later';
+type ActionSummary = {
+  bucket: ActionBucket;
+  urgency: number;
+  status: string;
+  detail: string;
+  dueAt?: number;
+};
 
 type DraftSchedule = {
   kind: SingleScheduleKind;
@@ -148,7 +156,8 @@ const scheduleKindOptions: Array<{ value: SingleScheduleKind; label: string; hel
 
 const appNavItems: Array<{ key: PageKey; path: string; label: string }> = [
   { key: 'dashboard', path: '/dashboard', label: 'Overview' },
-  { key: 'items', path: '/items', label: 'Tracked Items' },
+  { key: 'my-items', path: '/my-items', label: 'My Items' },
+  { key: 'routines', path: '/routines', label: 'Routines' },
 ];
 
 const accountNavItems: Array<{ key: PageKey; path: string; label: string; adminOnly?: boolean }> = [
@@ -316,6 +325,209 @@ function projectedChecksPerWeek(item: Item): number {
   return customDates.length;
 }
 
+function formatDateTime(value: number): string {
+  return new Date(value).toLocaleString(undefined, {
+    weekday: 'short',
+    month: 'short',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  });
+}
+
+function startOfToday(now: Date): Date {
+  const result = new Date(now);
+  result.setHours(0, 0, 0, 0);
+  return result;
+}
+
+function daysUntilWeekday(currentDay: number, targetDay: number): number {
+  return (targetDay - currentDay + 7) % 7;
+}
+
+function summarizeActionableState(item: Item, now = new Date()): ActionSummary {
+  const schedule = item.scheduleData ?? {};
+  const scheduleKind = typeof schedule.kind === 'string' ? schedule.kind : item.scheduleKind;
+  const today = startOfToday(now);
+  const currentTime = now.getTime();
+
+  if (scheduleKind === 'MULTI') {
+    const schedules = Array.isArray(schedule.schedules)
+      ? schedule.schedules.filter(
+          (entry): entry is Record<string, unknown> => typeof entry === 'object' && entry !== null,
+        )
+      : [];
+
+    const nested = schedules.map((entry) =>
+      summarizeActionableState(
+        {
+          ...item,
+          scheduleKind: typeof entry.kind === 'string' ? (entry.kind as ScheduleKind) : item.scheduleKind,
+          scheduleData: entry,
+        },
+        now,
+      ),
+    );
+
+    return (
+      nested.sort(
+        (left, right) =>
+          left.urgency !== right.urgency
+            ? left.urgency - right.urgency
+            : (left.dueAt ?? Number.MAX_SAFE_INTEGER) - (right.dueAt ?? Number.MAX_SAFE_INTEGER),
+      )[0] ?? {
+        bucket: 'later',
+        urgency: 5,
+        status: 'Needs schedule review',
+        detail: 'This routine has multiple schedules but none are configured yet.',
+      }
+    );
+  }
+
+  if (scheduleKind === 'ONE_TIME') {
+    const raw = typeof schedule.oneTimeAt === 'string' ? schedule.oneTimeAt : '';
+    const dueAt = raw ? new Date(raw).getTime() : Number.NaN;
+    if (!Number.isNaN(dueAt)) {
+      if (dueAt < currentTime) {
+        return {
+          bucket: 'due',
+          urgency: 0,
+          status: 'Overdue',
+          detail: `Scheduled for ${formatDateTime(dueAt)}.`,
+          dueAt,
+        };
+      }
+      return {
+        bucket: 'upcoming',
+        urgency: dueAt - currentTime < 1000 * 60 * 60 * 24 ? 1 : 2,
+        status: 'Scheduled next',
+        detail: `Due ${formatDateTime(dueAt)}.`,
+        dueAt,
+      };
+    }
+  }
+
+  if (scheduleKind === 'DAILY') {
+    const times = Array.isArray(schedule.dailyTimes)
+      ? schedule.dailyTimes.filter((value): value is string => typeof value === 'string' && value.trim().length > 0)
+      : [];
+    if (times.length > 0) {
+      return {
+        bucket: 'due',
+        urgency: 1,
+        status: 'Due today',
+        detail: `${times.length} check${times.length === 1 ? '' : 's'} scheduled today.`,
+      };
+    }
+    return {
+      bucket: 'due',
+      urgency: 2,
+      status: 'Due today',
+      detail: 'This routine repeats every day.',
+    };
+  }
+
+  if (scheduleKind === 'WEEKLY') {
+    const weekdays = Array.isArray(schedule.weekdays)
+      ? schedule.weekdays.filter((value): value is number => typeof value === 'number')
+      : [];
+    if (weekdays.length > 0) {
+      if (weekdays.includes(now.getDay())) {
+        return {
+          bucket: 'due',
+          urgency: 1,
+          status: 'Due today',
+          detail: 'Today is one of the selected routine days.',
+        };
+      }
+      const nextDay = weekdays
+        .map((day) => ({ day, diff: daysUntilWeekday(now.getDay(), day) }))
+        .sort((left, right) => left.diff - right.diff)[0];
+      if (nextDay) {
+        return {
+          bucket: 'upcoming',
+          urgency: nextDay.diff <= 2 ? 2 : 3,
+          status: 'Coming up',
+          detail: `Next due ${toDayName(nextDay.day)}.`,
+        };
+      }
+    }
+  }
+
+  if (scheduleKind === 'INTERVAL_DAYS') {
+    const interval = typeof schedule.intervalDays === 'number' ? Math.max(schedule.intervalDays, 1) : 1;
+    const rawAnchor = typeof schedule.intervalAnchor === 'string' ? schedule.intervalAnchor : '';
+    const anchorDate = rawAnchor ? new Date(rawAnchor) : today;
+    const anchorTime = anchorDate.getTime();
+
+    if (!Number.isNaN(anchorTime)) {
+      const intervalMs = interval * 24 * 60 * 60 * 1000;
+      const elapsed = Math.max(currentTime - anchorTime, 0);
+      const cycles = Math.floor(elapsed / intervalMs);
+      const nextDueAt = anchorTime + cycles * intervalMs;
+      const followingDueAt = nextDueAt < currentTime ? nextDueAt + intervalMs : nextDueAt;
+
+      if (nextDueAt <= currentTime && now.toDateString() === new Date(nextDueAt).toDateString()) {
+        return {
+          bucket: 'due',
+          urgency: 1,
+          status: 'Due today',
+          detail: `Repeats every ${interval} day${interval === 1 ? '' : 's'}.`,
+          dueAt: nextDueAt,
+        };
+      }
+
+      return {
+        bucket: 'upcoming',
+        urgency: followingDueAt - currentTime < intervalMs ? 2 : 3,
+        status: 'Coming up',
+        detail: `Next due ${formatDateTime(followingDueAt)}.`,
+        dueAt: followingDueAt,
+      };
+    }
+  }
+
+  const customDates = Array.isArray(schedule.customDates)
+    ? schedule.customDates
+        .filter((value): value is string => typeof value === 'string')
+        .map((value) => new Date(value).getTime())
+        .filter((value) => !Number.isNaN(value))
+        .sort((left, right) => left - right)
+    : [];
+
+  if (customDates.length > 0) {
+    const dueTodayDate = customDates.find(
+      (value) => value >= today.getTime() && value <= currentTime,
+    );
+    if (dueTodayDate) {
+      return {
+        bucket: 'due',
+        urgency: 0,
+        status: 'Due today',
+        detail: `Scheduled for ${formatDateTime(dueTodayDate)}.`,
+        dueAt: dueTodayDate,
+      };
+    }
+    const upcomingDate = customDates.find((value) => value >= currentTime);
+    if (upcomingDate) {
+      return {
+        bucket: 'upcoming',
+        urgency: upcomingDate - currentTime < 1000 * 60 * 60 * 24 * 3 ? 2 : 3,
+        status: 'Scheduled next',
+        detail: `Next on ${formatDateTime(upcomingDate)}.`,
+        dueAt: upcomingDate,
+      };
+    }
+  }
+
+  return {
+    bucket: 'later',
+    urgency: 4,
+    status: 'Needs routine review',
+    detail: 'Open Routines to confirm the cadence and reminder settings.',
+  };
+}
+
 function NavButton({
   label,
   to,
@@ -435,10 +647,36 @@ export function App() {
       .filter((entry) => entry.count > 0);
   }, [items]);
   const digestSummary = `${toDayName(Number(prefDay))} at ${prefHour.padStart(2, '0')}:00`;
+  const actionableItems = useMemo(
+    () =>
+      items
+        .map((item) => ({ item, action: summarizeActionableState(item) }))
+        .sort((left, right) => {
+          if (left.action.urgency !== right.action.urgency) {
+            return left.action.urgency - right.action.urgency;
+          }
+          return (left.action.dueAt ?? Number.MAX_SAFE_INTEGER) - (right.action.dueAt ?? Number.MAX_SAFE_INTEGER);
+        }),
+    [items],
+  );
+  const dueItems = useMemo(
+    () => actionableItems.filter((entry) => entry.action.bucket === 'due'),
+    [actionableItems],
+  );
+  const upcomingItems = useMemo(
+    () => actionableItems.filter((entry) => entry.action.bucket === 'upcoming'),
+    [actionableItems],
+  );
+  const laterItems = useMemo(
+    () => actionableItems.filter((entry) => entry.action.bucket === 'later'),
+    [actionableItems],
+  );
 
   const currentPage: PageKey = useMemo(() => {
     if (startsWithPath(location.pathname, '/profile')) return 'profile';
-    if (startsWithPath(location.pathname, '/items')) return 'items';
+    if (startsWithPath(location.pathname, '/my-items')) return 'my-items';
+    if (startsWithPath(location.pathname, '/routines')) return 'routines';
+    if (startsWithPath(location.pathname, '/items')) return 'routines';
     if (startsWithPath(location.pathname, '/admin')) return 'admin';
     return 'dashboard';
   }, [location.pathname]);
@@ -504,24 +742,30 @@ export function App() {
   const pageEyebrow =
     currentPage === 'dashboard'
       ? 'Dashboard'
-      : currentPage === 'items'
-        ? 'Routines'
+      : currentPage === 'my-items'
+        ? 'My Items'
+        : currentPage === 'routines'
+          ? 'Routines'
         : currentPage === 'profile'
           ? 'Account'
           : 'Admin';
   const pageTitle =
     currentPage === 'dashboard'
       ? 'Overview'
-      : currentPage === 'items'
-        ? 'Tracked Items'
+      : currentPage === 'my-items'
+        ? 'My Items'
+        : currentPage === 'routines'
+          ? 'Routines'
         : currentPage === 'profile'
           ? 'Preferences'
           : 'Admin';
   const pageSummary =
     currentPage === 'dashboard'
       ? 'Your routines, workload, and people at a glance.'
-      : currentPage === 'items'
-        ? 'Create, schedule, and refine routines.'
+      : currentPage === 'my-items'
+        ? 'Focus on what needs attention now, what is coming up next, and what can wait.'
+        : currentPage === 'routines'
+          ? 'Create, schedule, and refine routines in one management space.'
         : currentPage === 'profile'
           ? 'Account details, digest timing, invites, and reviewers.'
           : 'User roles and reviewer assignments.';
@@ -1094,10 +1338,17 @@ export function App() {
       items.length === 0
         ? {
             title: 'Create your first routine',
-            body: 'Start by adding a tracked item with a schedule and reminder settings.',
-            to: '/items',
+            body: 'Start in Routines so My Items has something actionable to show.',
+            to: '/routines',
             label: 'Add a routine',
           }
+        : dueItems.length > 0
+          ? {
+              title: 'Handle what is due now',
+              body: `${dueItems.length} routine${dueItems.length === 1 ? '' : 's'} need attention on My Items.`,
+              to: '/my-items',
+              label: 'Open My Items',
+            }
         : relationshipsCount === 0
           ? {
               title: 'Connect another person',
@@ -1210,9 +1461,7 @@ export function App() {
                       </Badge>
                     </Flex>
                   ))}
-                  {items.length === 0 && (
-                    <Text color={mutedText}>No routines yet. Add one from Tracked Items.</Text>
-                  )}
+                  {items.length === 0 && <Text color={mutedText}>No routines yet. Add one from Routines.</Text>}
                 </Stack>
               </Box>
             </Stack>
@@ -1246,9 +1495,7 @@ export function App() {
                       </Badge>
                     </Flex>
                   ))}
-                  {categoryBreakdown.length === 0 && (
-                    <Text color={mutedText}>No routines yet. Add one from Tracked Items.</Text>
-                  )}
+                  {categoryBreakdown.length === 0 && <Text color={mutedText}>No routines yet. Add one from Routines.</Text>}
                 </Stack>
               </Box>
 
@@ -1549,7 +1796,177 @@ export function App() {
     );
   }
 
-  function renderItems() {
+  function renderMyItems() {
+    const primaryItems = dueItems.length > 0 ? dueItems : actionableItems.slice(0, 3);
+    const secondaryItems = upcomingItems.slice(0, 4);
+
+    return (
+      <Grid templateColumns={{ base: '1fr', xl: '1.08fr 0.92fr' }} gap={5}>
+        <GridItem>
+          <Stack spacing={5}>
+            <Box
+              bgGradient={modeGradient}
+              borderRadius="3xl"
+              p={6}
+              border="1px solid"
+              borderColor={panelBorder}
+              boxShadow={statGlow}
+            >
+              <Text fontSize="xs" textTransform="uppercase" letterSpacing="0.16em" color={subtleText}>
+                Action Queue
+              </Text>
+              <Heading size="lg" mt={2}>
+                {dueItems.length > 0 ? 'Handle what is due now' : 'Nothing urgent is due right now'}
+              </Heading>
+              <Text mt={3} maxW="34rem" color={mutedText}>
+                {items.length === 0
+                  ? 'Create routines first, then return here to work through what needs attention.'
+                  : dueItems.length > 0
+                    ? `${dueItems.length} routine${dueItems.length === 1 ? '' : 's'} need attention today.`
+                    : 'Use this page to work through today, then glance ahead before the next check-in.'}
+              </Text>
+              <HStack mt={5} spacing={3} flexWrap="wrap">
+                <Button as={RouterLink} to="/routines" colorScheme="leaf" size="sm">
+                  Manage routines
+                </Button>
+                <Button as={RouterLink} to="/profile" variant="outline" size="sm">
+                  Open preferences
+                </Button>
+              </HStack>
+            </Box>
+
+            <Box
+              bg={panelBgStrong}
+              borderRadius="3xl"
+              p={6}
+              border="1px solid"
+              borderColor={panelBorder}
+              boxShadow={statGlow}
+            >
+              <HStack justify="space-between" align="center" mb={4}>
+                <Heading size="md">{dueItems.length > 0 ? 'Needs attention now' : 'What is next'}</Heading>
+                <Badge colorScheme={dueItems.length > 0 ? 'orange' : 'green'} borderRadius="full" px={3} py={1}>
+                  {primaryItems.length}
+                </Badge>
+              </HStack>
+              <Stack spacing={3}>
+                {primaryItems.map(({ item, action }) => (
+                  <Box
+                    key={item.id}
+                    border="1px solid"
+                    borderColor={panelBorder}
+                    borderRadius="2xl"
+                    p={4}
+                    bg={panelBg}
+                  >
+                    <Flex justify="space-between" align={{ base: 'start', md: 'center' }} gap={3} direction={{ base: 'column', md: 'row' }}>
+                      <Box>
+                        <HStack spacing={2} mb={2} flexWrap="wrap">
+                          <Badge colorScheme={action.bucket === 'due' ? 'orange' : 'green'} borderRadius="full" px={3} py={1}>
+                            {action.status}
+                          </Badge>
+                          <Badge variant="subtle" colorScheme="green" borderRadius="full" px={3} py={1}>
+                            {getCategoryLabel(item.category)}
+                          </Badge>
+                        </HStack>
+                        <Text fontWeight="semibold">{item.title}</Text>
+                        <Text color={mutedText} fontSize="sm" mt={1}>
+                          {action.detail}
+                        </Text>
+                        <Text color={subtleText} fontSize="sm" mt={2}>
+                          {summarizeSchedule(item)}
+                        </Text>
+                      </Box>
+                      <Button as={RouterLink} to="/routines" size="sm" variant="outline">
+                        Open routine
+                      </Button>
+                    </Flex>
+                  </Box>
+                ))}
+                {items.length === 0 && (
+                  <Box bg={panelBg} borderRadius="2xl" p={5}>
+                    <Text fontWeight="semibold">No items yet</Text>
+                    <Text color={mutedText} mt={1}>
+                      Create your first routine in Routines to build this action list.
+                    </Text>
+                  </Box>
+                )}
+              </Stack>
+            </Box>
+          </Stack>
+        </GridItem>
+
+        <GridItem>
+          <Stack spacing={5}>
+            <Box
+              bg={panelBgStrong}
+              borderRadius="3xl"
+              p={6}
+              border="1px solid"
+              borderColor={panelBorder}
+              boxShadow={statGlow}
+            >
+              <Heading size="md" mb={4}>
+                Coming up
+              </Heading>
+              <Stack spacing={3}>
+                {secondaryItems.map(({ item, action }) => (
+                  <Box key={item.id} bg={panelBg} borderRadius="2xl" p={4}>
+                    <HStack justify="space-between" align="start">
+                      <Box>
+                        <Text fontWeight="semibold">{item.title}</Text>
+                        <Text color={mutedText} fontSize="sm" mt={1}>
+                          {action.detail}
+                        </Text>
+                      </Box>
+                      <Badge colorScheme="green" borderRadius="full" px={3} py={1}>
+                        {action.status}
+                      </Badge>
+                    </HStack>
+                  </Box>
+                ))}
+                {secondaryItems.length === 0 && items.length > 0 && (
+                  <Text color={mutedText}>Nothing upcoming is scheduled beyond the routines already due.</Text>
+                )}
+                {items.length === 0 && <Text color={mutedText}>No upcoming work yet.</Text>}
+              </Stack>
+            </Box>
+
+            <Box
+              bg={panelBgStrong}
+              borderRadius="3xl"
+              p={6}
+              border="1px solid"
+              borderColor={panelBorder}
+              boxShadow={statGlow}
+            >
+              <Heading size="md" mb={4}>
+                Stable routines
+              </Heading>
+              <Stack spacing={3}>
+                {laterItems.slice(0, 4).map(({ item, action }) => (
+                  <Flex key={item.id} justify="space-between" align="center" bg={panelBg} borderRadius="2xl" px={4} py={3}>
+                    <Box>
+                      <Text fontWeight="semibold">{item.title}</Text>
+                      <Text color={mutedText} fontSize="sm">
+                        {action.detail}
+                      </Text>
+                    </Box>
+                    <Badge borderRadius="full" px={3} py={1}>
+                      {action.status}
+                    </Badge>
+                  </Flex>
+                ))}
+                {laterItems.length === 0 && <Text color={mutedText}>All configured routines are already represented above.</Text>}
+              </Stack>
+            </Box>
+          </Stack>
+        </GridItem>
+      </Grid>
+    );
+  }
+
+  function renderRoutines() {
     return (
       <Grid templateColumns={{ base: '1fr', xl: '1.08fr 0.92fr' }} gap={5}>
         <GridItem>
@@ -1562,7 +1979,7 @@ export function App() {
             boxShadow={statGlow}
           >
             <Heading size="md" mb={3}>
-              Tracked Items
+              Routine Builder
             </Heading>
             <Stack spacing={4}>
               <Box bg={sectionBg} borderRadius="2xl" p={4} border="1px solid" borderColor={panelBorder}>
@@ -1993,7 +2410,7 @@ export function App() {
                   </HStack>
                 </Box>
               ))}
-              {items.length === 0 && <Text color={mutedText}>No items configured yet.</Text>}
+              {items.length === 0 && <Text color={mutedText}>No routines configured yet.</Text>}
             </Stack>
           </Box>
         </GridItem>
@@ -2159,7 +2576,8 @@ export function App() {
 
   function renderPage() {
     if (currentPage === 'profile') return renderProfile();
-    if (currentPage === 'items') return renderItems();
+    if (currentPage === 'my-items') return renderMyItems();
+    if (currentPage === 'routines') return renderRoutines();
     if (currentPage === 'admin') return renderAdmin();
     return renderDashboard();
   }
