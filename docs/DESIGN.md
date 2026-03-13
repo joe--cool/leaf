@@ -2,265 +2,346 @@
 
 ## 1. Purpose
 
-leaf is an API-first, multi-user system for tracking completion of tasks such as homework, medicines/supplements, exercise, and other goals with flexible scheduling, reviewer visibility, notifications, and reporting.
+`leaf` is an accountability product for people who want consistent, timely, and transparent follow-through without relying on memory, ad hoc check-ins, or constant supervision.
 
-This document is optimized for new contributors/agents to get productive quickly.
+The product begins with small-household use cases, but it should generalize to any setting where one person is tracking commitments and one or more other people are helping with visibility, support, or accountability.
 
-## 2. Original Product Requirements (from request)
+This document is a working design north star. It describes the intended product model and system direction. It is not limited to what is already implemented.
 
-1. Web app to track tasks/goals:
-   - homework
-   - medicines/supplements
-   - exercise
-   - other
-2. Scheduling support:
-   - one-time items
-   - recurring schedules
-   - irregular/custom schedules
-3. Modern responsive UI:
-   - desktop
-   - iPad
-   - iPhone
-4. API-first architecture.
-5. Tech preferences:
-   - React + Vite + Chakra UI
-   - TypeScript
-6. CLI requirements:
-   - login/authenticate
-   - configurable host
-   - clean/modern UX
-7. macOS notifications app:
-   - native mac notifications
-   - configurable “hard to dismiss” behavior
-   - per-event-type enable/disable
-8. Weekly email digest:
-   - configurable schedule
-   - one or more recipients (self + reviewer context)
-   - low-cost options (Gmail + local/dev options)
-9. User model and roles:
-   - multi-user from day one
-   - user + reviewer relationships
-   - users can invite reviewers
-   - admins can configure reviewer mappings for anyone
-10. First-install setup flow:
-   - create first account/admin after install
-11. Dockerized runnable stack:
-   - docker compose instructions
-   - image build instructions
-12. Engineering quality:
-   - tests
-   - linting
-   - static type checks
-   - formatting
-13. Open-source friendly licensing.
+## 2. Product Vision
 
-## 3. Current Architecture
+`leaf` should help:
 
-Monorepo (pnpm workspaces):
+- a `Member` stay consistent, timely, and transparent
+- a `Guide` stay effective without having to remember every follow-up manually
 
-- `apps/api`: Fastify + Prisma + PostgreSQL
-- `apps/web`: React + Vite + Chakra UI
-- `apps/cli`: TypeScript CLI
-- `apps/mac-notifier`: macOS notifier daemon
-- `packages/shared`: shared Zod schemas/types
+The product is not meant to be a proof-heavy compliance workflow. It should feel lightweight for day-to-day use while still making accountability visible and auditable.
 
-Cross-cutting:
+## 3. Product Principles
 
-- TypeScript across all apps
-- ESLint + Prettier + Vitest
-- Docker Compose for local self-hosting
+- Transparency by default
+- Member control by default
+- Directional relationships, even when support is reciprocal
+- Lightweight action for members
+- Oversight without bureaucratic review workflows
+- Explicit privacy boundaries
+- First-class auditability
+- Extensible household-first model
 
-## 4. Domain Model
+These principles should win when local UX or implementation decisions conflict.
 
-Core entities:
+## 4. Core Roles And Relationship Model
 
-- `User`
-- `UserRole` (`USER`, `ADMIN`)
-- `ReviewerRelation` (reviewer -> reviewee)
-- `TrackingItem` (schedule + notification settings)
-- `TrackingCompletion`
-- `Invite` (reviewer invite flow)
-- `RefreshToken` (auth session rotation/revocation)
+### Canonical terms
 
-Schedule kinds:
+- `Member`: a person tracking their own commitments
+- `Guide`: a person supporting, reviewing, or overseeing a member
+- `Active Guide`: a guide with operational responsibilities and escalation visibility
+- `Passive Guide`: a guide with summary and context visibility but limited or no operational controls
 
-- `ONE_TIME`
-- `DAILY`
-- `WEEKLY`
-- `INTERVAL_DAYS`
-- `CUSTOM_DATES`
+A single user may be both a member and a guide. Reciprocal support should be represented as two directional relationships.
 
-## 5. Authentication and Setup
+### Relationship templates
 
-Supported auth:
+The product should support relationship templates from the start:
 
-1. Local email/password (default)
-2. Optional OAuth/OIDC (Google, Apple) when provider env vars are configured
+- `Active Guide`
+- `Passive Guide`
+- `Parent`
+- `Accountability Partner`
 
-Session model:
+Templates should be transparent, editable, and explain what they allow before creation.
 
-- JWT access token
-- refresh token rotation (`/auth/refresh`)
-- logout revocation (`/auth/logout`)
+### Multiple guides
 
-First-run setup:
+Multiple guides per member are first-class. The product should not assume one reviewer or one household authority figure.
 
-- `/setup/status` checks if setup is needed
-- `/setup/first-admin` creates first admin only when user count = 0
-- optional `SETUP_TOKEN` can gate first-admin creation
+### Parent / child relationships
 
-Bootstrap env mode (automation):
+Parent relationships are special-case templates, not the default model for all relationships.
 
-- optional auto bootstrap admin via env vars for scripted/demo scenarios
+The intended parent template should support:
 
-## 6. API-First Contract Areas
+- delegated child account creation
+- parent invitations for additional parents of the same child
+- optional impersonation with clear visual indication
+- admin-governed impersonation policy
 
-Key endpoint groups:
+Once a member turns 18, they should be able to change parent permissions themselves.
 
-- Setup/auth:
-  - `/setup/status`
-  - `/setup/first-admin`
-  - `/auth/register`
-  - `/auth/login`
-  - `/auth/refresh`
-  - `/auth/logout`
-  - `/auth/oauth/options`
-  - `/auth/oauth/:provider/start`
-  - `/auth/oauth/:provider/callback`
-- User:
-  - `/me`
-  - `/me/preferences`
-- Tracking:
-  - `/items`
-  - `/items/:id/complete`
-  - `/validate/schedule`
-- Reviewer/admin:
-  - `/reviewers/invite`
-  - `/reviewers/accept`
-  - `/admin/users`
-  - `/admin/reviewers`
+### Visibility and privacy
 
-## 7. UX Surfaces
+Members should be able to hide specific tracked items from specific guides.
 
-### Web
+Guides should still know hidden items exist, but should not be shown the hidden items themselves. Guide-visible scoring and status must be calculated only from visible items.
 
-Current capabilities:
+For non-parent guides, the default history model should be future-only. Members may later grant broader access to:
 
-- first-run setup form
-- local login
-- optional OAuth login buttons (if providers enabled)
-- `/oauth/callback` handler route
-- schedule editor across all schedule kinds
-- item creation/listing
-- reviewer invite flow
-- admin reviewer mapping
-- weekly digest preference editing
+- tracked item history
+- retrospective history
+- audit and account history
 
-### CLI
+Parents should always have visibility into a child's retrospectives and audit log.
 
-Current capabilities:
+## 5. Core Experience Architecture
 
-- `login`
-- `logout`
-- `config set-host`
-- `config show`
-- `item:add`
-- `items`
-- automatic access-token refresh on 401 (using stored refresh token)
+The product should separate action-oriented experiences from administrative ones.
 
-### macOS Notifier
+### Main product surfaces
 
-Current behavior:
+- `Dashboard`
+- `My Items`
+- `Reviewees`
+- `Routines`
+- `Notifications`
 
-- polls API items
-- sends native notifications via `terminal-notifier`
-- repeats notifications for hard-to-dismiss items
+### Administrative surfaces
 
-## 8. Notifications and Reporting
+- profile and account settings
+- relationship permissions and visibility settings
+- notification preferences
+- retrospectives history
+- audit log
 
-Notifications:
+The member-facing tracking experience and guide-facing tracking experience should not be identical pages. They should share domain concepts and reusable components, but optimize for different jobs.
 
-- per-item enable/disable
-- per-item hard-to-dismiss flag
-- per-item repeat interval (minutes)
-- macOS delivery via native Notification Center helper
+## 6. Key User Journeys
 
-Weekly digest:
+The detailed journey narrative lives in [USER_JOURNEYS.md](./USER_JOURNEYS.md). At the design level, the intended journey set is:
 
-- scheduled backend job
-- includes user + review target summary
-- delivery options:
-  - Mailpit (dev)
-  - Gmail App Password
-  - generic SMTP
+1. Create a workspace and invite initial participants
+2. Add a member, including child setup where relevant
+3. Establish a guide relationship using a transparent template
+4. Create recurring and one-time tracked items in a unified flow
+5. Work from an occurrence-first member experience
+6. Let guides operate from an urgency-first oversight workspace
+7. Configure notifications and escalations by relationship and item context
+8. Run person-centric digests across multiple timeframes
+9. Capture scheduled or manual retrospectives with collaborative discussion
+10. Inspect permissions and changes through profile settings and audit history
 
-## 9. Deployment and Operations
+## 7. Tracking Model
 
-Docker Compose provides:
+### Items and occurrences
 
-- Postgres
-- API
-- Web
-- Mailpit
+The product should be occurrence-first for action, even though routines remain important for management.
 
-Current compose bootstrapping behavior:
+Members should be able to create:
 
-- DB readiness checks
-- API waits on healthy DB
-- schema sync on API startup (`prisma db push`)
-- optional admin auto-bootstrap
+- recurring items
+- one-time items
 
-LAN/hostname support:
+using the same creation flow.
 
-- `WEB_ORIGIN` and `VITE_API_URL` can be supplied at compose runtime
+### Core occurrence states
 
-## 10. Security Posture (Current)
+- `upcoming`
+- `overdue`
+- `complete`
+- `skipped`
+- `missed`
 
-Implemented:
+Rules:
 
-- JWT auth
-- refresh token rotation and revocation
-- role checks on admin endpoints
-- first-admin creation gated by empty DB (and optional setup token)
-- helmet middleware
-- global rate limit
+- `overdue` begins after the due time passes
+- `missed` happens automatically after a configurable threshold
+- the default miss threshold should be none
+- any permitted actor may later set the current state to `complete` or `skipped`
 
-Security notes:
+`Skipped` should be neutral in scoring.
 
-- demo/bootstrap defaults are for local/dev convenience
-- production should set strong secrets and explicit env configuration
-- avoid exposing setup token in shared logs/channels
+### Notes
 
-## 11. Quality Gates
+There should be two distinct note types:
 
-Required checks:
+- item-instance notes attached to occurrences
+- retrospective notes attached to periodic reflection artifacts
 
-- `pnpm lint`
-- `pnpm typecheck`
-- `pnpm test`
+Members and active guides should be able to add item-instance notes when permitted. Guide-created notes and actions must be visibly attributed.
 
-CI:
+## 8. Navigation And UX Direction
 
-- GitHub Actions runs lint/typecheck/test and Docker build checks
+### Member view
 
-## 12. Open Source and License
+`My Items` should be occurrence-first, with clear action scopes such as:
 
-- License: MIT
-- Repo intended for open-source publication, with strong defaults and documented advanced configuration
+- `Now`
+- `This Week`
+- `All Routines`
+- explicit upcoming one-time visibility
 
-## 13. Known Gaps / Next Iterations
+The product should not force scope selection before action.
 
-1. Reviewer digest recipient customization (explicit multi-recipient settings UI)
-2. More robust notification scheduling (due-calculation + completion-aware suppression)
-3. E2E tests for complete first-run setup and OAuth callback flows
-4. Optional stricter production setup mode (disable auto-bootstrap entirely)
-5. CLI parity for reviewer/admin management commands
+### Guide view
 
-## 14. Contributor Onboarding Checklist
+`Reviewees` should be a guide-specific workspace optimized for:
 
-1. Read this file and `README.md`
-2. Run stack via Docker quickstart
-3. Verify setup/login/item/reviewer flows in web
-4. Run lint/typecheck/tests locally
-5. Before major changes, update shared schemas in `packages/shared`
-6. Keep API-first: design endpoint contract before UI/CLI behavior
+- urgent and overdue work
+- escalation visibility
+- recent completions and misses
+- member trend and context
+
+This should not simply be the member page with extra controls.
+
+### Dashboard
+
+The dashboard should support users who are both members and guides. It should summarize both roles and drill into deeper pages.
+
+## 9. Notifications, Escalations, And Digests
+
+### Notifications
+
+First-class channels should include:
+
+- in-app
+- email
+- desktop/browser
+
+Users should choose channels during onboarding and be able to revise them later.
+
+In-app and desktop/browser notifications should share acknowledgement state where it makes sense. Notifications should support:
+
+- read/acknowledge
+- open item
+- quick actions
+
+### Escalations
+
+Escalation should be configurable at:
+
+- relationship level
+- category/type level
+- individual item level
+
+Members should control whether guides can override escalation settings.
+
+Escalation should:
+
+- notify guides
+- change visible item state
+- appear in review/retrospective context as text
+
+### Digests
+
+Digests should be person-centric, not item-centric.
+
+Members and guides should configure digest cadence independently while being able to see each other's configuration.
+
+Supported target digest types:
+
+- daily
+- weekly
+- monthly
+- quarterly
+- manually generated custom timeframe
+
+Digest structure may vary by timeframe, but the intended baseline is:
+
+- status
+- accountability percentage
+- trend/supporting detail
+- escalations
+- retrospectives
+
+## 10. Status, Scoring, And Reporting
+
+### Accountability score
+
+The core accountability signal should be:
+
+- a human-readable status label
+- an accountability percentage
+
+The default score model should use equal weighting across occurrences. Reporting and dashboard views should be configurable by the viewer without changing the shared underlying default.
+
+The accountability score should reflect:
+
+- outcomes
+- timeliness
+
+Retrospectives should not directly alter the accountability percentage.
+
+### Retrospective scores
+
+Retrospectives should have separate participant-entered 1–10 scores. Each participant can change only their own score. These edits should be audit logged.
+
+## 11. Retrospectives
+
+Retrospectives are a separate product system, not proof-of-completion.
+
+They should support:
+
+- configurable scheduled retrospectives
+- manual retrospectives
+- backfilled retrospectives for past scheduled periods
+
+No retrospective artifact should exist if no one added any content.
+
+Each retrospective should contain:
+
+- a primary note for the period
+- an attached discussion log
+
+It belongs to the member, but all current participants with access may participate.
+
+## 12. Auditability And Governance
+
+The product should include a first-class audit log with a dedicated page.
+
+The audit log should show:
+
+- what changed
+- when it changed
+- who changed it
+- whether impersonation was involved
+
+Users should be able to filter by dimensions such as user and action type.
+
+Unauthorized actions should not appear as available controls in the UI. The product should prefer absence of controls over visible-but-blocked operations.
+
+### Admin model
+
+The target admin model should use modular RBAC instead of a single monolithic admin role.
+
+Likely default capability bundles:
+
+- workspace admin
+- support admin
+- policy admin
+
+Admin responsibilities should center on policy, safety, support, and governance rather than automatic access to all personal accountability data.
+
+## 13. Technical Direction
+
+The desired product still fits the current technical direction:
+
+- API-first architecture
+- web app as the primary user-facing surface
+- shared contracts/types across clients
+- optional secondary clients such as CLI and notifier
+
+The architecture should continue to support:
+
+- multiple clients
+- relationship-scoped permissions
+- real-time or near-real-time state sync
+- rich notification routing
+- auditability across user-initiated, guide-initiated, and impersonated actions
+
+## 14. Current Implementation Snapshot
+
+The current repository already includes a useful starting point, including:
+
+- local auth and optional OAuth
+- first-run admin setup
+- tracked item creation with multiple schedule types
+- basic reviewer/admin relationships
+- digest preferences
+- a CLI and macOS notifier
+
+The current implementation does not yet fully realize the intended north-star relationship, permission, retrospective, scoring, and audit models described above.
+
+## 15. Documentation Map
+
+- Desired journeys: [USER_JOURNEYS.md](./USER_JOURNEYS.md)
+- ADRs: [adr/README.md](./adr/README.md)
