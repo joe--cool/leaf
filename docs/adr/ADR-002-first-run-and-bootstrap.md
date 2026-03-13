@@ -5,7 +5,7 @@
 
 ## Context
 
-Tracker must support both secure first-use setup and quick trial onboarding.
+leaf must support both secure first-use setup and quick trial onboarding.
 
 ## Decision
 

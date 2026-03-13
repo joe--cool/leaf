@@ -2,15 +2,15 @@ services:
   postgres:
     image: postgres:16-alpine
     environment:
-      POSTGRES_DB: tracker
-      POSTGRES_USER: tracker
-      POSTGRES_PASSWORD: tracker
+      POSTGRES_DB: leaf
+      POSTGRES_USER: leaf
+      POSTGRES_PASSWORD: leaf
     ports:
       - '5432:5432'
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ['CMD-SHELL', 'pg_isready -U tracker -d tracker']
+      test: ['CMD-SHELL', 'pg_isready -U leaf -d leaf']
       interval: 5s
       timeout: 3s
       retries: 20
@@ -29,11 +29,11 @@ services:
       NODE_ENV: production
       PORT: 4000
       JWT_SECRET: demo_super_secret_change_in_prod
-      DATABASE_URL: postgresql://tracker:tracker@postgres:5432/tracker
+      DATABASE_URL: postgresql://leaf:leaf@postgres:5432/leaf
       CORS_ORIGIN: ${CORS_ORIGIN}
       SMTP_HOST: mailpit
       SMTP_PORT: 1025
-      SMTP_FROM: tracker@example.com
+      SMTP_FROM: leaf@example.com
       RATE_LIMIT_MAX: 300
       RATE_LIMIT_WINDOW: 1 minute
       SETUP_TOKEN: ${SETUP_TOKEN:-}

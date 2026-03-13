@@ -2,7 +2,7 @@ import dayjs from 'dayjs';
 import utc from 'dayjs/plugin/utc.js';
 import timezone from 'dayjs/plugin/timezone.js';
 import { RRule } from 'rrule';
-import type { Schedule } from '@tracker/shared';
+import type { Schedule } from '@leaf/shared';
 
 dayjs.extend(utc);
 dayjs.extend(timezone);

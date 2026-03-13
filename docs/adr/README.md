@@ -1,6 +1,6 @@
 # Architecture Decision Records (ADR)
 
-This folder captures core design decisions for Tracker.
+This folder captures core design decisions for leaf.
 
 ## ADR Index
 

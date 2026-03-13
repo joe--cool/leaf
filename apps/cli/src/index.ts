@@ -2,7 +2,7 @@
 import { Command } from 'commander';
 import Conf from 'conf';
 import chalk from 'chalk';
-import { loginSchema } from '@tracker/shared';
+import { loginSchema } from '@leaf/shared';
 
 type Config = {
   host: string;
@@ -11,7 +11,7 @@ type Config = {
 };
 
 const config = new Conf<Config>({
-  projectName: 'tracker-cli',
+  projectName: 'leaf-cli',
   defaults: {
     host: 'http://localhost:4000',
   },
@@ -63,7 +63,7 @@ async function api(path: string, init: RequestInit = {}) {
 }
 
 const program = new Command();
-program.name('tracker').description('Tracker CLI').version('0.1.0');
+program.name('leaf').description('leaf CLI').version('0.1.0');
 
 program
   .command('login')

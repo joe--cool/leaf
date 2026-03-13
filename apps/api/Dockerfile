@@ -12,9 +12,9 @@ RUN pnpm install --frozen-lockfile
 COPY packages/shared packages/shared
 COPY apps/api apps/api
 
-RUN pnpm --filter @tracker/shared build
-RUN pnpm --filter @tracker/api prisma:generate
-RUN pnpm --filter @tracker/api build
+RUN pnpm --filter @leaf/shared build
+RUN pnpm --filter @leaf/api prisma:generate
+RUN pnpm --filter @leaf/api build
 
 WORKDIR /app/apps/api
 EXPOSE 4000

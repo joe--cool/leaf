@@ -11,8 +11,8 @@ RUN pnpm install --frozen-lockfile
 
 COPY packages/shared packages/shared
 COPY apps/web apps/web
-RUN pnpm --filter @tracker/shared build
-RUN pnpm --filter @tracker/web build
+RUN pnpm --filter @leaf/shared build
+RUN pnpm --filter @leaf/web build
 
 FROM nginx:1.27-alpine
 COPY --from=builder /app/apps/web/dist /usr/share/nginx/html

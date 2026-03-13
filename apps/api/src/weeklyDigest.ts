@@ -47,7 +47,7 @@ export async function sendWeeklyDigests(referenceDate = new Date()): Promise<voi
 
     await sendEmail({
       to: [user.email],
-      subject: 'Weekly Tracker Digest',
+      subject: 'Weekly leaf Digest',
       text: [`Weekly digest (${start.toISOString()} - ${end.toISOString()})`, ...lines].join('\n'),
     });
   }

@@ -1,14 +1,14 @@
 {
-  "name": "tracker",
+  "name": "leaf",
   "private": true,
   "version": "0.1.0",
   "scripts": {
     "build": "pnpm -r build",
-    "dev": "pnpm --parallel --filter @tracker/shared --filter @tracker/api --filter @tracker/web dev",
+    "dev": "pnpm --parallel --filter @leaf/shared --filter @leaf/api --filter @leaf/web dev",
     "dev:all": "pnpm -r --parallel dev",
     "lint": "pnpm -r lint",
-    "typecheck": "pnpm --filter @tracker/shared build && pnpm -r typecheck",
-    "test": "pnpm --filter @tracker/api prisma:generate && pnpm -r test",
+    "typecheck": "pnpm --filter @leaf/shared build && pnpm -r typecheck",
+    "test": "pnpm --filter @leaf/api prisma:generate && pnpm -r test",
     "format": "prettier --write .",
     "format:check": "prettier --check ."
   },

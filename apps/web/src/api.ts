@@ -1,24 +1,26 @@
 const apiUrl = import.meta.env.VITE_API_URL ?? 'http://localhost:4000';
+const accessTokenKey = 'leaf_token';
+const refreshTokenKey = 'leaf_refresh_token';
 
 export function getToken(): string | null {
-  return localStorage.getItem('tracker_token');
+  return localStorage.getItem(accessTokenKey);
 }
 
 export function setToken(token: string): void {
-  localStorage.setItem('tracker_token', token);
+  localStorage.setItem(accessTokenKey, token);
 }
 
 export function getRefreshToken(): string | null {
-  return localStorage.getItem('tracker_refresh_token');
+  return localStorage.getItem(refreshTokenKey);
 }
 
 export function setRefreshToken(token: string): void {
-  localStorage.setItem('tracker_refresh_token', token);
+  localStorage.setItem(refreshTokenKey, token);
 }
 
 export function clearToken(): void {
-  localStorage.removeItem('tracker_token');
-  localStorage.removeItem('tracker_refresh_token');
+  localStorage.removeItem(accessTokenKey);
+  localStorage.removeItem(refreshTokenKey);
 }
 
 export function getApiUrl(): string {

@@ -50,12 +50,12 @@ importers:
       '@fastify/sensible':
         specifier: ^6.0.4
         version: 6.0.4
+      '@leaf/shared':
+        specifier: workspace:*
+        version: link:../../packages/shared
       '@prisma/client':
         specifier: ^6.19.0
         version: 6.19.2(prisma@6.19.2(magicast@0.3.5)(typescript@5.9.3))(typescript@5.9.3)
-      '@tracker/shared':
-        specifier: workspace:*
-        version: link:../../packages/shared
       bcryptjs:
         specifier: ^3.0.3
         version: 3.0.3
@@ -111,7 +111,7 @@ importers:
 
   apps/cli:
     dependencies:
-      '@tracker/shared':
+      '@leaf/shared':
         specifier: workspace:*
         version: link:../../packages/shared
       chalk:
@@ -167,7 +167,7 @@ importers:
       '@emotion/styled':
         specifier: ^11.14.1
         version: 11.14.1(@emotion/react@11.14.0(@types/react@19.2.14)(react@19.2.4))(@types/react@19.2.14)(react@19.2.4)
-      '@tracker/shared':
+      '@leaf/shared':
         specifier: workspace:*
         version: link:../../packages/shared
       framer-motion:

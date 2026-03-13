@@ -1,5 +1,5 @@
 {
-  "name": "@tracker/api",
+  "name": "@leaf/api",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -22,7 +22,7 @@
     "@fastify/rate-limit": "^10.3.0",
     "@fastify/sensible": "^6.0.4",
     "@prisma/client": "^6.19.0",
-    "@tracker/shared": "workspace:*",
+    "@leaf/shared": "workspace:*",
     "bcryptjs": "^3.0.3",
     "cron": "^4.4.0",
     "dayjs": "^1.11.19",

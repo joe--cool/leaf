@@ -25,6 +25,7 @@ model User {
   email            String             @unique
   passwordHash     String
   name             String
+  avatarUrl        String?
   timezone         String             @default("UTC")
   weeklyDigestHour Int                @default(8)
   weeklyDigestDay  Int                @default(1)

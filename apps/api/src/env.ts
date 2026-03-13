@@ -18,7 +18,7 @@ const envSchema = z.object({
   SMTP_PORT: z.coerce.number().default(587),
   SMTP_USER: z.string().optional(),
   SMTP_PASS: z.string().optional(),
-  SMTP_FROM: z.string().email().default('tracker@example.com'),
+  SMTP_FROM: z.string().email().default('leaf@example.com'),
   GMAIL_APP_PASSWORD: z.string().optional(),
   GMAIL_USER: z.string().email().optional(),
   RATE_LIMIT_MAX: z.coerce.number().default(120),

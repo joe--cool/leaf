@@ -1,6 +1,7 @@
 import {
   Alert,
   AlertIcon,
+  Avatar,
   Badge,
   Box,
   Button,
@@ -16,9 +17,16 @@ import {
   GridItem,
   Heading,
   HStack,
+  Icon,
   IconButton,
   Image,
   Input,
+  Menu,
+  MenuButton,
+  MenuDivider,
+  MenuItem,
+  MenuList,
+  Portal,
   Select,
   SimpleGrid,
   Radio,
@@ -34,17 +42,19 @@ import {
   useToast,
 } from '@chakra-ui/react';
 import { MoonIcon, SunIcon } from '@chakra-ui/icons';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, type CSSProperties, type FormEvent } from 'react';
 import { Link as RouterLink, useLocation } from 'react-router-dom';
 import { DayPicker } from 'react-day-picker';
 import 'react-day-picker/dist/style.css';
-import type { ScheduleKind } from '@tracker/shared';
+import './app.css';
+import type { ScheduleKind } from '@leaf/shared';
 import { apiFetch, clearToken, getToken, setRefreshToken, setToken } from './api';
 
 type User = {
   id: string;
   email: string;
   name: string;
+  avatarUrl?: string | null;
   timezone: string;
   weeklyDigestDay: number;
   weeklyDigestHour: number;
@@ -68,11 +78,6 @@ type AdminUser = {
   email: string;
   name: string;
   roles: Array<{ role: string }>;
-};
-
-type TrendPoint = {
-  label: string;
-  value: number;
 };
 
 type PageKey = 'dashboard' | 'profile' | 'items' | 'admin';
@@ -106,6 +111,13 @@ const categoryOptions = [
   { value: 'other', label: 'Other routine' },
 ];
 
+const categoryDefaultTitles: Record<string, string> = {
+  homework: 'Finish math homework',
+  health: 'Take evening supplement',
+  exercise: 'Go for a walk',
+  other: 'Water the plants',
+};
+
 const scheduleKindOptions: Array<{ value: SingleScheduleKind; label: string; help: string }> = [
   {
     value: 'DAILY',
@@ -134,26 +146,14 @@ const scheduleKindOptions: Array<{ value: SingleScheduleKind; label: string; hel
   },
 ];
 
-const navItems: Array<{ key: PageKey; path: string; label: string; summary: string }> = [
-  {
-    key: 'dashboard',
-    path: '/dashboard',
-    label: 'Overview',
-    summary: 'Plan the week and spot focus areas.',
-  },
-  {
-    key: 'items',
-    path: '/items',
-    label: 'Tracked Items',
-    summary: 'Create schedules and notification rules.',
-  },
-  {
-    key: 'profile',
-    path: '/profile',
-    label: 'Preferences',
-    summary: 'Digest settings, invites, and relationships.',
-  },
-  { key: 'admin', path: '/admin', label: 'Admin', summary: 'Govern users and reviewer mappings.' },
+const appNavItems: Array<{ key: PageKey; path: string; label: string }> = [
+  { key: 'dashboard', path: '/dashboard', label: 'Overview' },
+  { key: 'items', path: '/items', label: 'Tracked Items' },
+];
+
+const accountNavItems: Array<{ key: PageKey; path: string; label: string; adminOnly?: boolean }> = [
+  { key: 'profile', path: '/profile', label: 'Preferences' },
+  { key: 'admin', path: '/admin', label: 'Admin', adminOnly: true },
 ];
 
 function startsWithPath(pathname: string, path: string): boolean {
@@ -189,6 +189,10 @@ function toDayName(value: number): string {
 
 function getCategoryLabel(value: string): string {
   return categoryOptions.find((option) => option.value === value)?.label ?? value;
+}
+
+function getDefaultTitle(value: string): string {
+  return categoryDefaultTitles[value] ?? 'Add routine';
 }
 
 function summarizeSchedule(item: Item): string {
@@ -312,27 +316,13 @@ function projectedChecksPerWeek(item: Item): number {
   return customDates.length;
 }
 
-function buildTrend(items: Item[]): TrendPoint[] {
-  const labels = ['W-5', 'W-4', 'W-3', 'W-2', 'W-1', 'Now'];
-  const expectedWeekly = items.reduce((total, item) => total + projectedChecksPerWeek(item), 0);
-  const base = Math.min(95, Math.max(15, expectedWeekly * 4));
-
-  return labels.map((label, index) => {
-    const wobble = (index % 2 === 0 ? -1 : 1) * Math.min(12, items.length * 2);
-    const value = Math.min(100, Math.max(0, base + wobble + index * 2));
-    return { label, value };
-  });
-}
-
 function NavButton({
   label,
-  summary,
   to,
   active,
   accent,
 }: {
   label: string;
-  summary: string;
   to: string;
   active: boolean;
   accent: string;
@@ -349,23 +339,32 @@ function NavButton({
       to={to}
       justifyContent="flex-start"
       h="auto"
-      py={4}
+      py={3}
       px={4}
       variant="ghost"
       borderRadius="2xl"
       bg={active ? activeBg : 'transparent'}
       color={active ? 'white' : 'inherit'}
       boxShadow={active ? activeShadow : 'none'}
-      _hover={{ bg: active ? activeBg : 'blackAlpha.100' }}
+      _hover={{ bg: active ? activeBg : 'blackAlpha.100', transform: 'translateX(2px)' }}
       _dark={{ _hover: { bg: active ? activeBg : 'whiteAlpha.140' } }}
+      transition="0.18s ease"
     >
       <Stack spacing={0.5} align="start">
         <Text fontWeight="semibold">{label}</Text>
-        <Text fontSize="xs" opacity={active ? 0.84 : 0.72} whiteSpace="normal" textAlign="left">
-          {summary}
-        </Text>
       </Stack>
     </Button>
+  );
+}
+
+function UserGlyph() {
+  return (
+    <Icon viewBox="0 0 24 24" boxSize={5}>
+      <path
+        fill="currentColor"
+        d="M12 12a4 4 0 1 0-4-4 4 4 0 0 0 4 4Zm0 2c-4.42 0-8 2.24-8 5v1h16v-1c0-2.76-3.58-5-8-5Z"
+      />
+    </Icon>
   );
 }
 
@@ -388,7 +387,7 @@ export function App() {
   const [items, setItems] = useState<Item[]>([]);
   const [adminUsers, setAdminUsers] = useState<AdminUser[]>([]);
 
-  const [title, setTitle] = useState('Take supplement');
+  const [title, setTitle] = useState(getDefaultTitle('health'));
   const [category, setCategory] = useState('health');
   const [draftSchedules, setDraftSchedules] = useState<DraftSchedule[]>([createDraftSchedule()]);
 
@@ -407,6 +406,8 @@ export function App() {
   );
   const [prefDay, setPrefDay] = useState('1');
   const [prefHour, setPrefHour] = useState('8');
+  const [profileName, setProfileName] = useState('');
+  const [profileAvatarUrl, setProfileAvatarUrl] = useState<string | null>(null);
   const [sessionLoadError, setSessionLoadError] = useState<string | null>(null);
 
   const loggedIn = Boolean(getToken());
@@ -416,11 +417,24 @@ export function App() {
     [user?.roles],
   );
 
-  const trendData = useMemo(() => buildTrend(items), [items]);
   const projectedWeekChecks = useMemo(
     () => items.reduce((total, item) => total + projectedChecksPerWeek(item), 0),
     [items],
   );
+  const relationshipsCount = useMemo(
+    () => (user ? user.reviewTargets.length + user.reviewers.length : 0),
+    [user],
+  );
+  const categoryBreakdown = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const item of items) {
+      counts.set(item.category, (counts.get(item.category) ?? 0) + 1);
+    }
+    return categoryOptions
+      .map((option) => ({ label: option.label, count: counts.get(option.value) ?? 0 }))
+      .filter((entry) => entry.count > 0);
+  }, [items]);
+  const digestSummary = `${toDayName(Number(prefDay))} at ${prefHour.padStart(2, '0')}:00`;
 
   const currentPage: PageKey = useMemo(() => {
     if (startsWithPath(location.pathname, '/profile')) return 'profile';
@@ -429,6 +443,7 @@ export function App() {
     return 'dashboard';
   }, [location.pathname]);
 
+  const accountMode = currentPage === 'profile' || currentPage === 'admin';
   const adminMode = currentPage === 'admin' && isAdmin;
   const shellBg = useColorModeValue('rgba(252, 249, 243, 0.9)', 'rgba(14, 19, 19, 0.92)');
   const shellBorder = useColorModeValue('rgba(161, 129, 107, 0.18)', 'rgba(219, 208, 189, 0.12)');
@@ -443,7 +458,32 @@ export function App() {
   );
   const inputBg = useColorModeValue('rgba(255, 251, 246, 0.94)', 'rgba(16, 21, 21, 0.92)');
   const iconBg = useColorModeValue('rgba(255, 248, 240, 0.84)', 'rgba(67, 90, 73, 0.42)');
-  const iconBgStrong = useColorModeValue('rgba(255, 248, 240, 0.88)', 'rgba(79, 118, 88, 0.34)');
+  const accountButtonBg = useColorModeValue(
+    accountMode ? 'rgba(241, 225, 216, 0.96)' : 'rgba(239, 229, 214, 0.96)',
+    accountMode ? 'rgba(55, 35, 29, 0.96)' : 'rgba(30, 39, 39, 0.96)',
+  );
+  const accountButtonBorder = useColorModeValue(
+    accountMode ? 'rgba(192, 88, 40, 0.24)' : 'rgba(79, 118, 88, 0.28)',
+    accountMode ? 'rgba(242, 215, 199, 0.14)' : 'rgba(211, 226, 213, 0.16)',
+  );
+  const accountIconColor = useColorModeValue('leaf.700', 'leaf.100');
+  const accountMenuBg = useColorModeValue(
+    accountMode ? 'rgba(255, 246, 241, 0.98)' : 'rgba(255, 252, 246, 0.98)',
+    accountMode ? 'rgba(42, 28, 24, 0.98)' : 'rgba(23, 29, 29, 0.98)',
+  );
+  const accountMenuBorder = useColorModeValue(
+    accountMode ? 'rgba(192, 88, 40, 0.18)' : 'rgba(161, 129, 107, 0.18)',
+    accountMode ? 'rgba(242, 215, 199, 0.14)' : 'rgba(222, 212, 194, 0.12)',
+  );
+  const accountMenuHoverBg = useColorModeValue(
+    'rgba(122, 97, 77, 0.10)',
+    'rgba(255, 255, 255, 0.08)',
+  );
+  const accountMenuDivider = useColorModeValue(
+    accountMode ? 'rgba(192, 88, 40, 0.14)' : 'rgba(161, 129, 107, 0.14)',
+    accountMode ? 'rgba(242, 215, 199, 0.12)' : 'rgba(222, 212, 194, 0.10)',
+  );
+  const brandTextColor = useColorModeValue('#1e2a23', '#eef4ef');
   const sectionBg = useColorModeValue('rgba(250, 245, 237, 0.92)', 'rgba(18, 24, 24, 0.92)');
   const appBg = useColorModeValue('#f5efe6', '#0e1313');
   const overlayGradient = useColorModeValue(
@@ -458,33 +498,79 @@ export function App() {
     'linear(135deg, rgba(243, 224, 214, 0.98), rgba(251, 242, 236, 0.94))',
     'linear(135deg, rgba(70, 40, 31, 0.94), rgba(31, 21, 18, 0.96))',
   );
-  const modeGradient = adminMode ? adminModeGradient : heroGradient;
+  const modeGradient = accountMode ? adminModeGradient : heroGradient;
   const progressTrackBg = useColorModeValue('rgba(108, 92, 80, 0.10)', 'rgba(255, 255, 255, 0.08)');
-  const accent = adminMode ? 'clay' : 'leaf';
+  const accent = accountMode ? 'clay' : 'leaf';
   const pageEyebrow =
     currentPage === 'dashboard'
-      ? 'Calm operations'
+      ? 'Dashboard'
       : currentPage === 'items'
-        ? 'Schedule studio'
+        ? 'Routines'
         : currentPage === 'profile'
-          ? 'Personal settings'
-          : 'Administrative mode';
+          ? 'Account'
+          : 'Admin';
   const pageTitle =
     currentPage === 'dashboard'
-      ? 'Upcoming Focus'
+      ? 'Overview'
       : currentPage === 'items'
-        ? 'Manage Tracked Items'
+        ? 'Tracked Items'
         : currentPage === 'profile'
-          ? 'Preferences and relationships'
-          : 'Admin control room';
+          ? 'Preferences'
+          : 'Admin';
   const pageSummary =
     currentPage === 'dashboard'
-      ? 'See workload, connected people, and the routines that need attention next.'
+      ? 'Your routines, workload, and people at a glance.'
       : currentPage === 'items'
-        ? 'Build a routine in three parts: what it is, when it happens, and how reminders should behave.'
+        ? 'Create, schedule, and refine routines.'
         : currentPage === 'profile'
-          ? 'Adjust weekly summaries, reviewer invitations, and account relationships without decoding internal settings.'
-          : 'You are operating on behalf of the whole workspace. User governance and reviewer assignment live here.';
+          ? 'Account details, digest timing, invites, and reviewers.'
+          : 'User roles and reviewer assignments.';
+
+  function renderPageIntro() {
+    return (
+      <Flex
+        justify="space-between"
+        align={{ base: 'start', md: 'center' }}
+        direction={{ base: 'column', md: 'row' }}
+        gap={4}
+      >
+        <Box>
+          <Text
+            fontSize="xs"
+            textTransform="uppercase"
+            letterSpacing="0.16em"
+            color={subtleText}
+          >
+            {pageEyebrow}
+          </Text>
+          <Heading size="lg" mt={2}>
+            {pageTitle}
+          </Heading>
+          <Text mt={2} color={mutedText} maxW="40rem">
+            {pageSummary}
+          </Text>
+        </Box>
+        {currentPage === 'dashboard' && (
+          <Box
+            bg={panelBgStrong}
+            borderRadius="2xl"
+            px={4}
+            py={3}
+            border="1px solid"
+            borderColor={panelBorder}
+            minW={{ md: '220px' }}
+          >
+            <Text fontSize="sm" color={mutedText}>
+              Weekly digest
+            </Text>
+            <Text mt={1} fontWeight="semibold">
+              {digestSummary}
+            </Text>
+          </Box>
+        )}
+      </Flex>
+    );
+  }
 
   async function refreshSetup() {
     const status = await apiFetch<{ needsSetup: boolean }>('/setup/status');
@@ -494,6 +580,8 @@ export function App() {
   async function refreshMe() {
     const me = await apiFetch<User>('/me');
     setUser(me);
+    setProfileName(me.name);
+    setProfileAvatarUrl(me.avatarUrl ?? null);
     setPrefTimezone(me.timezone);
     setPrefDay(String(me.weeklyDigestDay));
     setPrefHour(String(me.weeklyDigestHour));
@@ -637,8 +725,21 @@ export function App() {
       }),
     });
     toast({ status: 'success', title: 'Item added' });
+    setTitle(getDefaultTitle(category));
     setDraftSchedules([createDraftSchedule()]);
     await refreshMe();
+  }
+
+  function onCategoryChange(nextCategory: string) {
+    setCategory(nextCategory);
+    setTitle((currentTitle) => {
+      const trimmedTitle = currentTitle.trim();
+      const currentDefault = getDefaultTitle(category);
+      if (trimmedTitle === '' || trimmedTitle === currentDefault) {
+        return getDefaultTitle(nextCategory);
+      }
+      return currentTitle;
+    });
   }
 
   async function inviteReviewer() {
@@ -666,6 +767,8 @@ export function App() {
     await apiFetch('/me/preferences', {
       method: 'PATCH',
       body: JSON.stringify({
+        name: profileName,
+        avatarUrl: profileAvatarUrl,
         timezone: prefTimezone,
         weeklyDigestDay: Number(prefDay),
         weeklyDigestHour: Number(prefHour),
@@ -680,7 +783,26 @@ export function App() {
     setUser(null);
     setItems([]);
     setAdminUsers([]);
+    setProfileName('');
+    setProfileAvatarUrl(null);
     setSessionLoadError(null);
+  }
+
+  async function onAvatarSelected(file: File | null) {
+    if (!file) return;
+    if (file.size > 1_500_000) {
+      toast({ status: 'error', title: 'Use an image smaller than 1.5 MB' });
+      return;
+    }
+
+    const dataUrl = await new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result));
+      reader.onerror = () => reject(new Error('Could not read image'));
+      reader.readAsDataURL(file);
+    });
+
+    setProfileAvatarUrl(dataUrl);
   }
 
   function updateDraftSchedule(index: number, mutator: (current: DraftSchedule) => DraftSchedule) {
@@ -776,32 +898,23 @@ export function App() {
             />
             <Stack spacing={6} position="relative">
               <HStack spacing={4}>
-                <Box
-                  bg={iconBgStrong}
-                  p={3}
-                  borderRadius="2xl"
-                  border="1px solid"
-                  borderColor={panelBorder}
-                >
-                  <Image src="/leaf.svg" alt="leaf logo" boxSize="44px" />
-                </Box>
+                <Image src="/leaf.svg" alt="leaf logo" boxSize="46px" />
                 <Box>
-                  <Badge colorScheme="orange" borderRadius="full" px={3} py={1}>
+                  <Text fontSize="sm" textTransform="uppercase" letterSpacing="0.16em" color={subtleText}>
                     leaf
-                  </Badge>
-                  <Text mt={2} fontSize="sm" color={mutedText}>
-                    Designed for calm routine management and accountable follow-through.
                   </Text>
+                  <Heading size="md" mt={2}>
+                    Sign in and keep moving.
+                  </Heading>
                 </Box>
               </HStack>
 
               <Box>
                 <Heading size="2xl" lineHeight="1.05" maxW="16ch">
-                  Build steady routines with a quieter, clearer operating surface.
+                  Clear routines, simple accountability, no extra noise.
                 </Heading>
                 <Text mt={4} maxW="34rem" color={mutedText}>
-                  leaf keeps planning, reminders, and reviewer follow-through in one workspace so
-                  the next action is easy to find.
+                  The dashboard should answer what matters now, not explain itself.
                 </Text>
               </Box>
 
@@ -813,10 +926,10 @@ export function App() {
                     letterSpacing="0.12em"
                     color={subtleText}
                   >
-                    Orchestration
+                    Routines
                   </Text>
                   <Text mt={2} fontWeight="semibold">
-                    Flexible schedules from one-time through layered recurring patterns.
+                    One-time, repeating, and custom schedules live in one system.
                   </Text>
                 </Box>
                 <Box bg="whiteAlpha.500" _dark={{ bg: 'whiteAlpha.90' }} borderRadius="2xl" p={4}>
@@ -826,10 +939,10 @@ export function App() {
                     letterSpacing="0.12em"
                     color={subtleText}
                   >
-                    Accountability
+                    People
                   </Text>
                   <Text mt={2} fontWeight="semibold">
-                    Reviewers, invites, and weekly digest preferences stay connected to the work.
+                    Reviewers and digests stay tied to the routines they support.
                   </Text>
                 </Box>
                 <Box bg="whiteAlpha.500" _dark={{ bg: 'whiteAlpha.90' }} borderRadius="2xl" p={4}>
@@ -839,11 +952,10 @@ export function App() {
                     letterSpacing="0.12em"
                     color={subtleText}
                   >
-                    Operational clarity
+                    Clarity
                   </Text>
                   <Text mt={2} fontWeight="semibold">
-                    Admin actions live in a clearly distinct mode instead of blending into daily
-                    use.
+                    The interface favors status and actions over description.
                   </Text>
                 </Box>
               </SimpleGrid>
@@ -861,13 +973,20 @@ export function App() {
             boxShadow={statGlow}
           >
             {needsSetup ? (
-              <Stack spacing={4}>
+              <Box
+                as="form"
+                onSubmit={(event: FormEvent<HTMLDivElement>) => {
+                  event.preventDefault();
+                  runSetup().catch((error) => toast({ status: 'error', title: String(error) }));
+                }}
+              >
+                <Stack spacing={4}>
                 <Badge alignSelf="start" colorScheme="orange" borderRadius="full" px={3} py={1}>
                   First-run setup
                 </Badge>
                 <Heading size="lg">Create the first administrator</Heading>
                 <Text color={mutedText}>
-                  Finish setup, create the first account, and unlock the shared workspace.
+                  Create the first account and open the workspace.
                 </Text>
                 <FormControl>
                   <FormLabel>Admin email</FormLabel>
@@ -899,21 +1018,27 @@ export function App() {
                 </FormControl>
                 <Button
                   colorScheme="leaf"
-                  onClick={() =>
-                    runSetup().catch((error) => toast({ status: 'error', title: String(error) }))
-                  }
+                  type="submit"
                 >
                   Create First Admin
                 </Button>
-              </Stack>
+                </Stack>
+              </Box>
             ) : (
-              <Stack spacing={4}>
+              <Box
+                as="form"
+                onSubmit={(event: FormEvent<HTMLDivElement>) => {
+                  event.preventDefault();
+                  login().catch((error) => toast({ status: 'error', title: String(error) }));
+                }}
+              >
+                <Stack spacing={4}>
                 <Badge alignSelf="start" colorScheme="green" borderRadius="full" px={3} py={1}>
-                  Sign in to leaf
+                  Sign in
                 </Badge>
                 <Heading size="lg">Enter your workspace</Heading>
                 <Text color={mutedText}>
-                  Sign in to review routines, tune reminders, and keep collaborators aligned.
+                  Use your email and password to continue.
                 </Text>
                 <FormControl>
                   <FormLabel>Email</FormLabel>
@@ -934,9 +1059,7 @@ export function App() {
                 </FormControl>
                 <Button
                   colorScheme="leaf"
-                  onClick={() =>
-                    login().catch((error) => toast({ status: 'error', title: String(error) }))
-                  }
+                  type="submit"
                 >
                   Sign in
                 </Button>
@@ -957,7 +1080,8 @@ export function App() {
                     </Stack>
                   </>
                 )}
-              </Stack>
+                </Stack>
+              </Box>
             )}
           </Box>
         </GridItem>
@@ -966,6 +1090,28 @@ export function App() {
   }
 
   function renderDashboard() {
+    const nextAction =
+      items.length === 0
+        ? {
+            title: 'Create your first routine',
+            body: 'Start by adding a tracked item with a schedule and reminder settings.',
+            to: '/items',
+            label: 'Add a routine',
+          }
+        : relationshipsCount === 0
+          ? {
+              title: 'Connect another person',
+              body: 'Add a reviewer or invite someone who should receive accountability updates.',
+              to: '/profile',
+              label: 'Open preferences',
+            }
+          : {
+              title: 'Review your digest timing',
+              body: `Your weekly digest is set for ${digestSummary}. Change it if that is not the right review moment.`,
+              to: '/profile',
+              label: 'Manage digest',
+            };
+
     return (
       <Stack spacing={5}>
         <SimpleGrid columns={{ base: 1, md: 3 }} spacing={4}>
@@ -988,7 +1134,7 @@ export function App() {
             borderColor={panelBorder}
             boxShadow={statGlow}
           >
-            <StatLabel color={subtleText}>Projected checks this week</StatLabel>
+            <StatLabel color={subtleText}>Scheduled touches this week</StatLabel>
             <StatNumber>{projectedWeekChecks}</StatNumber>
           </Stat>
           <Stat
@@ -999,72 +1145,77 @@ export function App() {
             borderColor={panelBorder}
             boxShadow={statGlow}
           >
-            <StatLabel color={subtleText}>Accountability network</StatLabel>
-            <StatNumber>{user!.reviewTargets.length + user!.reviewers.length}</StatNumber>
+            <StatLabel color={subtleText}>People connected</StatLabel>
+            <StatNumber>{relationshipsCount}</StatNumber>
           </Stat>
         </SimpleGrid>
 
-        <Grid templateColumns={{ base: '1fr', xl: '1.45fr 0.95fr' }} gap={5}>
+        <Grid templateColumns={{ base: '1fr', xl: '1.2fr 0.8fr' }} gap={5}>
           <GridItem>
-            <Box
-              bg={panelBgStrong}
-              borderRadius="3xl"
-              p={6}
-              border="1px solid"
-              borderColor={panelBorder}
-              boxShadow={statGlow}
-            >
-              <Flex justify="space-between" align="start" gap={4} mb={4}>
-                <Box>
-                  <Heading size="md">Upcoming Focus</Heading>
-                  <Text mt={1} color={mutedText}>
-                    The next set of routines most likely to define this week.
-                  </Text>
-                </Box>
-                <Badge colorScheme="orange" borderRadius="full" px={3} py={1}>
-                  {items.length} active
-                </Badge>
-              </Flex>
+            <Stack spacing={5}>
+              <Box
+                bgGradient={modeGradient}
+                borderRadius="3xl"
+                p={6}
+                border="1px solid"
+                borderColor={panelBorder}
+                boxShadow={statGlow}
+              >
+                <Text fontSize="xs" textTransform="uppercase" letterSpacing="0.16em" color={subtleText}>
+                  Focus
+                </Text>
+                <Heading size="lg" mt={2}>
+                  {nextAction.title}
+                </Heading>
+                <Text mt={3} maxW="32rem" color={mutedText}>
+                  {nextAction.body}
+                </Text>
+                <Button as={RouterLink} to={nextAction.to} mt={5} colorScheme="leaf" size="sm">
+                  {nextAction.label}
+                </Button>
+              </Box>
 
-              <Stack spacing={3}>
-                {items.slice(0, 8).map((item) => (
-                  <Flex
-                    key={item.id}
-                    justify="space-between"
-                    align={{ base: 'start', md: 'center' }}
-                    direction={{ base: 'column', md: 'row' }}
-                    gap={3}
-                    bg={panelBg}
-                    borderRadius="2xl"
-                    px={4}
-                    py={4}
-                    border="1px solid"
-                    borderColor={panelBorder}
-                  >
-                    <Box>
-                      <Text fontWeight="semibold">{item.title}</Text>
-                      <Text color={mutedText} fontSize="sm">
-                        {summarizeSchedule(item)}
-                      </Text>
-                    </Box>
-                    <Badge
-                      alignSelf={{ base: 'start', md: 'center' }}
-                      colorScheme="orange"
-                      borderRadius="full"
-                      px={3}
-                      py={1}
+              <Box
+                bg={panelBgStrong}
+                borderRadius="3xl"
+                p={6}
+                border="1px solid"
+                borderColor={panelBorder}
+                boxShadow={statGlow}
+              >
+                <Heading size="md" mb={4}>
+                  Active Routines
+                </Heading>
+                <Stack spacing={3}>
+                  {items.slice(0, 5).map((item) => (
+                    <Flex
+                      key={item.id}
+                      justify="space-between"
+                      align={{ base: 'start', md: 'center' }}
+                      direction={{ base: 'column', md: 'row' }}
+                      gap={3}
+                      bg={panelBg}
+                      borderRadius="2xl"
+                      px={4}
+                      py={4}
                     >
-                      {getCategoryLabel(item.category)}
-                    </Badge>
-                  </Flex>
-                ))}
-                {items.length === 0 && (
-                  <Text color={mutedText}>
-                    No items yet. Add tracked items to populate upcoming activity.
-                  </Text>
-                )}
-              </Stack>
-            </Box>
+                      <Box>
+                        <Text fontWeight="semibold">{item.title}</Text>
+                        <Text color={mutedText} fontSize="sm">
+                          {summarizeSchedule(item)}
+                        </Text>
+                      </Box>
+                      <Badge colorScheme="orange" borderRadius="full" px={3} py={1}>
+                        {getCategoryLabel(item.category)}
+                      </Badge>
+                    </Flex>
+                  ))}
+                  {items.length === 0 && (
+                    <Text color={mutedText}>No routines yet. Add one from Tracked Items.</Text>
+                  )}
+                </Stack>
+              </Box>
+            </Stack>
           </GridItem>
 
           <GridItem>
@@ -1077,37 +1228,28 @@ export function App() {
                 borderColor={panelBorder}
                 boxShadow={statGlow}
               >
-                <Heading size="md" mb={4}>
-                  Goal Trend
-                </Heading>
+                <Heading size="md" mb={4}>Routine Mix</Heading>
                 <Stack spacing={3}>
-                  {trendData.map((point) => (
-                    <Box key={point.label}>
-                      <Flex justify="space-between" mb={1}>
-                        <Text fontSize="sm" color={mutedText}>
-                          {point.label}
-                        </Text>
-                        <Text fontSize="sm" fontWeight="semibold">
-                          {point.value}%
-                        </Text>
-                      </Flex>
-                      <Box h="2.5" bg={progressTrackBg} borderRadius="full" overflow="hidden">
-                        <Box
-                          h="100%"
-                          bgGradient={
-                            adminMode
-                              ? 'linear(to-r, clay.500, clay.300)'
-                              : 'linear(to-r, leaf.600, clay.400)'
-                          }
-                          w={`${point.value}%`}
-                        />
-                      </Box>
-                    </Box>
+                  {categoryBreakdown.map((entry) => (
+                    <Flex
+                      key={entry.label}
+                      justify="space-between"
+                      align="center"
+                      bg={panelBg}
+                      borderRadius="2xl"
+                      px={4}
+                      py={3}
+                    >
+                      <Text>{entry.label}</Text>
+                      <Badge colorScheme="green" borderRadius="full" px={3} py={1}>
+                        {entry.count}
+                      </Badge>
+                    </Flex>
                   ))}
+                  {categoryBreakdown.length === 0 && (
+                    <Text color={mutedText}>No routines yet. Add one from Tracked Items.</Text>
+                  )}
                 </Stack>
-                <Text mt={4} color={mutedText} fontSize="sm">
-                  Trend is derived from scheduled workload coverage in your current item set.
-                </Text>
               </Box>
 
               <Box
@@ -1118,104 +1260,26 @@ export function App() {
                 borderColor={panelBorder}
                 boxShadow={statGlow}
               >
-                <Heading size="md" mb={4}>
-                  Signals
-                </Heading>
+                <Heading size="md" mb={4}>People</Heading>
                 <Stack spacing={3}>
-                  <Flex justify="space-between">
-                    <Text color={mutedText}>Digest cadence</Text>
-                    <Text fontWeight="semibold">
-                      {toDayName(Number(prefDay))}, {prefHour.padStart(2, '0')}:00
-                    </Text>
-                  </Flex>
-                  <Flex justify="space-between">
-                    <Text color={mutedText}>Reviewers connected</Text>
+                  <Flex justify="space-between" align="center" bg={panelBg} borderRadius="2xl" px={4} py={3}>
+                    <Text color={mutedText}>Reviewers</Text>
                     <Text fontWeight="semibold">{user!.reviewers.length}</Text>
                   </Flex>
-                  <Flex justify="space-between">
+                  <Flex justify="space-between" align="center" bg={panelBg} borderRadius="2xl" px={4} py={3}>
                     <Text color={mutedText}>People you review</Text>
                     <Text fontWeight="semibold">{user!.reviewTargets.length}</Text>
                   </Flex>
+                  <Text color={mutedText} fontSize="sm">
+                    Manage invites and account relationships from Preferences.
+                  </Text>
                 </Stack>
               </Box>
             </Stack>
           </GridItem>
         </Grid>
 
-        <Box
-          bg={panelBgStrong}
-          borderRadius="3xl"
-          p={6}
-          border="1px solid"
-          borderColor={panelBorder}
-          boxShadow={statGlow}
-        >
-          <Heading size="md" mb={4}>
-            People and Accountability
-          </Heading>
-          <SimpleGrid columns={{ base: 1, md: 2 }} spacing={5}>
-            <Box>
-              <Text fontWeight="semibold" mb={3}>
-                People you review
-              </Text>
-              <Stack spacing={3}>
-                {user!.reviewTargets.map((entry) => (
-                  <Flex
-                    key={entry.reviewee.id}
-                    justify="space-between"
-                    align="center"
-                    bg={panelBg}
-                    borderRadius="2xl"
-                    px={4}
-                    py={3}
-                  >
-                    <Text>{entry.reviewee.name}</Text>
-                    <Badge colorScheme="green" borderRadius="full" px={3} py={1}>
-                      Connected
-                    </Badge>
-                  </Flex>
-                ))}
-                {user!.reviewTargets.length === 0 && (
-                  <Text color={mutedText}>No review targets assigned.</Text>
-                )}
-              </Stack>
-            </Box>
-            <Box>
-              <Text fontWeight="semibold" mb={3}>
-                People reviewing you
-              </Text>
-              <Stack spacing={3}>
-                {user!.reviewers.map((entry) => (
-                  <Flex
-                    key={entry.reviewer.id}
-                    justify="space-between"
-                    align="center"
-                    bg={panelBg}
-                    borderRadius="2xl"
-                    px={4}
-                    py={3}
-                  >
-                    <Text>{entry.reviewer.name}</Text>
-                    <Badge colorScheme="orange" borderRadius="full" px={3} py={1}>
-                      Active reviewer
-                    </Badge>
-                  </Flex>
-                ))}
-                {user!.reviewers.length === 0 && (
-                  <Text color={mutedText}>No reviewers connected yet.</Text>
-                )}
-              </Stack>
-            </Box>
-          </SimpleGrid>
-        </Box>
-      </Stack>
-    );
-  }
-
-  function renderProfile() {
-    return (
-      <Grid templateColumns={{ base: '1fr', xl: '1fr 1fr' }} gap={5}>
-        <GridItem>
+        <Grid templateColumns={{ base: '1fr', md: '1fr 1fr' }} gap={5}>
           <Box
             bg={panelBgStrong}
             borderRadius="3xl"
@@ -1224,56 +1288,185 @@ export function App() {
             borderColor={panelBorder}
             boxShadow={statGlow}
           >
-            <Heading size="md" mb={3}>
-              Weekly Summary
+            <Heading size="md" mb={4}>
+              People You Review
             </Heading>
-            <Text color={mutedText} mb={4}>
-              Choose when the weekly recap should arrive for you and the people depending on it.
-            </Text>
-            <Stack spacing={4}>
-              <FormControl>
-                <FormLabel>Timezone</FormLabel>
-                <Input
-                  bg={inputBg}
-                  value={prefTimezone}
-                  onChange={(event) => setPrefTimezone(event.target.value)}
-                />
-                <FormHelperText color={mutedText}>
-                  Use an IANA timezone such as `America/Los_Angeles`.
-                </FormHelperText>
-              </FormControl>
-              <FormControl>
-                <FormLabel>Summary day</FormLabel>
-                <Select bg={inputBg} value={prefDay} onChange={(event) => setPrefDay(event.target.value)}>
-                  {weekdayOptions.map((option) => (
-                    <option key={option.value} value={option.value}>
-                      {option.label}
-                    </option>
-                  ))}
-                </Select>
-              </FormControl>
-              <FormControl>
-                <FormLabel>Summary time</FormLabel>
-                <Select bg={inputBg} value={prefHour} onChange={(event) => setPrefHour(event.target.value)}>
-                  {Array.from({ length: 24 }, (_, hour) => hour).map((hour) => (
-                    <option key={hour} value={hour}>
-                      {hour.toString().padStart(2, '0')}:00
-                    </option>
-                  ))}
-                </Select>
-              </FormControl>
-              <Button
-                colorScheme="leaf"
-                onClick={() =>
-                  updatePreferences().catch((error) =>
-                    toast({ status: 'error', title: String(error) }),
-                  )
-                }
-              >
-                Save summary settings
-              </Button>
+            <Stack spacing={3}>
+              {user!.reviewTargets.slice(0, 4).map((entry) => (
+                <Flex
+                  key={entry.reviewee.id}
+                  justify="space-between"
+                  align="center"
+                  bg={panelBg}
+                  borderRadius="2xl"
+                  px={4}
+                  py={3}
+                >
+                  <Text>{entry.reviewee.name}</Text>
+                  <Badge colorScheme="green" borderRadius="full" px={3} py={1}>
+                    Connected
+                  </Badge>
+                </Flex>
+              ))}
+              {user!.reviewTargets.length === 0 && (
+                <Text color={mutedText}>No review assignments yet.</Text>
+              )}
             </Stack>
           </Box>
+
+          <Box
+            bg={panelBgStrong}
+            borderRadius="3xl"
+            p={6}
+            border="1px solid"
+            borderColor={panelBorder}
+            boxShadow={statGlow}
+          >
+            <Heading size="md" mb={4}>
+              Reviewers
+            </Heading>
+            <Stack spacing={3}>
+              {user!.reviewers.slice(0, 4).map((entry) => (
+                <Flex
+                  key={entry.reviewer.id}
+                  justify="space-between"
+                  align="center"
+                  bg={panelBg}
+                  borderRadius="2xl"
+                  px={4}
+                  py={3}
+                >
+                  <Text>{entry.reviewer.name}</Text>
+                  <Badge colorScheme="orange" borderRadius="full" px={3} py={1}>
+                    Active
+                  </Badge>
+                </Flex>
+              ))}
+              {user!.reviewers.length === 0 && (
+                <Text color={mutedText}>No reviewers connected yet.</Text>
+              )}
+            </Stack>
+          </Box>
+        </Grid>
+      </Stack>
+    );
+  }
+
+  function renderProfile() {
+    return (
+      <Grid templateColumns={{ base: '1fr', xl: '1fr 1fr' }} gap={5}>
+        <GridItem>
+          <Stack spacing={5}>
+            <Box
+              bg={panelBgStrong}
+              borderRadius="3xl"
+              p={6}
+              border="1px solid"
+              borderColor={panelBorder}
+              boxShadow={statGlow}
+            >
+              <Heading size="md" mb={4}>
+                Profile
+              </Heading>
+              <Stack spacing={4}>
+                <HStack spacing={4} align="center">
+                  <Avatar size="xl" name={profileName || user?.email} src={profileAvatarUrl ?? undefined} />
+                  <Stack spacing={2}>
+                    <Button as="label" variant="outline" cursor="pointer">
+                      Upload photo
+                      <Input
+                        display="none"
+                        type="file"
+                        accept="image/png,image/jpeg,image/webp,image/gif"
+                        onChange={(event) => {
+                          onAvatarSelected(event.target.files?.[0] ?? null).catch((error) =>
+                            toast({ status: 'error', title: String(error) }),
+                          );
+                          event.target.value = '';
+                        }}
+                      />
+                    </Button>
+                    {profileAvatarUrl && (
+                      <Button variant="ghost" size="sm" onClick={() => setProfileAvatarUrl(null)}>
+                        Remove photo
+                      </Button>
+                    )}
+                  </Stack>
+                </HStack>
+                <FormControl>
+                  <FormLabel>Name</FormLabel>
+                  <Input
+                    bg={inputBg}
+                    value={profileName}
+                    onChange={(event) => setProfileName(event.target.value)}
+                  />
+                </FormControl>
+                <FormControl>
+                  <FormLabel>Email</FormLabel>
+                  <Input bg={inputBg} value={user?.email ?? ''} isReadOnly />
+                </FormControl>
+              </Stack>
+            </Box>
+
+            <Box
+              bg={panelBgStrong}
+              borderRadius="3xl"
+              p={6}
+              border="1px solid"
+              borderColor={panelBorder}
+              boxShadow={statGlow}
+            >
+              <Heading size="md" mb={4}>
+                Digest
+              </Heading>
+              <Stack spacing={4}>
+                <FormControl>
+                  <FormLabel>Timezone</FormLabel>
+                  <Input
+                    bg={inputBg}
+                    value={prefTimezone}
+                    onChange={(event) => setPrefTimezone(event.target.value)}
+                  />
+                  <FormHelperText color={mutedText}>
+                    Use an IANA timezone such as `America/Los_Angeles`.
+                  </FormHelperText>
+                </FormControl>
+                <SimpleGrid columns={{ base: 1, md: 2 }} spacing={4}>
+                  <FormControl>
+                    <FormLabel>Day</FormLabel>
+                    <Select bg={inputBg} value={prefDay} onChange={(event) => setPrefDay(event.target.value)}>
+                      {weekdayOptions.map((option) => (
+                        <option key={option.value} value={option.value}>
+                          {option.label}
+                        </option>
+                      ))}
+                    </Select>
+                  </FormControl>
+                  <FormControl>
+                    <FormLabel>Time</FormLabel>
+                    <Select bg={inputBg} value={prefHour} onChange={(event) => setPrefHour(event.target.value)}>
+                      {Array.from({ length: 24 }, (_, hour) => hour).map((hour) => (
+                        <option key={hour} value={hour}>
+                          {hour.toString().padStart(2, '0')}:00
+                        </option>
+                      ))}
+                    </Select>
+                  </FormControl>
+                </SimpleGrid>
+                <Button
+                  colorScheme="leaf"
+                  alignSelf="start"
+                  onClick={() =>
+                    updatePreferences().catch((error) =>
+                      toast({ status: 'error', title: String(error) }),
+                    )
+                  }
+                >
+                  Save Preferences
+                </Button>
+              </Stack>
+            </Box>
+          </Stack>
         </GridItem>
 
         <GridItem>
@@ -1287,11 +1480,8 @@ export function App() {
               boxShadow={statGlow}
             >
               <Heading size="md" mb={3}>
-                Invite a reviewer
+                Invite
               </Heading>
-              <Text color={mutedText} mb={4}>
-                Bring another person into the review loop without leaving settings.
-              </Text>
               <Stack spacing={4}>
                 <FormControl>
                   <FormLabel>Email</FormLabel>
@@ -1303,7 +1493,7 @@ export function App() {
                 </FormControl>
                 {isAdmin && adminUsers.length > 0 && (
                   <FormControl>
-                    <FormLabel>Send invite on behalf of</FormLabel>
+                    <FormLabel>Send invite for</FormLabel>
                     <Select
                       bg={inputBg}
                       value={targetUserId}
@@ -1319,6 +1509,7 @@ export function App() {
                 )}
                 <Button
                   colorScheme="leaf"
+                  alignSelf="start"
                   onClick={() =>
                     inviteReviewer().catch((error) =>
                       toast({ status: 'error', title: String(error) }),
@@ -1339,7 +1530,7 @@ export function App() {
               boxShadow={statGlow}
             >
               <Heading size="md" mb={3}>
-                Relationship Snapshot
+                Relationships
               </Heading>
               <SimpleGrid columns={2} spacing={4}>
                 <Stat>
@@ -1371,33 +1562,26 @@ export function App() {
             boxShadow={statGlow}
           >
             <Heading size="md" mb={3}>
-              Manage Tracked Items
+              Tracked Items
             </Heading>
-            <Text color={mutedText} mb={5}>
-              Build each routine in sequence so the title, cadence, and reminder behavior stay easy
-              to scan later.
-            </Text>
             <Stack spacing={4}>
               <Box bg={sectionBg} borderRadius="2xl" p={4} border="1px solid" borderColor={panelBorder}>
                 <Text fontWeight="semibold" mb={1}>
                   1. Name the routine
-                </Text>
-                <Text color={mutedText} fontSize="sm" mb={4}>
-                  Use a title someone else could understand at a glance.
                 </Text>
                 <Stack spacing={4}>
                   <FormControl>
                     <FormLabel>Routine name</FormLabel>
                     <Input
                       bg={inputBg}
-                      placeholder="Take evening supplement"
+                      placeholder={getDefaultTitle(category)}
                       value={title}
                       onChange={(event) => setTitle(event.target.value)}
                     />
                   </FormControl>
                   <FormControl>
                     <FormLabel>Type of routine</FormLabel>
-                    <RadioGroup value={category} onChange={setCategory}>
+                    <RadioGroup value={category} onChange={onCategoryChange}>
                       <SimpleGrid columns={{ base: 1, md: 2 }} spacing={3}>
                         {categoryOptions.map((option) => (
                           <Box
@@ -1432,9 +1616,6 @@ export function App() {
                 <HStack justify="space-between" align="center" mb={3}>
                   <Box>
                     <Text fontWeight="semibold">2. Set the cadence</Text>
-                    <Text color={mutedText} fontSize="sm">
-                      You can combine multiple schedules on one item when one pattern is not enough.
-                    </Text>
                   </Box>
                   <Button size="sm" variant="outline" onClick={addSchedule}>
                     Add another schedule
@@ -1637,6 +1818,7 @@ export function App() {
                             <FormLabel>Chosen dates</FormLabel>
                             <Stack spacing={2}>
                               <Box
+                                className="leaf-calendar"
                                 border="1px solid"
                                 borderColor={panelBorder}
                                 borderRadius="xl"
@@ -1702,58 +1884,53 @@ export function App() {
                 <Text fontWeight="semibold" mb={1}>
                   3. Choose reminder behavior
                 </Text>
-                <Text color={mutedText} fontSize="sm" mb={4}>
-                  Only turn on repeating reminders when someone genuinely needs the extra nudge.
-                </Text>
                 <SimpleGrid columns={{ base: 1, md: 3 }} spacing={4}>
-                <FormControl
-                  display="flex"
-                  alignItems="center"
-                  justifyContent="space-between"
-                  bg={panelBg}
-                  borderRadius="2xl"
-                  px={4}
-                  py={3}
-                >
-                  <FormLabel mb={0}>Desktop reminders</FormLabel>
-                  <Switch
-                    isChecked={notificationEnabled}
-                    onChange={(event) => setNotificationEnabled(event.target.checked)}
-                  />
-                </FormControl>
-                <FormControl
-                  display="flex"
-                  alignItems="center"
-                  justifyContent="space-between"
-                  bg={panelBg}
-                  borderRadius="2xl"
-                  px={4}
-                  py={3}
-                >
-                  <FormLabel mb={0}>Keep repeating until handled</FormLabel>
-                  <Switch
-                    isChecked={hardToDismiss}
-                    onChange={(event) => setHardToDismiss(event.target.checked)}
-                  />
-                </FormControl>
-                <FormControl bg={panelBg} borderRadius="2xl" px={4} py={3}>
-                  <FormLabel>Reminder repeat</FormLabel>
-                  <Input
-                    bg={inputBg}
-                    type="number"
-                    min={1}
-                    value={repeatMinutes}
-                    onChange={(event) => setRepeatMinutes(event.target.value)}
-                  />
-                  <FormHelperText color={mutedText}>minutes</FormHelperText>
-                </FormControl>
+                  <FormControl
+                    display="flex"
+                    alignItems="center"
+                    justifyContent="space-between"
+                    bg={panelBg}
+                    borderRadius="2xl"
+                    px={4}
+                    py={3}
+                  >
+                    <FormLabel mb={0}>Desktop reminders</FormLabel>
+                    <Switch
+                      isChecked={notificationEnabled}
+                      onChange={(event) => setNotificationEnabled(event.target.checked)}
+                    />
+                  </FormControl>
+                  <FormControl
+                    display="flex"
+                    alignItems="center"
+                    justifyContent="space-between"
+                    bg={panelBg}
+                    borderRadius="2xl"
+                    px={4}
+                    py={3}
+                  >
+                    <FormLabel mb={0}>Repeat until handled</FormLabel>
+                    <Switch
+                      isChecked={hardToDismiss}
+                      onChange={(event) => setHardToDismiss(event.target.checked)}
+                    />
+                  </FormControl>
+                  <FormControl bg={panelBg} borderRadius="2xl" px={4} py={3}>
+                    <FormLabel>Repeat every</FormLabel>
+                    <Input
+                      bg={inputBg}
+                      type="number"
+                      min={1}
+                      value={repeatMinutes}
+                      onChange={(event) => setRepeatMinutes(event.target.value)}
+                    />
+                    <FormHelperText color={mutedText}>minutes</FormHelperText>
+                  </FormControl>
                 </SimpleGrid>
               </Box>
 
               <Box bg={modeGradient} borderRadius="2xl" p={4} border="1px solid" borderColor={panelBorder}>
-                <Text fontSize="sm" color={mutedText}>
-                  Preview
-                </Text>
+                <Text fontSize="sm" color={mutedText}>Preview</Text>
                 <Heading size="sm" mt={2}>
                   {title || 'Untitled routine'}
                 </Heading>
@@ -1793,9 +1970,6 @@ export function App() {
             <Heading size="md" mb={3}>
               Existing routines
             </Heading>
-            <Text color={mutedText} mb={4}>
-              Live inventory of the routines already active in leaf.
-            </Text>
             <Stack spacing={3}>
               {items.map((item) => (
                 <Box
@@ -1861,14 +2035,13 @@ export function App() {
           >
             <Box>
               <Badge colorScheme="orange" borderRadius="full" px={3} py={1}>
-                Administrative mode
+                Admin
               </Badge>
               <Heading size="lg" mt={3}>
-                leaf control room
+                Workspace administration
               </Heading>
               <Text mt={2} color={mutedText} maxW="42rem">
-                This area intentionally shifts visual tone to signal elevated privileges and
-                cross-user actions.
+                User management and reviewer assignments for the whole workspace.
               </Text>
             </Box>
             <Box
@@ -1899,11 +2072,8 @@ export function App() {
               boxShadow={statGlow}
             >
               <Heading size="md" mb={3}>
-                User Management
+                Users
               </Heading>
-              <Text color={mutedText} mb={4}>
-                Review role assignments and account identities before making governance changes.
-              </Text>
               <Stack spacing={3}>
                 {adminUsers.map((entry) => (
                   <Flex
@@ -1942,10 +2112,6 @@ export function App() {
               <Heading size="md" mb={3}>
                 Reviewer Mapping
               </Heading>
-              <Text color={mutedText} mb={4}>
-                Enter reviewer-assignment mode for the whole workspace. These changes affect
-                accountability flows globally.
-              </Text>
               <Stack spacing={4}>
                 <FormControl>
                   <FormLabel>Reviewer</FormLabel>
@@ -1998,6 +2164,74 @@ export function App() {
     return renderDashboard();
   }
 
+  function renderSidebarNav() {
+    if (accountMode) {
+      return (
+        <Stack spacing={4}>
+          <Button
+            as={RouterLink}
+            to="/dashboard"
+            justifyContent="flex-start"
+            variant="ghost"
+            borderRadius="2xl"
+            px={4}
+            py={3}
+          >
+            Back to app
+          </Button>
+          <Text
+            fontSize="xs"
+            textTransform="uppercase"
+            letterSpacing="0.16em"
+            color={subtleText}
+            px={2}
+          >
+            Account
+          </Text>
+          <Stack spacing={2}>
+            {accountNavItems
+              .filter((item) => !item.adminOnly || isAdmin)
+              .map((item) => (
+                <NavButton
+                  key={item.key}
+                  label={item.label}
+                  to={item.path}
+                  active={currentPage === item.key}
+                  accent={accent}
+                />
+              ))}
+          </Stack>
+        </Stack>
+      );
+    }
+
+    return (
+      <Stack spacing={4}>
+        <Text
+          fontSize="xs"
+          textTransform="uppercase"
+          letterSpacing="0.16em"
+          color={subtleText}
+          px={2}
+        >
+          Navigation
+        </Text>
+
+        <Stack spacing={2}>
+          {appNavItems.map((item) => (
+            <NavButton
+              key={item.key}
+              label={item.label}
+              to={item.path}
+              active={currentPage === item.key}
+              accent={accent}
+            />
+          ))}
+        </Stack>
+      </Stack>
+    );
+  }
+
   return (
     <Box minH="100vh" bg={appBg} position="relative">
       <Box position="absolute" inset="0" bgGradient={overlayGradient} pointerEvents="none" />
@@ -2018,47 +2252,128 @@ export function App() {
             py={{ base: 4, md: 5 }}
             boxShadow={statGlow}
           >
-            <HStack spacing={4}>
-              <Box
-                bg={adminMode ? 'clay.500' : iconBg}
-                _dark={{ bg: adminMode ? 'clay.500' : iconBgStrong }}
-                p={3}
-                borderRadius="2xl"
-                border="1px solid"
-                borderColor={panelBorder}
-              >
-                <Image src="/leaf.svg" alt="leaf logo" boxSize="42px" />
-              </Box>
-              <Box>
-                <HStack spacing={3} align="center" mb={1}>
-                  <Heading size="md">leaf</Heading>
-                  <Badge
-                    colorScheme={adminMode ? 'orange' : 'green'}
-                    borderRadius="full"
-                    px={3}
-                    py={1}
-                  >
-                    {adminMode ? 'Admin mode' : 'Routine workspace'}
+            <HStack
+              spacing={3}
+              as={RouterLink}
+              to="/dashboard"
+              alignSelf="stretch"
+              _hover={{ textDecoration: 'none' }}
+            >
+              <Image src="/leaf.svg" alt="leaf logo" boxSize="36px" flexShrink={0} />
+              <HStack spacing={3}>
+                <Heading size="sm" color={brandTextColor} letterSpacing="-0.02em">
+                  leaf
+                </Heading>
+                {adminMode && (
+                  <Badge colorScheme="orange" borderRadius="full" px={3} py={1}>
+                    Admin
                   </Badge>
-                </HStack>
-                <Text color={mutedText}>
-                  Routines, reminders, and accountability in one quieter workspace.
-                </Text>
-              </Box>
+                )}
+              </HStack>
             </HStack>
 
             <HStack spacing={3}>
-              <IconButton
-                aria-label={colorMode === 'light' ? 'Switch to dark mode' : 'Switch to light mode'}
-                icon={colorMode === 'light' ? <MoonIcon /> : <SunIcon />}
-                variant="outline"
-                borderRadius="full"
-                onClick={toggleColorMode}
-              />
-              {loggedIn && (
-                <Button variant="outline" borderRadius="full" onClick={signOut}>
-                  Sign out
-                </Button>
+              {loggedIn && user && (
+                <Menu placement="bottom-end" autoSelect={false}>
+                  <MenuButton
+                    as={IconButton}
+                    aria-label="Open account menu"
+                    variant="ghost"
+                    borderRadius="full"
+                    bg={accountButtonBg}
+                    border="1px solid"
+                    borderColor={accountButtonBorder}
+                    boxShadow="0 10px 24px rgba(0, 0, 0, 0.06)"
+                    _hover={{ bg: accountButtonBg, borderColor: accountButtonBorder }}
+                    _active={{ bg: accountButtonBg }}
+                    icon={
+                      <Avatar
+                        size="sm"
+                        name={user.name || user.email}
+                        src={user.avatarUrl ?? undefined}
+                        icon={<UserGlyph />}
+                        bg={accountButtonBg}
+                        color={accountIconColor}
+                      />
+                    }
+                  />
+                  <Portal>
+                    <MenuList
+                      data-testid="account-menu"
+                      borderRadius="2xl"
+                      p={2}
+                      bg={accountMenuBg}
+                      border="1px solid"
+                      borderColor={accountMenuBorder}
+                      zIndex={2000}
+                      boxShadow="0 24px 64px rgba(0, 0, 0, 0.16)"
+                      style={
+                        {
+                          '--account-menu-hover-bg': accountMenuHoverBg,
+                        } as CSSProperties
+                      }
+                    >
+                      <Box px={3} py={2}>
+                        <Text fontWeight="semibold">{user.name || user.email}</Text>
+                        <Text fontSize="sm" color={mutedText}>
+                          {user.email}
+                        </Text>
+                      </Box>
+                    <MenuDivider borderColor={accountMenuDivider} />
+                    <MenuItem
+                      data-testid="account-menu-item-preferences"
+                      as={RouterLink}
+                      to="/profile"
+                      borderRadius="xl"
+                      bg="transparent"
+                      color="inherit"
+                      _hover={{ bg: 'var(--account-menu-hover-bg)' }}
+                      _focus={{ bg: 'var(--account-menu-hover-bg)' }}
+                      _active={{ bg: 'var(--account-menu-hover-bg)' }}
+                    >
+                      Manage Preferences
+                    </MenuItem>
+                    {isAdmin && (
+                      <MenuItem
+                        as={RouterLink}
+                        to="/admin"
+                        borderRadius="xl"
+                        bg="transparent"
+                        color="inherit"
+                        _hover={{ bg: 'var(--account-menu-hover-bg)' }}
+                        _focus={{ bg: 'var(--account-menu-hover-bg)' }}
+                        _active={{ bg: 'var(--account-menu-hover-bg)' }}
+                      >
+                        Admin
+                      </MenuItem>
+                    )}
+                    <MenuItem
+                      icon={colorMode === 'light' ? <MoonIcon /> : <SunIcon />}
+                      onClick={toggleColorMode}
+                      borderRadius="xl"
+                      bg="transparent"
+                      color="inherit"
+                      _hover={{ bg: 'var(--account-menu-hover-bg)' }}
+                      _focus={{ bg: 'var(--account-menu-hover-bg)' }}
+                      _active={{ bg: 'var(--account-menu-hover-bg)' }}
+                    >
+                      {colorMode === 'light' ? 'Dark mode' : 'Light mode'}
+                    </MenuItem>
+                    <MenuDivider borderColor={accountMenuDivider} />
+                    <MenuItem
+                      onClick={signOut}
+                      borderRadius="xl"
+                      bg="transparent"
+                      color="inherit"
+                      _hover={{ bg: 'var(--account-menu-hover-bg)' }}
+                      _focus={{ bg: 'var(--account-menu-hover-bg)' }}
+                      _active={{ bg: 'var(--account-menu-hover-bg)' }}
+                    >
+                      Sign out
+                    </MenuItem>
+                    </MenuList>
+                  </Portal>
+                </Menu>
               )}
             </HStack>
           </Flex>
@@ -2115,72 +2430,16 @@ export function App() {
                   top={{ lg: 6 }}
                   boxShadow={statGlow}
                 >
-                  <Stack spacing={4}>
-                    <Box
-                      bgGradient={modeGradient}
-                      borderRadius="2xl"
-                      px={4}
-                      py={4}
-                      border="1px solid"
-                      borderColor={panelBorder}
-                    >
-                      <Text
-                        fontSize="xs"
-                        textTransform="uppercase"
-                        letterSpacing="0.12em"
-                        color={subtleText}
-                      >
-                        {pageEyebrow}
-                      </Text>
-                      <Heading size="md" mt={2}>
-                        {pageTitle}
-                      </Heading>
-                      <Text mt={2} fontSize="sm" color={mutedText}>
-                        {pageSummary}
-                      </Text>
-                    </Box>
-
-                    <Stack spacing={2}>
-                      {navItems
-                        .filter((item) => item.key !== 'admin' || isAdmin)
-                        .map((item) => (
-                          <NavButton
-                            key={item.key}
-                            label={item.label}
-                            summary={item.summary}
-                            to={item.path}
-                            active={currentPage === item.key}
-                            accent={accent}
-                          />
-                        ))}
-                    </Stack>
-
-                    <Divider />
-
-                    <Box>
-                      <Text
-                        fontSize="xs"
-                        textTransform="uppercase"
-                        letterSpacing="0.12em"
-                        color={subtleText}
-                      >
-                        Account
-                      </Text>
-                      <Text mt={2} fontWeight="semibold">
-                        {user.name || user.email}
-                      </Text>
-                      <Text color={mutedText} fontSize="sm">
-                        {user.email}
-                      </Text>
-                      <Text color={mutedText} fontSize="sm" mt={2}>
-                        Digest: {toDayName(Number(prefDay))} at {prefHour.padStart(2, '0')}:00
-                      </Text>
-                    </Box>
-                  </Stack>
+                  {renderSidebarNav()}
                 </Box>
               </GridItem>
 
-              <GridItem>{renderPage()}</GridItem>
+              <GridItem>
+                <Stack spacing={5}>
+                  {renderPageIntro()}
+                  {renderPage()}
+                </Stack>
+              </GridItem>
             </Grid>
           )}
         </Stack>

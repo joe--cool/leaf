@@ -5,7 +5,7 @@
 
 ## Context
 
-New users should be able to evaluate Tracker quickly without manually wiring dependencies.
+New users should be able to evaluate leaf quickly without manually wiring dependencies.
 
 ## Decision
 

@@ -1,8 +1,8 @@
-# Tracker Design Doc
+# leaf Design Doc
 
 ## 1. Purpose
 
-Tracker is an API-first, multi-user system for tracking completion of tasks such as homework, medicines/supplements, exercise, and other goals with flexible scheduling, reviewer visibility, notifications, and reporting.
+leaf is an API-first, multi-user system for tracking completion of tasks such as homework, medicines/supplements, exercise, and other goals with flexible scheduling, reviewer visibility, notifications, and reporting.
 
 This document is optimized for new contributors/agents to get productive quickly.
 

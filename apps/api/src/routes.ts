@@ -1,6 +1,6 @@
 import crypto from 'node:crypto';
 import type { FastifyInstance } from 'fastify';
-import { loginSchema, scheduleSchema, trackingItemCreateSchema } from '@tracker/shared';
+import { loginSchema, scheduleSchema, trackingItemCreateSchema } from '@leaf/shared';
 import { z } from 'zod';
 import { prisma } from './prisma.js';
 import {
@@ -31,6 +31,8 @@ const preferencesSchema = z.object({
   weeklyDigestHour: z.number().int().min(0).max(23).optional(),
   weeklyDigestDay: z.number().int().min(0).max(6).optional(),
   timezone: z.string().optional(),
+  name: z.string().min(1).optional(),
+  avatarUrl: z.string().nullable().optional(),
 });
 const bootstrapAdminSchema = z.object({ userId: z.string() });
 const idParamSchema = z.object({ id: z.string() });
@@ -278,7 +280,7 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
 
     await sendEmail({
       to: [body.email],
-      subject: 'Tracker reviewer invite',
+      subject: 'leaf reviewer invite',
       text: `Use invite token: ${invite.token}`,
     });
 
@@ -355,6 +357,8 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
     return prisma.user.update({
       where: { id: actor.id },
       data: {
+        name: body.name,
+        avatarUrl: body.avatarUrl,
         weeklyDigestHour: body.weeklyDigestHour,
         weeklyDigestDay: body.weeklyDigestDay,
         timezone: body.timezone,

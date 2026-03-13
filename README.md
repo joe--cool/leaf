@@ -1,6 +1,6 @@
-# Tracker
+# leaf
 
-API-first multi-user tracker for homework, meds/supplements, exercise, and recurring tasks.
+API-first multi-user leaf app for homework, meds/supplements, exercise, and recurring tasks.
 
 ## Highlights
 
@@ -61,8 +61,8 @@ docker compose up --build
 Use runtime overrides (example hostname only):
 
 ```bash
-WEB_ORIGIN=http://tracker-box.local:8080 \
-VITE_API_URL=http://tracker-box.local:4000 \
+WEB_ORIGIN=http://leaf-box.local:8080 \
+VITE_API_URL=http://leaf-box.local:4000 \
 docker compose up --build
 ```
 
@@ -117,9 +117,9 @@ Web callback route:
 ## CLI Usage
 
 ```bash
-pnpm --filter @tracker/cli dev -- config set-host http://localhost:4000
-pnpm --filter @tracker/cli dev -- login --email admin@example.com --password 'your-password'
-pnpm --filter @tracker/cli dev -- items
+pnpm --filter leaf-cli dev -- config set-host http://localhost:4000
+pnpm --filter leaf-cli dev -- login --email admin@example.com --password 'your-password'
+pnpm --filter leaf-cli dev -- items
 ```
 
 ## macOS Notifier
@@ -133,7 +133,7 @@ brew install terminal-notifier
 Run:
 
 ```bash
-pnpm --filter @tracker/mac-notifier dev -- --host http://localhost:4000 --token <JWT>
+pnpm --filter @leaf/mac-notifier dev -- --host http://localhost:4000 --token <JWT>
 ```
 
 ## Operations
@@ -141,8 +141,8 @@ pnpm --filter @tracker/mac-notifier dev -- --host http://localhost:4000 --token 
 Build images manually:
 
 ```bash
-docker build -f apps/api/Dockerfile -t tracker-api:local .
-docker build -f apps/web/Dockerfile -t tracker-web:local .
+docker build -f apps/api/Dockerfile -t leaf-api:local .
+docker build -f apps/web/Dockerfile -t leaf-web:local .
 ```
 
 Reset local stack/data:

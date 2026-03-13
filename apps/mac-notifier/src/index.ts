@@ -25,7 +25,7 @@ const options = program.opts<{
 const acked = new Set<string>();
 
 async function notify(item: Item): Promise<void> {
-  const title = `Tracker: ${item.title}`;
+  const title = `leaf: ${item.title}`;
   const message = item.notificationHardToDismiss
     ? 'Action needed. This will repeat until completed.'
     : 'Scheduled reminder';

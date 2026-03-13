@@ -5,7 +5,7 @@
 
 ## Context
 
-Tracker needs multi-client authentication (web, CLI, notifier), role-based access control, and a practical user experience for long-lived sessions without repeatedly entering passwords.
+leaf needs multi-client authentication (web, CLI, notifier), role-based access control, and a practical user experience for long-lived sessions without repeatedly entering passwords.
 
 ## Decision
 

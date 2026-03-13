@@ -1,0 +1,72 @@
+.leaf-calendar {
+  --rdp-accent-color: #4f7658;
+  --rdp-accent-background-color: rgba(79, 118, 88, 0.16);
+  --rdp-day_button-border-radius: 14px;
+  --rdp-selected-border: none;
+  --rdp-today-color: #c05828;
+  --rdp-day_button-height: 40px;
+  --rdp-day_button-width: 40px;
+}
+
+[data-theme='dark'] .leaf-calendar {
+  --rdp-accent-color: #d3e2d5;
+  --rdp-accent-background-color: rgba(151, 189, 159, 0.18);
+  --rdp-today-color: #f2d7c7;
+}
+
+.leaf-calendar .rdp-root {
+  margin: 0;
+}
+
+.leaf-calendar .rdp-button_previous,
+.leaf-calendar .rdp-button_next {
+  color: var(--rdp-accent-color);
+}
+
+.leaf-calendar .rdp-day_button {
+  color: inherit;
+  border-radius: 14px;
+}
+
+.leaf-calendar .rdp-day_selected {
+  background: var(--rdp-accent-color);
+  color: #fff;
+}
+
+[data-theme='dark'] .leaf-calendar .rdp-day_button {
+  color: inherit;
+}
+
+.leaf-calendar .rdp-day_button:hover {
+  background: var(--rdp-accent-background-color);
+}
+
+.leaf-calendar .rdp-day_button:focus-visible,
+.leaf-calendar .rdp-button_previous:focus-visible,
+.leaf-calendar .rdp-button_next:focus-visible {
+  outline: 2px solid var(--rdp-accent-color);
+  outline-offset: 2px;
+}
+
+.leaf-calendar .rdp-day_selected .rdp-day_button,
+.leaf-calendar .rdp-day_button[aria-selected='true'] {
+  background: var(--rdp-accent-color);
+  color: #fff;
+}
+
+[data-theme='dark'] .leaf-calendar .rdp-day_selected {
+  color: #0e1313;
+}
+
+.leaf-calendar .rdp-day_selected .rdp-day_button {
+  color: inherit;
+}
+
+[data-theme='dark'] .leaf-calendar .rdp-day_selected .rdp-day_button,
+[data-theme='dark'] .leaf-calendar .rdp-day_button[aria-selected='true'] {
+  color: #0e1313;
+}
+
+.leaf-calendar .rdp-day:hover:not(.rdp-disabled):not(.rdp-outside) {
+  background: var(--rdp-accent-background-color);
+}

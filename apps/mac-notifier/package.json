@@ -1,5 +1,5 @@
 {
-  "name": "@tracker/mac-notifier",
+  "name": "@leaf/mac-notifier",
   "version": "0.1.0",
   "private": true,
   "type": "module",
