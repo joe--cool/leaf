@@ -114,13 +114,13 @@ The product should separate action-oriented surfaces from administrative ones.
 - `My Items`: the member’s action surface
 - `Members`: the guide’s oversight workspace
 - `Routines`: the definition and configuration surface for tracked items
-- `Notifications`: a unified in-app notification center
+- `Notifications inbox`: a unified in-app notification mailbox and history
 
 ### Administrative surfaces
 
 - member profile and settings
 - relationship settings and permissions
-- notification preferences
+- notification preferences within profile and account settings
 - retrospectives history
 - audit log
 

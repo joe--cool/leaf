@@ -76,7 +76,7 @@ export type AdminUser = {
   roles: Array<{ role: string }>;
 };
 
-export type PageKey = 'dashboard' | 'notifications' | 'profile' | 'my-items' | 'members' | 'routines' | 'admin';
+export type PageKey = 'dashboard' | 'profile' | 'my-items' | 'members' | 'routines' | 'admin';
 export type SingleScheduleKind = Exclude<ScheduleKind, 'MULTI'>;
 export type ActionBucket = 'due' | 'upcoming' | 'later';
 

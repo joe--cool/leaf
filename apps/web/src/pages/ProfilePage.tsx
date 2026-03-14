@@ -20,6 +20,7 @@ import {
   useToast,
 } from '@chakra-ui/react';
 import { useMemo, useState } from 'react';
+import { weekdayOptions } from '../appConstants';
 import type { AdminUser, RelationshipDetails, User } from '../appTypes';
 
 type RelationshipTemplate = {
@@ -130,6 +131,12 @@ export function ProfilePage({
   panelBgStrong,
   panelBorder,
   statGlow,
+  prefTimezone,
+  setPrefTimezone,
+  prefDay,
+  setPrefDay,
+  prefHour,
+  setPrefHour,
   mutedText,
   inviteEmail,
   setInviteEmail,
@@ -138,6 +145,7 @@ export function ProfilePage({
   targetMemberId,
   setTargetMemberId,
   onUpdateProfile,
+  onUpdateNotificationPreferences,
   onInviteReviewer,
   onAvatarSelected,
 }: {
@@ -150,6 +158,12 @@ export function ProfilePage({
   panelBgStrong: string;
   panelBorder: string;
   statGlow: string;
+  prefTimezone: string;
+  setPrefTimezone: (value: string) => void;
+  prefDay: string;
+  setPrefDay: (value: string) => void;
+  prefHour: string;
+  setPrefHour: (value: string) => void;
   mutedText: string;
   inviteEmail: string;
   setInviteEmail: (value: string) => void;
@@ -158,6 +172,7 @@ export function ProfilePage({
   targetMemberId: string;
   setTargetMemberId: (value: string) => void;
   onUpdateProfile: () => Promise<void>;
+  onUpdateNotificationPreferences: () => Promise<void>;
   onInviteReviewer: () => Promise<void>;
   onAvatarSelected: (file: File | null) => Promise<void>;
 }) {
@@ -216,6 +231,55 @@ export function ProfilePage({
                 onClick={() => onUpdateProfile().catch((error) => toast({ status: 'error', title: String(error) }))}
               >
                 Save Profile
+              </Button>
+            </Stack>
+          </Box>
+
+          <Box bg={panelBgStrong} borderRadius="3xl" p={6} border="1px solid" borderColor={panelBorder} boxShadow={statGlow}>
+            <Heading size="md" mb={4}>
+              Notification Preferences
+            </Heading>
+            <Text color={mutedText} mb={4}>
+              User-level notification and digest preferences live here with the rest of your account settings.
+            </Text>
+            <Stack spacing={4}>
+              <FormControl>
+                <FormLabel>Timezone</FormLabel>
+                <Input bg={inputBg} value={prefTimezone} onChange={(event) => setPrefTimezone(event.target.value)} />
+                <FormHelperText color={mutedText}>
+                  Use an IANA timezone such as `America/Los_Angeles`.
+                </FormHelperText>
+              </FormControl>
+              <SimpleGrid columns={{ base: 1, md: 2 }} spacing={4}>
+                <FormControl>
+                  <FormLabel>Digest day</FormLabel>
+                  <Select bg={inputBg} value={prefDay} onChange={(event) => setPrefDay(event.target.value)}>
+                    {weekdayOptions.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </Select>
+                </FormControl>
+                <FormControl>
+                  <FormLabel>Digest time</FormLabel>
+                  <Select bg={inputBg} value={prefHour} onChange={(event) => setPrefHour(event.target.value)}>
+                    {Array.from({ length: 24 }, (_, hour) => hour).map((hour) => (
+                      <option key={hour} value={hour}>
+                        {hour.toString().padStart(2, '0')}:00
+                      </option>
+                    ))}
+                  </Select>
+                </FormControl>
+              </SimpleGrid>
+              <Button
+                colorScheme="leaf"
+                alignSelf="start"
+                onClick={() =>
+                  onUpdateNotificationPreferences().catch((error) => toast({ status: 'error', title: String(error) }))
+                }
+              >
+                Save Notification Preferences
               </Button>
             </Stack>
           </Box>

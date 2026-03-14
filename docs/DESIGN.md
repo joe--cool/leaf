@@ -93,7 +93,7 @@ The product should separate action-oriented experiences from administrative ones
 - `My Items`
 - `Members`
 - `Routines`
-- `Notifications`
+- `Notifications inbox`
 
 ### Administrative surfaces
 
@@ -102,6 +102,8 @@ The product should separate action-oriented experiences from administrative ones
 - notification preferences
 - retrospectives history
 - audit log
+
+Notification history belongs in the header `Notifications inbox`. User-level notification and digest configuration belongs under profile and account settings.
 
 The member-facing tracking experience and guide-facing tracking experience should not be identical pages. They should share domain concepts and reusable components, but optimize for different jobs.
 

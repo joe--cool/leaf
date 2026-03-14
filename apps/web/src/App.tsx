@@ -38,6 +38,7 @@ import type {
   User,
 } from './appTypes';
 import { AccountMenu } from './components/AccountMenu';
+import { NotificationMailbox } from './components/NotificationMailbox';
 import { PageIntro } from './components/PageIntro';
 import { SessionErrorPanel } from './components/SessionErrorPanel';
 import { SidebarNav } from './components/SidebarNav';
@@ -47,7 +48,6 @@ import { AuthPage } from './pages/AuthPage';
 import { DashboardPage } from './pages/DashboardPage';
 import { MembersPage } from './pages/MembersPage';
 import { MyItemsPage } from './pages/MyItemsPage';
-import { NotificationsPage } from './pages/NotificationsPage';
 import { ProfilePage } from './pages/ProfilePage';
 import { RoutinesPage } from './pages/RoutinesPage';
 
@@ -163,7 +163,6 @@ export function App() {
 
   const canGuideMembers = (user?.members.length ?? 0) > 0;
   const currentPage: PageKey = useMemo(() => {
-    if (startsWithPath(location.pathname, '/notifications')) return 'notifications';
     if (startsWithPath(location.pathname, '/profile')) return 'profile';
     if (startsWithPath(location.pathname, '/my-items')) return 'my-items';
     if (startsWithPath(location.pathname, '/members')) return 'members';
@@ -231,8 +230,6 @@ export function App() {
   const pageEyebrow =
     currentPage === 'dashboard'
       ? 'Dashboard'
-      : currentPage === 'notifications'
-        ? 'Notifications'
       : currentPage === 'my-items'
         ? 'My Items'
       : currentPage === 'members'
@@ -245,8 +242,6 @@ export function App() {
   const pageTitle =
     currentPage === 'dashboard'
       ? 'Overview'
-      : currentPage === 'notifications'
-        ? 'Notifications'
       : currentPage === 'my-items'
         ? 'My Items'
       : currentPage === 'members'
@@ -259,8 +254,6 @@ export function App() {
   const pageSummary =
     currentPage === 'dashboard'
       ? 'See what needs attention now across your items, members, and next check-in.'
-      : currentPage === 'notifications'
-        ? 'Review your in-app feed, understand each delivery channel, and set digest timing in one place.'
       : currentPage === 'my-items'
         ? 'Focus on what needs attention now, what is coming up next, and what can wait.'
         : currentPage === 'members'
@@ -474,7 +467,7 @@ export function App() {
         weeklyDigestHour: Number(prefHour),
       }),
     });
-    toast({ status: 'success', title: 'Notifications updated' });
+    toast({ status: 'success', title: 'Notification preferences updated' });
     await refreshMe();
   }
 
@@ -575,6 +568,12 @@ export function App() {
           panelBgStrong={panelBgStrong}
           panelBorder={panelBorder}
           statGlow={statGlow}
+          prefTimezone={prefTimezone}
+          setPrefTimezone={setPrefTimezone}
+          prefDay={prefDay}
+          setPrefDay={setPrefDay}
+          prefHour={prefHour}
+          setPrefHour={setPrefHour}
           mutedText={mutedText}
           inviteEmail={inviteEmail}
           setInviteEmail={setInviteEmail}
@@ -583,33 +582,9 @@ export function App() {
           targetMemberId={targetMemberId}
           setTargetMemberId={setTargetMemberId}
           onUpdateProfile={updateProfile}
+          onUpdateNotificationPreferences={updateNotificationPreferences}
           onInviteReviewer={inviteReviewer}
           onAvatarSelected={onAvatarSelected}
-        />
-      );
-    }
-    if (currentPage === 'notifications') {
-      return (
-        <NotificationsPage
-          user={user}
-          items={items}
-          actionableItems={actionableItems}
-          memberPortfolios={memberPortfolios}
-          prefTimezone={prefTimezone}
-          setPrefTimezone={setPrefTimezone}
-          prefDay={prefDay}
-          setPrefDay={setPrefDay}
-          prefHour={prefHour}
-          setPrefHour={setPrefHour}
-          digestSummary={digestSummary}
-          panelBgStrong={panelBgStrong}
-          panelBorder={panelBorder}
-          statGlow={statGlow}
-          mutedText={mutedText}
-          subtleText={subtleText}
-          panelBg={panelBg}
-          inputBg={inputBg}
-          onSaveNotificationPreferences={updateNotificationPreferences}
         />
       );
     }
@@ -763,23 +738,39 @@ export function App() {
 
             <HStack spacing={3}>
               {loggedIn && user && (
-                <AccountMenu
-                  userName={user.name}
-                  userEmail={user.email}
-                  avatarUrl={user.avatarUrl}
-                  accountButtonBg={accountButtonBg}
-                  accountButtonBorder={accountButtonBorder}
-                  accountIconColor={accountIconColor}
-                  accountMenuBg={accountMenuBg}
-                  accountMenuBorder={accountMenuBorder}
-                  accountMenuHoverBg={accountMenuHoverBg}
-                  accountMenuDivider={accountMenuDivider}
-                  isAdmin={isAdmin}
-                  colorMode={colorMode}
-                  onToggleColorMode={toggleColorMode}
-                  onSignOut={signOut}
-                  userGlyph={<UserGlyph />}
-                />
+                <>
+                  <NotificationMailbox
+                    user={user}
+                    items={items}
+                    actionableItems={actionableItems}
+                    memberPortfolios={memberPortfolios}
+                    buttonBg={accountButtonBg}
+                    buttonBorder={accountButtonBorder}
+                    iconColor={accountIconColor}
+                    panelBg={accountMenuBg}
+                    panelBorder={accountMenuBorder}
+                    panelHoverBg={accountMenuHoverBg}
+                    dividerColor={accountMenuDivider}
+                    mutedText={mutedText}
+                  />
+                  <AccountMenu
+                    userName={user.name}
+                    userEmail={user.email}
+                    avatarUrl={user.avatarUrl}
+                    accountButtonBg={accountButtonBg}
+                    accountButtonBorder={accountButtonBorder}
+                    accountIconColor={accountIconColor}
+                    accountMenuBg={accountMenuBg}
+                    accountMenuBorder={accountMenuBorder}
+                    accountMenuHoverBg={accountMenuHoverBg}
+                    accountMenuDivider={accountMenuDivider}
+                    isAdmin={isAdmin}
+                    colorMode={colorMode}
+                    onToggleColorMode={toggleColorMode}
+                    onSignOut={signOut}
+                    userGlyph={<UserGlyph />}
+                  />
+                </>
               )}
             </HStack>
           </Flex>

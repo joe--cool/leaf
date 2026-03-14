@@ -105,7 +105,7 @@ describe('App routes', () => {
     expect(screen.getByText('2. Set the cadence')).toBeInTheDocument();
   });
 
-  it('renders notifications directly with distinct feed and preference sections', async () => {
+  it('opens the mailbox inbox from the header and shows feed entries', async () => {
     apiFetchMock.mockImplementation(async (path: string) => {
       if (path === '/setup/status') return { needsSetup: false };
       if (path === '/auth/oauth/options') return { providers: [] };
@@ -166,13 +166,21 @@ describe('App routes', () => {
       throw new Error(`Unexpected api path: ${path}`);
     });
 
-    renderApp('/notifications');
+    renderApp('/dashboard');
 
-    expect((await screen.findAllByRole('heading', { name: 'Notifications' })).length).toBeGreaterThan(0);
-    expect(screen.getByRole('heading', { name: 'In-App Feed' })).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: 'Notification Preferences' })).toBeInTheDocument();
-    expect(screen.getByText('Routine reminders')).toBeInTheDocument();
-    expect(screen.getByText('Completed before dinner')).toBeInTheDocument();
+    await screen.findAllByRole('heading', { name: 'Overview' });
+
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: 'Open notifications inbox' }));
+
+    const mailbox = await screen.findByTestId('notification-mailbox');
+    expect(within(mailbox).getByText('Inbox')).toBeInTheDocument();
+    expect(within(mailbox).getAllByText('Guide update').length).toBeGreaterThan(0);
+    expect(
+      within(mailbox).getByText('1 routine can raise member alerts. Digest timing stays under Profile & Relationships.'),
+    ).toBeInTheDocument();
+    expect(within(mailbox).getByText('Completed before dinner')).toBeInTheDocument();
+    expect(within(mailbox).getByText('Open Profile')).toBeInTheDocument();
   });
 
   it('navigates from dashboard to my items', async () => {
@@ -187,12 +195,17 @@ describe('App routes', () => {
     });
   });
 
-  it('shows an intentional empty notification feed when no updates exist yet', async () => {
-    renderApp('/notifications');
+  it('shows an intentional empty mailbox state when no updates exist yet', async () => {
+    renderApp('/dashboard');
 
-    await screen.findAllByRole('heading', { name: 'Notifications' });
-    expect(screen.getByText('No notifications yet')).toBeInTheDocument();
-    expect(screen.getByText('Save Notifications')).toBeInTheDocument();
+    await screen.findAllByRole('heading', { name: 'Overview' });
+
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: 'Open notifications inbox' }));
+
+    const mailbox = await screen.findByTestId('notification-mailbox');
+    expect(within(mailbox).getByText('No notifications')).toBeInTheDocument();
+    expect(within(mailbox).getByText('Everything is caught up right now.')).toBeInTheDocument();
   });
 
   it('renders the members workspace for guide users and hides operational controls for passive relationships', async () => {
@@ -330,6 +343,7 @@ describe('App routes', () => {
     expect(screen.queryByRole('link', { name: 'Profile & Relationships' })).not.toBeInTheDocument();
     expect(screen.queryByRole('link', { name: 'Admin' })).not.toBeInTheDocument();
     expect(screen.queryByRole('link', { name: 'Members' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Notifications' })).not.toBeInTheDocument();
   });
 
   it('enters account mode from the user menu and offers a return path', async () => {
@@ -376,6 +390,8 @@ describe('App routes', () => {
 
     await screen.findAllByRole('heading', { name: 'Profile & Relationships' });
     expect(screen.getByRole('heading', { name: 'Relationship Setup' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Notification Preferences' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Save Notification Preferences' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Active Guide/i })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Your Guides' })).toBeInTheDocument();
     expect(screen.getByText('Jordan')).toBeInTheDocument();

@@ -95,4 +95,4 @@ Validation:
 - 2026-03-13: Added a dedicated `Members` workspace with guide-only navigation, urgency-ordered member cards, recent activity context, and observation-only states for passive relationships.
 - 2026-03-13: Split the old `Tracked Items` surface into `My Items` and `Routines`, moved the member-facing page toward due and upcoming work, and kept routine creation and schedule management on the separate builder page.
 - 2026-03-13: Replaced the old invite-and-counts account view with `Profile & Relationships`, including template-led relationship setup, explicit visibility/history explanations, and guide-by-guide permission cards for both incoming and outgoing relationships.
-- 2026-03-13: Added a dedicated `Notifications` surface with a unified in-app feed, distinct notification preferences, digest timing controls, and role-aware channel explanations for both members and guides.
+- 2026-03-13: Replaced the standalone `Notifications` page with a header mailbox beside the user menu, including unread badges, an inbox panel, live alerting for new entries, and profile-owned notification preferences.
