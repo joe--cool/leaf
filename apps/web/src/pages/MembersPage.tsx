@@ -16,11 +16,11 @@ import {
 } from '@chakra-ui/react';
 import { Link as RouterLink } from 'react-router-dom';
 import { getCategoryLabel } from '../scheduleUtils';
-import type { RevieweePortfolio } from '../appTypes';
+import type { MemberPortfolio } from '../appTypes';
 
-export function RevieweesPage({
+export function MembersPage({
   canReviewOthers,
-  revieweePortfolios,
+  memberPortfolios,
   modeGradient,
   panelBgStrong,
   panelBorder,
@@ -30,7 +30,7 @@ export function RevieweesPage({
   panelBg,
 }: {
   canReviewOthers: boolean;
-  revieweePortfolios: RevieweePortfolio[];
+  memberPortfolios: MemberPortfolio[];
   modeGradient: string;
   panelBgStrong: string;
   panelBorder: string;
@@ -42,9 +42,9 @@ export function RevieweesPage({
   if (!canReviewOthers) {
     return (
       <Box bg={panelBgStrong} borderRadius="3xl" p={6} border="1px solid" borderColor={panelBorder} boxShadow={statGlow}>
-        <Heading size="md">No reviewees yet</Heading>
+        <Heading size="md">No members yet</Heading>
         <Text mt={3} color={mutedText} maxW="38rem">
-          This workspace appears when someone is connected to you as a reviewee. Use Profile & Relationships to
+          This workspace appears when someone is connected to you as a member. Use Profile & Relationships to
           send an invite or set up the relationship first.
         </Text>
         <Button as={RouterLink} to="/profile" mt={5} colorScheme="leaf" size="sm">
@@ -54,7 +54,7 @@ export function RevieweesPage({
     );
   }
 
-  const firstAttention = revieweePortfolios[0] ?? null;
+  const firstAttention = memberPortfolios[0] ?? null;
 
   return (
     <Stack spacing={5}>
@@ -66,12 +66,12 @@ export function RevieweesPage({
             </Text>
             <Heading size="lg" mt={2}>
               {firstAttention
-                ? `Start with ${firstAttention.reviewee.name}`
-                : 'Reviewees will appear here as activity starts to flow'}
+                ? `Start with ${firstAttention.member.name}`
+                : 'Members will appear here as activity starts to flow'}
             </Heading>
             <Text mt={3} maxW="38rem" color={mutedText}>
               {firstAttention?.nextUrgent
-                ? `${firstAttention.reviewee.name} has the highest urgency right now: ${firstAttention.nextUrgent.action.detail}`
+                ? `${firstAttention.member.name} has the highest urgency right now: ${firstAttention.nextUrgent.action.detail}`
                 : 'You can still review relationship visibility here before there is enough routine activity to rank people by urgency.'}
             </Text>
             <HStack mt={5} spacing={3} flexWrap="wrap">
@@ -89,27 +89,27 @@ export function RevieweesPage({
           <SimpleGrid columns={{ base: 1, md: 2, xl: 1 }} spacing={4}>
             <Stat bg={panelBgStrong} borderRadius="2xl" p={5} border="1px solid" borderColor={panelBorder} boxShadow={statGlow}>
               <StatLabel color={subtleText}>People you guide</StatLabel>
-              <StatNumber>{revieweePortfolios.length}</StatNumber>
+              <StatNumber>{memberPortfolios.length}</StatNumber>
             </Stat>
             <Stat bg={panelBgStrong} borderRadius="2xl" p={5} border="1px solid" borderColor={panelBorder} boxShadow={statGlow}>
               <StatLabel color={subtleText}>Overdue signals</StatLabel>
-              <StatNumber>{revieweePortfolios.reduce((total, entry) => total + entry.overdue.length, 0)}</StatNumber>
+              <StatNumber>{memberPortfolios.reduce((total, entry) => total + entry.overdue.length, 0)}</StatNumber>
             </Stat>
             <Stat bg={panelBgStrong} borderRadius="2xl" p={5} border="1px solid" borderColor={panelBorder} boxShadow={statGlow}>
               <StatLabel color={subtleText}>Recent completions</StatLabel>
-              <StatNumber>{revieweePortfolios.reduce((total, entry) => total + entry.recentActivity.length, 0)}</StatNumber>
+              <StatNumber>{memberPortfolios.reduce((total, entry) => total + entry.recentActivity.length, 0)}</StatNumber>
             </Stat>
           </SimpleGrid>
         </GridItem>
       </Grid>
 
       <Stack spacing={4}>
-        {revieweePortfolios.map((workspace, index) => (
-          <Box key={workspace.reviewee.id} bg={panelBgStrong} borderRadius="3xl" p={6} border="1px solid" borderColor={panelBorder} boxShadow={statGlow}>
+        {memberPortfolios.map((workspace, index) => (
+          <Box key={workspace.member.id} bg={panelBgStrong} borderRadius="3xl" p={6} border="1px solid" borderColor={panelBorder} boxShadow={statGlow}>
             <Flex justify="space-between" align={{ base: 'start', lg: 'center' }} direction={{ base: 'column', lg: 'row' }} gap={4} mb={5}>
               <Box>
                 <HStack spacing={3} flexWrap="wrap">
-                  <Heading size="md">{workspace.reviewee.name}</Heading>
+                  <Heading size="md">{workspace.member.name}</Heading>
                   {index === 0 && (
                     <Badge colorScheme="orange" borderRadius="full" px={3} py={1}>
                       Needs attention first
@@ -125,7 +125,7 @@ export function RevieweesPage({
                   </Badge>
                 </HStack>
                 <Text color={mutedText} mt={2}>
-                  {workspace.reviewee.email}
+                  {workspace.member.email}
                 </Text>
                 <Text color={mutedText} fontSize="sm" mt={1}>
                   Visibility: {workspace.relationship.historyWindow}. Hidden items stay private and are not shown here.
@@ -185,7 +185,7 @@ export function RevieweesPage({
                   ))}
                   {workspace.actionable.length === 0 && (
                     <Text color={mutedText}>
-                      No routines are visible yet. Ask this member to create a routine or wait for the first shared item.
+                      No routines are visible yet. Ask this member to create one or wait for the first shared item.
                     </Text>
                   )}
                 </Stack>

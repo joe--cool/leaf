@@ -31,10 +31,10 @@ import type {
   AdminUser,
   DraftSchedule,
   Item,
+  MemberPortfolio,
+  MemberWorkspace,
   OAuthProvider,
   PageKey,
-  RevieweePortfolio,
-  RevieweeWorkspace,
   User,
 } from './appTypes';
 import { AccountMenu } from './components/AccountMenu';
@@ -45,9 +45,10 @@ import { UserGlyph } from './components/UserGlyph';
 import { AdminPage } from './pages/AdminPage';
 import { AuthPage } from './pages/AuthPage';
 import { DashboardPage } from './pages/DashboardPage';
+import { MembersPage } from './pages/MembersPage';
 import { MyItemsPage } from './pages/MyItemsPage';
+import { NotificationsPage } from './pages/NotificationsPage';
 import { ProfilePage } from './pages/ProfilePage';
-import { RevieweesPage } from './pages/RevieweesPage';
 import { RoutinesPage } from './pages/RoutinesPage';
 
 function startsWithPath(pathname: string, path: string): boolean {
@@ -72,7 +73,7 @@ export function App() {
   const [user, setUser] = useState<User | null>(null);
   const [items, setItems] = useState<Item[]>([]);
   const [adminUsers, setAdminUsers] = useState<AdminUser[]>([]);
-  const [revieweeWorkspaces, setRevieweeWorkspaces] = useState<RevieweeWorkspace[]>([]);
+  const [memberWorkspaces, setMemberWorkspaces] = useState<MemberWorkspace[]>([]);
 
   const [title, setTitle] = useState(getDefaultTitle('health'));
   const [category, setCategory] = useState('health');
@@ -82,9 +83,9 @@ export function App() {
   const [repeatMinutes, setRepeatMinutes] = useState('15');
 
   const [inviteEmail, setInviteEmail] = useState('');
-  const [targetUserId, setTargetUserId] = useState('');
-  const [adminReviewerId, setAdminReviewerId] = useState('');
-  const [adminRevieweeId, setAdminRevieweeId] = useState('');
+  const [targetMemberId, setTargetMemberId] = useState('');
+  const [adminGuideId, setAdminGuideId] = useState('');
+  const [adminMemberId, setAdminMemberId] = useState('');
 
   const [prefTimezone, setPrefTimezone] = useState(Intl.DateTimeFormat().resolvedOptions().timeZone);
   const [prefDay, setPrefDay] = useState('1');
@@ -97,7 +98,7 @@ export function App() {
   const isAdmin = useMemo(() => user?.roles.some((entry) => entry.role === 'ADMIN') ?? false, [user?.roles]);
 
   const projectedWeekChecks = useMemo(() => items.reduce((total, item) => total + projectedChecksPerWeek(item), 0), [items]);
-  const relationshipsCount = useMemo(() => (user ? user.reviewTargets.length + user.reviewers.length : 0), [user]);
+  const relationshipsCount = useMemo(() => (user ? user.members.length + user.guides.length : 0), [user]);
   const categoryBreakdown = useMemo(() => {
     const counts = new Map<string, number>();
     for (const item of items) {
@@ -123,9 +124,9 @@ export function App() {
   const upcomingItems = useMemo(() => actionableItems.filter((entry) => entry.action.bucket === 'upcoming'), [actionableItems]);
   const laterItems = useMemo(() => actionableItems.filter((entry) => entry.action.bucket === 'later'), [actionableItems]);
 
-  const revieweePortfolios = useMemo<RevieweePortfolio[]>(
+  const memberPortfolios = useMemo<MemberPortfolio[]>(
     () =>
-      revieweeWorkspaces
+      memberWorkspaces
         .map((workspace) => {
           const actionable = workspace.items
             .map((item) => ({ item, action: summarizeActionableState(item) }))
@@ -156,15 +157,16 @@ export function App() {
             rank,
           };
         })
-        .sort((left, right) => right.rank - left.rank || left.reviewee.name.localeCompare(right.reviewee.name)),
-    [revieweeWorkspaces],
+        .sort((left, right) => right.rank - left.rank || left.member.name.localeCompare(right.member.name)),
+    [memberWorkspaces],
   );
 
-  const canReviewOthers = (user?.reviewTargets.length ?? 0) > 0;
+  const canGuideMembers = (user?.members.length ?? 0) > 0;
   const currentPage: PageKey = useMemo(() => {
+    if (startsWithPath(location.pathname, '/notifications')) return 'notifications';
     if (startsWithPath(location.pathname, '/profile')) return 'profile';
     if (startsWithPath(location.pathname, '/my-items')) return 'my-items';
-    if (startsWithPath(location.pathname, '/reviewees')) return 'reviewees';
+    if (startsWithPath(location.pathname, '/members')) return 'members';
     if (startsWithPath(location.pathname, '/routines')) return 'routines';
     if (startsWithPath(location.pathname, '/items')) return 'routines';
     if (startsWithPath(location.pathname, '/admin')) return 'admin';
@@ -229,10 +231,12 @@ export function App() {
   const pageEyebrow =
     currentPage === 'dashboard'
       ? 'Dashboard'
+      : currentPage === 'notifications'
+        ? 'Notifications'
       : currentPage === 'my-items'
         ? 'My Items'
-        : currentPage === 'reviewees'
-          ? 'Guide Workspace'
+      : currentPage === 'members'
+          ? 'Guide'
           : currentPage === 'routines'
             ? 'Routines'
             : currentPage === 'profile'
@@ -241,10 +245,12 @@ export function App() {
   const pageTitle =
     currentPage === 'dashboard'
       ? 'Overview'
+      : currentPage === 'notifications'
+        ? 'Notifications'
       : currentPage === 'my-items'
         ? 'My Items'
-        : currentPage === 'reviewees'
-          ? 'Reviewees'
+      : currentPage === 'members'
+          ? 'Members'
         : currentPage === 'routines'
           ? 'Routines'
           : currentPage === 'profile'
@@ -252,15 +258,17 @@ export function App() {
             : 'Admin';
   const pageSummary =
     currentPage === 'dashboard'
-      ? 'See what needs attention now across your items, reviewees, and next check-in.'
+      ? 'See what needs attention now across your items, members, and next check-in.'
+      : currentPage === 'notifications'
+        ? 'Review your in-app feed, understand each delivery channel, and set digest timing in one place.'
       : currentPage === 'my-items'
         ? 'Focus on what needs attention now, what is coming up next, and what can wait.'
-        : currentPage === 'reviewees'
-          ? 'See who needs support first, what is coming up next, and where your visibility is limited.'
-        : currentPage === 'routines'
+        : currentPage === 'members'
+          ? 'See which members need support first, what is coming up next, and where your visibility is limited.'
+          : currentPage === 'routines'
           ? 'Create, schedule, and refine routines in one management space.'
           : currentPage === 'profile'
-              ? 'Update your profile, set digest timing, and make relationship permissions visible.'
+              ? 'Update identity details and make relationship permissions visible.'
               : 'User roles and relationship assignments.';
 
   async function refreshSetup() {
@@ -280,18 +288,18 @@ export function App() {
     const loadedItems = await apiFetch<Item[]>('/items');
     setItems(loadedItems);
 
-    if (me.reviewTargets.length > 0) {
-      setRevieweeWorkspaces(await apiFetch<RevieweeWorkspace[]>('/reviewees'));
+    if (me.members.length > 0) {
+      setMemberWorkspaces(await apiFetch<MemberWorkspace[]>('/members'));
     } else {
-      setRevieweeWorkspaces([]);
+      setMemberWorkspaces([]);
     }
 
     if (me.roles.some((entry) => entry.role === 'ADMIN')) {
       const users = await apiFetch<AdminUser[]>('/admin/users');
       setAdminUsers(users);
-      if (!targetUserId && users.length > 0) setTargetUserId(users[0]!.id);
-      if (!adminReviewerId && users.length > 0) setAdminReviewerId(users[0]!.id);
-      if (!adminRevieweeId && users.length > 0) setAdminRevieweeId(users[0]!.id);
+      if (!targetMemberId && users.length > 0) setTargetMemberId(users[0]!.id);
+      if (!adminGuideId && users.length > 0) setAdminGuideId(users[0]!.id);
+      if (!adminMemberId && users.length > 0) setAdminMemberId(users[0]!.id);
     } else {
       setAdminUsers([]);
     }
@@ -428,35 +436,45 @@ export function App() {
   }
 
   async function inviteReviewer() {
-    await apiFetch('/reviewers/invite', {
+    await apiFetch('/guides/invite', {
       method: 'POST',
-      body: JSON.stringify({ email: inviteEmail, ...(isAdmin ? { targetUserId } : {}) }),
+      body: JSON.stringify({ email: inviteEmail, ...(isAdmin ? { targetMemberId } : {}) }),
     });
     toast({ status: 'success', title: 'Invite sent' });
     setInviteEmail('');
   }
 
   async function adminAssignReviewer() {
-    await apiFetch('/admin/reviewers', {
+    await apiFetch('/admin/guides', {
       method: 'POST',
-      body: JSON.stringify({ reviewerId: adminReviewerId, revieweeId: adminRevieweeId }),
+      body: JSON.stringify({ guideId: adminGuideId, memberId: adminMemberId }),
     });
     toast({ status: 'success', title: 'Reviewer relationship updated' });
     await refreshMe();
   }
 
-  async function updatePreferences() {
+  async function updateProfile() {
     await apiFetch('/me/preferences', {
       method: 'PATCH',
       body: JSON.stringify({
         name: profileName,
         avatarUrl: profileAvatarUrl,
+      }),
+    });
+    toast({ status: 'success', title: 'Profile updated' });
+    await refreshMe();
+  }
+
+  async function updateNotificationPreferences() {
+    await apiFetch('/me/preferences', {
+      method: 'PATCH',
+      body: JSON.stringify({
         timezone: prefTimezone,
         weeklyDigestDay: Number(prefDay),
         weeklyDigestHour: Number(prefHour),
       }),
     });
-    toast({ status: 'success', title: 'Preferences updated' });
+    toast({ status: 'success', title: 'Notifications updated' });
     await refreshMe();
   }
 
@@ -465,7 +483,7 @@ export function App() {
     setUser(null);
     setItems([]);
     setAdminUsers([]);
-    setRevieweeWorkspaces([]);
+    setMemberWorkspaces([]);
     setProfileName('');
     setProfileAvatarUrl(null);
     setSessionLoadError(null);
@@ -557,22 +575,41 @@ export function App() {
           panelBgStrong={panelBgStrong}
           panelBorder={panelBorder}
           statGlow={statGlow}
+          mutedText={mutedText}
+          inviteEmail={inviteEmail}
+          setInviteEmail={setInviteEmail}
+          isAdmin={isAdmin}
+          adminUsers={adminUsers}
+          targetMemberId={targetMemberId}
+          setTargetMemberId={setTargetMemberId}
+          onUpdateProfile={updateProfile}
+          onInviteReviewer={inviteReviewer}
+          onAvatarSelected={onAvatarSelected}
+        />
+      );
+    }
+    if (currentPage === 'notifications') {
+      return (
+        <NotificationsPage
+          user={user}
+          items={items}
+          actionableItems={actionableItems}
+          memberPortfolios={memberPortfolios}
           prefTimezone={prefTimezone}
           setPrefTimezone={setPrefTimezone}
           prefDay={prefDay}
           setPrefDay={setPrefDay}
           prefHour={prefHour}
           setPrefHour={setPrefHour}
+          digestSummary={digestSummary}
+          panelBgStrong={panelBgStrong}
+          panelBorder={panelBorder}
+          statGlow={statGlow}
           mutedText={mutedText}
-          inviteEmail={inviteEmail}
-          setInviteEmail={setInviteEmail}
-          isAdmin={isAdmin}
-          adminUsers={adminUsers}
-          targetUserId={targetUserId}
-          setTargetUserId={setTargetUserId}
-          onUpdatePreferences={updatePreferences}
-          onInviteReviewer={inviteReviewer}
-          onAvatarSelected={onAvatarSelected}
+          subtleText={subtleText}
+          panelBg={panelBg}
+          inputBg={inputBg}
+          onSaveNotificationPreferences={updateNotificationPreferences}
         />
       );
     }
@@ -594,11 +631,11 @@ export function App() {
         />
       );
     }
-    if (currentPage === 'reviewees') {
+    if (currentPage === 'members') {
       return (
-        <RevieweesPage
-          canReviewOthers={canReviewOthers}
-          revieweePortfolios={revieweePortfolios}
+        <MembersPage
+          canReviewOthers={canGuideMembers}
+          memberPortfolios={memberPortfolios}
           modeGradient={modeGradient}
           panelBgStrong={panelBgStrong}
           panelBorder={panelBorder}
@@ -650,10 +687,10 @@ export function App() {
         <AdminPage
           isAdmin={isAdmin}
           adminUsers={adminUsers}
-          adminReviewerId={adminReviewerId}
-          adminRevieweeId={adminRevieweeId}
-          setAdminReviewerId={setAdminReviewerId}
-          setAdminRevieweeId={setAdminRevieweeId}
+          adminReviewerId={adminGuideId}
+          adminRevieweeId={adminMemberId}
+          setAdminReviewerId={setAdminGuideId}
+          setAdminRevieweeId={setAdminMemberId}
           onSaveMapping={adminAssignReviewer}
           modeGradient={modeGradient}
           panelBgStrong={panelBgStrong}
@@ -677,8 +714,8 @@ export function App() {
         digestSummary={digestSummary}
         categoryBreakdown={categoryBreakdown}
         user={user}
-        canReviewOthers={canReviewOthers}
-        revieweePortfolios={revieweePortfolios}
+        canReviewOthers={canGuideMembers}
+        memberPortfolios={memberPortfolios}
         panelBgStrong={panelBgStrong}
         panelBorder={panelBorder}
         statGlow={statGlow}
@@ -808,7 +845,7 @@ export function App() {
                     isAdmin={isAdmin}
                     currentPage={currentPage}
                     accent={accent}
-                    canReviewOthers={canReviewOthers}
+                    canReviewOthers={canGuideMembers}
                   />
                 </Box>
               </GridItem>

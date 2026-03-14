@@ -27,23 +27,23 @@ type MeResponse = {
   weeklyDigestDay: number;
   weeklyDigestHour: number;
   roles: Array<{ role: string }>;
-  reviewTargets: Array<{
+  members: Array<{
     mode?: 'active' | 'passive';
     canActOnItems?: boolean;
     canManageRoutines?: boolean;
-    canManageAccountability?: boolean;
+    canManageFollowThrough?: boolean;
     historyWindow?: string;
     hiddenItemCount?: number;
-    reviewee: { id: string; email: string; name: string };
+    member: { id: string; email: string; name: string };
   }>;
-  reviewers: Array<{
+  guides: Array<{
     mode?: 'active' | 'passive';
     canActOnItems?: boolean;
     canManageRoutines?: boolean;
-    canManageAccountability?: boolean;
+    canManageFollowThrough?: boolean;
     historyWindow?: string;
     hiddenItemCount?: number;
-    reviewer: { id: string; email: string; name: string };
+    guide: { id: string; email: string; name: string };
   }>;
 };
 
@@ -56,8 +56,8 @@ const meResponse: MeResponse = {
   weeklyDigestDay: 1,
   weeklyDigestHour: 8,
   roles: [{ role: 'USER' }],
-  reviewTargets: [],
-  reviewers: [],
+  members: [],
+  guides: [],
 };
 
 function mockAuthedApi(overrides: Partial<MeResponse> = {}) {
@@ -68,7 +68,7 @@ function mockAuthedApi(overrides: Partial<MeResponse> = {}) {
     if (path === '/auth/oauth/options') return { providers: [] };
     if (path === '/me') return response;
     if (path === '/items') return [];
-    if (path === '/reviewees') return [];
+    if (path === '/members') return [];
     if (path === '/admin/users') return [];
     throw new Error(`Unexpected api path: ${path}`);
   });
@@ -105,6 +105,76 @@ describe('App routes', () => {
     expect(screen.getByText('2. Set the cadence')).toBeInTheDocument();
   });
 
+  it('renders notifications directly with distinct feed and preference sections', async () => {
+    apiFetchMock.mockImplementation(async (path: string) => {
+      if (path === '/setup/status') return { needsSetup: false };
+      if (path === '/auth/oauth/options') return { providers: [] };
+      if (path === '/me') {
+        return {
+          ...meResponse,
+          members: [{ member: { id: 'u2', email: 'member@example.com', name: 'Alex' } }],
+        };
+      }
+      if (path === '/items') {
+        return [
+          {
+            id: 'i1',
+            title: 'Morning meds',
+            category: 'health',
+            scheduleKind: 'DAILY',
+            scheduleData: { kind: 'DAILY', dailyTimes: ['08:00'] },
+            notificationEnabled: true,
+            notificationHardToDismiss: true,
+            notificationRepeatMinutes: 10,
+            createdAt: '2026-03-10T08:00:00.000Z',
+            updatedAt: '2026-03-12T08:00:00.000Z',
+          },
+        ];
+      }
+      if (path === '/members') {
+        return [
+          {
+            member: { id: 'u2', email: 'member@example.com', name: 'Alex' },
+            relationship: {
+              mode: 'active',
+              canActOnItems: true,
+              canManageRoutines: true,
+              canManageFollowThrough: true,
+              historyWindow: 'Last 30 days and upcoming items',
+              hiddenItemCount: 1,
+            },
+            items: [
+              {
+                id: 'ri1',
+                title: 'Speech practice',
+                category: 'exercise',
+                scheduleKind: 'ONE_TIME',
+                scheduleData: { kind: 'ONE_TIME', oneTimeAt: '2026-03-12T08:00:00.000Z' },
+                completions: [
+                  {
+                    id: 'c1',
+                    occurredAt: '2026-03-11T08:00:00.000Z',
+                    note: 'Completed before dinner',
+                  },
+                ],
+              },
+            ],
+          },
+        ];
+      }
+      if (path === '/admin/users') return [];
+      throw new Error(`Unexpected api path: ${path}`);
+    });
+
+    renderApp('/notifications');
+
+    expect((await screen.findAllByRole('heading', { name: 'Notifications' })).length).toBeGreaterThan(0);
+    expect(screen.getByRole('heading', { name: 'In-App Feed' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Notification Preferences' })).toBeInTheDocument();
+    expect(screen.getByText('Routine reminders')).toBeInTheDocument();
+    expect(screen.getByText('Completed before dinner')).toBeInTheDocument();
+  });
+
   it('navigates from dashboard to my items', async () => {
     renderApp('/dashboard');
     expect((await screen.findAllByRole('heading', { name: 'Overview' })).length).toBeGreaterThan(0);
@@ -117,9 +187,17 @@ describe('App routes', () => {
     });
   });
 
-  it('renders the reviewees workspace for guide users and hides operational controls for passive relationships', async () => {
+  it('shows an intentional empty notification feed when no updates exist yet', async () => {
+    renderApp('/notifications');
+
+    await screen.findAllByRole('heading', { name: 'Notifications' });
+    expect(screen.getByText('No notifications yet')).toBeInTheDocument();
+    expect(screen.getByText('Save Notifications')).toBeInTheDocument();
+  });
+
+  it('renders the members workspace for guide users and hides operational controls for passive relationships', async () => {
     mockAuthedApi({
-      reviewTargets: [{ reviewee: { id: 'u2', email: 'member@example.com', name: 'Alex' } }],
+      members: [{ member: { id: 'u2', email: 'member@example.com', name: 'Alex' } }],
     });
     apiFetchMock.mockImplementation(async (path: string) => {
       if (path === '/setup/status') return { needsSetup: false };
@@ -127,19 +205,19 @@ describe('App routes', () => {
       if (path === '/me') {
         return {
           ...meResponse,
-          reviewTargets: [{ reviewee: { id: 'u2', email: 'member@example.com', name: 'Alex' } }],
+          members: [{ member: { id: 'u2', email: 'member@example.com', name: 'Alex' } }],
         };
       }
       if (path === '/items') return [];
-      if (path === '/reviewees') {
+      if (path === '/members') {
         return [
           {
-            reviewee: { id: 'u2', email: 'member@example.com', name: 'Alex' },
+            member: { id: 'u2', email: 'member@example.com', name: 'Alex' },
             relationship: {
               mode: 'passive',
               canActOnItems: false,
               canManageRoutines: false,
-              canManageAccountability: false,
+              canManageFollowThrough: false,
               historyWindow: 'Future only',
               hiddenItemCount: 0,
             },
@@ -166,9 +244,9 @@ describe('App routes', () => {
       throw new Error(`Unexpected api path: ${path}`);
     });
 
-    renderApp('/reviewees');
+    renderApp('/members');
 
-    expect((await screen.findAllByRole('heading', { name: 'Reviewees' })).length).toBeGreaterThan(0);
+    expect((await screen.findAllByRole('heading', { name: 'Members' })).length).toBeGreaterThan(0);
     expect(screen.getByText('Needs attention first')).toBeInTheDocument();
     expect(screen.getByText('Observation only')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Manage routines' })).not.toBeInTheDocument();
@@ -176,8 +254,8 @@ describe('App routes', () => {
 
   it('shows member actions, guide attention, and next review on the dashboard for dual-role users', async () => {
     mockAuthedApi({
-      reviewTargets: [{ reviewee: { id: 'u2', email: 'member@example.com', name: 'Alex' } }],
-      reviewers: [{ reviewer: { id: 'u3', email: 'guide@example.com', name: 'Jordan' } }],
+      members: [{ member: { id: 'u2', email: 'member@example.com', name: 'Alex' } }],
+      guides: [{ guide: { id: 'u3', email: 'guide@example.com', name: 'Jordan' } }],
     });
     apiFetchMock.mockImplementation(async (path: string) => {
       if (path === '/setup/status') return { needsSetup: false };
@@ -185,8 +263,8 @@ describe('App routes', () => {
       if (path === '/me') {
         return {
           ...meResponse,
-          reviewTargets: [{ reviewee: { id: 'u2', email: 'member@example.com', name: 'Alex' } }],
-          reviewers: [{ reviewer: { id: 'u3', email: 'guide@example.com', name: 'Jordan' } }],
+          members: [{ member: { id: 'u2', email: 'member@example.com', name: 'Alex' } }],
+          guides: [{ guide: { id: 'u3', email: 'guide@example.com', name: 'Jordan' } }],
         };
       }
       if (path === '/items') {
@@ -200,15 +278,15 @@ describe('App routes', () => {
           },
         ];
       }
-      if (path === '/reviewees') {
+      if (path === '/members') {
         return [
           {
-            reviewee: { id: 'u2', email: 'member@example.com', name: 'Alex' },
+            member: { id: 'u2', email: 'member@example.com', name: 'Alex' },
             relationship: {
               mode: 'active',
               canActOnItems: true,
               canManageRoutines: true,
-              canManageAccountability: true,
+              canManageFollowThrough: true,
               historyWindow: 'Last 30 days and upcoming items',
               hiddenItemCount: 1,
             },
@@ -251,7 +329,7 @@ describe('App routes', () => {
     await screen.findAllByRole('heading', { name: 'Overview' });
     expect(screen.queryByRole('link', { name: 'Profile & Relationships' })).not.toBeInTheDocument();
     expect(screen.queryByRole('link', { name: 'Admin' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('link', { name: 'Reviewees' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Members' })).not.toBeInTheDocument();
   });
 
   it('enters account mode from the user menu and offers a return path', async () => {
@@ -270,26 +348,26 @@ describe('App routes', () => {
 
   it('shows relationship permissions and visibility details on the profile page', async () => {
     mockAuthedApi({
-      reviewers: [
+      guides: [
         {
           mode: 'active',
           canActOnItems: true,
           canManageRoutines: true,
-          canManageAccountability: true,
+          canManageFollowThrough: true,
           historyWindow: 'Last 30 days + next due',
           hiddenItemCount: 1,
-          reviewer: { id: 'u3', email: 'guide@example.com', name: 'Jordan' },
+          guide: { id: 'u3', email: 'guide@example.com', name: 'Jordan' },
         },
       ],
-      reviewTargets: [
+      members: [
         {
           mode: 'passive',
           canActOnItems: false,
           canManageRoutines: false,
-          canManageAccountability: false,
+          canManageFollowThrough: false,
           historyWindow: 'Future only',
           hiddenItemCount: 0,
-          reviewee: { id: 'u2', email: 'member@example.com', name: 'Alex' },
+          member: { id: 'u2', email: 'member@example.com', name: 'Alex' },
         },
       ],
     });
@@ -299,10 +377,10 @@ describe('App routes', () => {
     await screen.findAllByRole('heading', { name: 'Profile & Relationships' });
     expect(screen.getByRole('heading', { name: 'Relationship Setup' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Active Guide/i })).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: 'Guides For You' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Your Guides' })).toBeInTheDocument();
     expect(screen.getByText('Jordan')).toBeInTheDocument();
     expect(screen.getByText("1 hidden item stays outside this guide's view.")).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: 'People You Guide' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Your Members' })).toBeInTheDocument();
   });
 
   it('submits login when pressing Enter in the password field', async () => {
@@ -345,7 +423,7 @@ describe('App routes', () => {
       }
       if (path === '/me') return { ...meResponse, roles: [{ role: 'ADMIN' }, { role: 'USER' }] };
       if (path === '/items') return [];
-      if (path === '/reviewees') return [];
+      if (path === '/members') return [];
       if (path === '/admin/users') return [];
       throw new Error(`Unexpected api path: ${path}`);
     });

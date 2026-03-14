@@ -33,7 +33,7 @@ This folder contains the product, design, and architecture documentation for `le
 
 ## Implementation structure
 
-- API route registration is split by domain under `apps/api/src/routes/` so auth/setup, member/item flows, reviewer/admin flows, and validation can evolve independently.
+- API route registration is split by domain under `apps/api/src/routes/` so auth/setup, member/item flows, guide/admin flows, and validation can evolve independently.
 - Web page modules live under `apps/web/src/pages/`, reusable shell and navigation pieces live under `apps/web/src/components/`, and `apps/web/src/App.tsx` is intentionally limited to shell/orchestration concerns.
 - Web scheduling constants, shared app types, and schedule summarization logic stay outside page components so UI composition code is not mixed with schedule interpretation rules.
 

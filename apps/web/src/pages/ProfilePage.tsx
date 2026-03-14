@@ -20,7 +20,6 @@ import {
   useToast,
 } from '@chakra-ui/react';
 import { useMemo, useState } from 'react';
-import { weekdayOptions } from '../appConstants';
 import type { AdminUser, RelationshipDetails, User } from '../appTypes';
 
 type RelationshipTemplate = {
@@ -40,7 +39,7 @@ const relationshipTemplates: RelationshipTemplate[] = [
     label: 'Active Guide',
     badge: 'Operational support',
     mode: 'active',
-    guideCanDo: 'Can help act on items, manage routines, and step into accountability follow-through.',
+    guideCanDo: 'Can help act on items, manage routines, and step into accountability support.',
     guideReceives: 'Gets timely updates, escalations, and recurring digest context.',
     history: 'Usually starts with recent history plus upcoming work.',
     privacy: 'Hidden items stay hidden, but the guide should still know some work is out of view.',
@@ -70,7 +69,7 @@ const relationshipTemplates: RelationshipTemplate[] = [
     label: 'Accountability Partner',
     badge: 'Reciprocal by direction',
     mode: 'active',
-    guideCanDo: 'Can check in, help act on work, and support follow-through without acting like an admin.',
+    guideCanDo: 'Can check in, help act on work, and support accountability without acting like an admin.',
     guideReceives: 'Gets practical nudges, digest context, and shared transparency language.',
     history: 'Often starts future-only, then expands if both sides want more context.',
     privacy: 'Use when both sides want clear boundaries instead of implied full visibility.',
@@ -78,7 +77,7 @@ const relationshipTemplates: RelationshipTemplate[] = [
 ];
 
 function relationshipTemplateFromDetails(details: RelationshipDetails): RelationshipTemplate {
-  if (details.mode === 'active' && details.canManageRoutines && details.canManageAccountability) {
+  if (details.mode === 'active' && details.canManageRoutines && details.canManageFollowThrough) {
     return relationshipTemplates[0]!;
   }
   if (details.mode === 'active' && details.canActOnItems && !details.canManageRoutines) {
@@ -102,8 +101,8 @@ function capabilityLines(details: RelationshipDetails): string[] {
     lines.push('Cannot change routines.');
   }
 
-  if (details.canManageAccountability) {
-    lines.push('Can help manage accountability settings and follow-through.');
+  if (details.canManageFollowThrough) {
+    lines.push('Can help manage accountability settings.');
   } else {
     lines.push('Cannot change accountability settings.');
   }
@@ -117,7 +116,7 @@ function visibilityLines(details: RelationshipDetails): string[] {
     details.hiddenItemCount && details.hiddenItemCount > 0
       ? `${details.hiddenItemCount} hidden item${details.hiddenItemCount === 1 ? ' stays' : 's stay'} outside this guide's view.`
       : 'No hidden-item limit is currently recorded for this relationship.',
-    'Digest and reminder delivery should match the relationship role rather than a single global reviewer setting.',
+    'Digest and reminder delivery should match the relationship role rather than a single global guide setting.',
   ];
 }
 
@@ -131,20 +130,14 @@ export function ProfilePage({
   panelBgStrong,
   panelBorder,
   statGlow,
-  prefTimezone,
-  setPrefTimezone,
-  prefDay,
-  setPrefDay,
-  prefHour,
-  setPrefHour,
   mutedText,
   inviteEmail,
   setInviteEmail,
   isAdmin,
   adminUsers,
-  targetUserId,
-  setTargetUserId,
-  onUpdatePreferences,
+  targetMemberId,
+  setTargetMemberId,
+  onUpdateProfile,
   onInviteReviewer,
   onAvatarSelected,
 }: {
@@ -157,20 +150,14 @@ export function ProfilePage({
   panelBgStrong: string;
   panelBorder: string;
   statGlow: string;
-  prefTimezone: string;
-  setPrefTimezone: (value: string) => void;
-  prefDay: string;
-  setPrefDay: (value: string) => void;
-  prefHour: string;
-  setPrefHour: (value: string) => void;
   mutedText: string;
   inviteEmail: string;
   setInviteEmail: (value: string) => void;
   isAdmin: boolean;
   adminUsers: AdminUser[];
-  targetUserId: string;
-  setTargetUserId: (value: string) => void;
-  onUpdatePreferences: () => Promise<void>;
+  targetMemberId: string;
+  setTargetMemberId: (value: string) => void;
+  onUpdateProfile: () => Promise<void>;
   onInviteReviewer: () => Promise<void>;
   onAvatarSelected: (file: File | null) => Promise<void>;
 }) {
@@ -223,47 +210,10 @@ export function ProfilePage({
                 <FormLabel>Email</FormLabel>
                 <Input bg={inputBg} value={user.email} isReadOnly />
               </FormControl>
-            </Stack>
-          </Box>
-
-          <Box bg={panelBgStrong} borderRadius="3xl" p={6} border="1px solid" borderColor={panelBorder} boxShadow={statGlow}>
-            <Heading size="md" mb={4}>
-              Digest
-            </Heading>
-            <Stack spacing={4}>
-              <FormControl>
-                <FormLabel>Timezone</FormLabel>
-                <Input bg={inputBg} value={prefTimezone} onChange={(event) => setPrefTimezone(event.target.value)} />
-                <FormHelperText color={mutedText}>
-                  Use an IANA timezone such as `America/Los_Angeles`.
-                </FormHelperText>
-              </FormControl>
-              <SimpleGrid columns={{ base: 1, md: 2 }} spacing={4}>
-                <FormControl>
-                  <FormLabel>Day</FormLabel>
-                  <Select bg={inputBg} value={prefDay} onChange={(event) => setPrefDay(event.target.value)}>
-                    {weekdayOptions.map((option) => (
-                      <option key={option.value} value={option.value}>
-                        {option.label}
-                      </option>
-                    ))}
-                  </Select>
-                </FormControl>
-                <FormControl>
-                  <FormLabel>Time</FormLabel>
-                  <Select bg={inputBg} value={prefHour} onChange={(event) => setPrefHour(event.target.value)}>
-                    {Array.from({ length: 24 }, (_, hour) => hour).map((hour) => (
-                      <option key={hour} value={hour}>
-                        {hour.toString().padStart(2, '0')}:00
-                      </option>
-                    ))}
-                  </Select>
-                </FormControl>
-              </SimpleGrid>
               <Button
                 colorScheme="leaf"
                 alignSelf="start"
-                onClick={() => onUpdatePreferences().catch((error) => toast({ status: 'error', title: String(error) }))}
+                onClick={() => onUpdateProfile().catch((error) => toast({ status: 'error', title: String(error) }))}
               >
                 Save Profile
               </Button>
@@ -351,7 +301,7 @@ export function ProfilePage({
               {isAdmin && adminUsers.length > 0 && (
                 <FormControl>
                   <FormLabel>Create relationship for</FormLabel>
-                  <Select bg={inputBg} value={targetUserId} onChange={(event) => setTargetUserId(event.target.value)}>
+                  <Select bg={inputBg} value={targetMemberId} onChange={(event) => setTargetMemberId(event.target.value)}>
                     {adminUsers.map((entry) => (
                       <option key={entry.id} value={entry.id}>
                         {entry.name} ({entry.email})
@@ -372,14 +322,14 @@ export function ProfilePage({
 
           <Box bg={panelBgStrong} borderRadius="3xl" p={6} border="1px solid" borderColor={panelBorder} boxShadow={statGlow}>
             <Heading size="md" mb={3}>
-              Guides For You
+              Your Guides
             </Heading>
             <Text color={mutedText} mb={4}>
               Review each guide's access here. Hidden items stay private, but this page should make visibility and history
               rules explicit instead of implied.
             </Text>
             <Stack spacing={4}>
-              {user.reviewers.length === 0 ? (
+              {user.guides.length === 0 ? (
                 <Box borderRadius="2xl" border="1px solid" borderColor={panelBorder} p={4}>
                   <Text fontWeight="semibold">No guides connected yet</Text>
                   <Text color={mutedText} fontSize="sm" mt={1}>
@@ -387,15 +337,15 @@ export function ProfilePage({
                   </Text>
                 </Box>
               ) : (
-                user.reviewers.map((entry) => {
+                user.guides.map((entry) => {
                   const template = relationshipTemplateFromDetails(entry);
                   return (
-                    <Box key={entry.reviewer.id} borderRadius="2xl" border="1px solid" borderColor={panelBorder} p={4}>
+                    <Box key={entry.guide.id} borderRadius="2xl" border="1px solid" borderColor={panelBorder} p={4}>
                       <HStack justify="space-between" align="start" spacing={3} mb={3}>
                         <Box>
-                          <Text fontWeight="semibold">{entry.reviewer.name}</Text>
+                          <Text fontWeight="semibold">{entry.guide.name}</Text>
                           <Text fontSize="sm" color={mutedText}>
-                            {entry.reviewer.email}
+                            {entry.guide.email}
                           </Text>
                         </Box>
                         <Stack spacing={2} align="end">
@@ -434,14 +384,14 @@ export function ProfilePage({
 
           <Box bg={panelBgStrong} borderRadius="3xl" p={6} border="1px solid" borderColor={panelBorder} boxShadow={statGlow}>
             <Heading size="md" mb={3}>
-              People You Guide
+              Your Members
             </Heading>
             <Text color={mutedText} mb={4}>
               Direction matters. If support is reciprocal, each direction should still describe its own permissions and
               visibility boundary.
             </Text>
             <Stack spacing={4}>
-              {user.reviewTargets.length === 0 ? (
+              {user.members.length === 0 ? (
                 <Box borderRadius="2xl" border="1px solid" borderColor={panelBorder} p={4}>
                   <Text fontWeight="semibold">You are not guiding anyone yet</Text>
                   <Text color={mutedText} fontSize="sm" mt={1}>
@@ -449,13 +399,13 @@ export function ProfilePage({
                   </Text>
                 </Box>
               ) : (
-                user.reviewTargets.map((entry) => (
-                  <Box key={entry.reviewee.id} borderRadius="2xl" border="1px solid" borderColor={panelBorder} p={4}>
+                user.members.map((entry) => (
+                  <Box key={entry.member.id} borderRadius="2xl" border="1px solid" borderColor={panelBorder} p={4}>
                     <HStack justify="space-between" align="start" spacing={3} mb={3}>
                       <Box>
-                        <Text fontWeight="semibold">{entry.reviewee.name}</Text>
+                        <Text fontWeight="semibold">{entry.member.name}</Text>
                         <Text fontSize="sm" color={mutedText}>
-                          {entry.reviewee.email}
+                          {entry.member.email}
                         </Text>
                       </Box>
                       <Badge colorScheme={entry.mode === 'active' ? 'green' : 'gray'} borderRadius="full" px={3} py={1}>

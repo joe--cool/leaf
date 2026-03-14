@@ -7,7 +7,7 @@ import { completeSchema, idParamSchema, preferencesSchema } from './schemas.js';
 export async function registerUserItemRoutes(app: FastifyInstance): Promise<void> {
   app.get('/me', { preHandler: [app.authenticate] }, async (request) => {
     const actor = authUser(request);
-    return prisma.user.findUnique({
+    const user = await prisma.user.findUnique({
       where: { id: actor.id },
       include: {
         roles: true,
@@ -15,9 +15,25 @@ export async function registerUserItemRoutes(app: FastifyInstance): Promise<void
         reviewers: { include: { reviewer: true } },
       },
     });
+
+    if (!user) return null;
+
+    return {
+      ...user,
+      members: user.reviewTargets.map((relation) => ({
+        ...normalizeRelationship(relation),
+        createdAt: relation.createdAt,
+        member: relation.reviewee,
+      })),
+      guides: user.reviewers.map((relation) => ({
+        ...normalizeRelationship(relation),
+        createdAt: relation.createdAt,
+        guide: relation.reviewer,
+      })),
+    };
   });
 
-  app.get('/reviewees', { preHandler: [app.authenticate] }, async (request) => {
+  app.get('/members', { preHandler: [app.authenticate] }, async (request) => {
     const actor = authUser(request);
     const user = await prisma.user.findUnique({
       where: { id: actor.id },
@@ -44,7 +60,7 @@ export async function registerUserItemRoutes(app: FastifyInstance): Promise<void
 
     return (
       user?.reviewTargets.map((relation) => ({
-        reviewee: relation.reviewee,
+        member: relation.reviewee,
         relationship: normalizeRelationship(relation),
         items: relation.reviewee.items,
       })) ?? []

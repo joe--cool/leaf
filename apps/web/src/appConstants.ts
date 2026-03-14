@@ -58,6 +58,7 @@ export const scheduleKindOptions: Array<{
 
 export const appNavItems: Array<{ key: PageKey; path: string; label: string }> = [
   { key: 'dashboard', path: '/dashboard', label: 'Overview' },
+  { key: 'notifications', path: '/notifications', label: 'Notifications' },
   { key: 'my-items', path: '/my-items', label: 'My Items' },
   { key: 'routines', path: '/routines', label: 'Routines' },
 ];

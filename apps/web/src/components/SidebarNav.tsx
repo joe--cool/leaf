@@ -60,7 +60,7 @@ export function SidebarNav({
       </Text>
       <Stack spacing={2}>
         {appNavItems
-          .concat(canReviewOthers ? [{ key: 'reviewees' as const, path: '/reviewees', label: 'Reviewees' }] : [])
+          .concat(canReviewOthers ? [{ key: 'members' as const, path: '/members', label: 'Members' }] : [])
           .map((item) => (
             <NavButton
               key={item.key}

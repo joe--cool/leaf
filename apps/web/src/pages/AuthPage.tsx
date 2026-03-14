@@ -103,7 +103,7 @@ export function AuthPage({
 
             <Box>
               <Heading size="2xl" lineHeight="1.05" maxW="16ch">
-                Clear routines, simple accountability, no extra noise.
+                Clear routines, shared accountability, no extra noise.
               </Heading>
               <Text mt={4} maxW="34rem" color={mutedText}>
                 The dashboard should answer what matters now, not explain itself.
@@ -166,7 +166,7 @@ export function AuthPage({
                     Enable demo mode
                   </Checkbox>
                   <FormHelperText color={mutedText}>
-                    Seeds example routines, reviewer relationships, and additional users so every workspace has visible data.
+                    Seeds example routines, guide relationships, and additional users so every workspace has visible data.
                   </FormHelperText>
                 </FormControl>
                 <Button colorScheme="leaf" type="submit">

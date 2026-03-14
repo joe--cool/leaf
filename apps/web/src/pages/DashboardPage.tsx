@@ -16,7 +16,7 @@ import {
 } from '@chakra-ui/react';
 import { Link as RouterLink } from 'react-router-dom';
 import { getCategoryLabel, summarizeSchedule } from '../scheduleUtils';
-import type { ActionableItem, Item, RevieweePortfolio, User } from '../appTypes';
+import type { ActionableItem, Item, MemberPortfolio, User } from '../appTypes';
 
 export function DashboardPage({
   items,
@@ -30,7 +30,7 @@ export function DashboardPage({
   categoryBreakdown,
   user,
   canReviewOthers,
-  revieweePortfolios,
+  memberPortfolios,
   panelBgStrong,
   panelBorder,
   statGlow,
@@ -50,7 +50,7 @@ export function DashboardPage({
   categoryBreakdown: Array<{ label: string; count: number }>;
   user: User;
   canReviewOthers: boolean;
-  revieweePortfolios: RevieweePortfolio[];
+  memberPortfolios: MemberPortfolio[];
   panelBgStrong: string;
   panelBorder: string;
   statGlow: string;
@@ -60,12 +60,12 @@ export function DashboardPage({
   modeGradient: string;
 }) {
   const topMemberItems = dueItems.length > 0 ? dueItems.slice(0, 3) : actionableItems.slice(0, 3);
-  const topReviewees = revieweePortfolios.slice(0, 3);
-  const recentGuideActivity = revieweePortfolios.flatMap((entry) =>
-    entry.recentActivity.map((activity) => ({ ...activity, revieweeName: entry.reviewee.name })),
+  const topMembers = memberPortfolios.slice(0, 3);
+  const recentGuideActivity = memberPortfolios.flatMap((entry) =>
+    entry.recentActivity.map((activity) => ({ ...activity, memberName: entry.member.name })),
   );
-  const firstReviewee = revieweePortfolios[0] ?? null;
-  const totalGuideUrgency = revieweePortfolios.reduce(
+  const firstMember = memberPortfolios[0] ?? null;
+  const totalGuideUrgency = memberPortfolios.reduce(
     (total, entry) => total + entry.overdue.length + entry.dueToday.length,
     0,
   );
@@ -75,7 +75,7 @@ export function DashboardPage({
     dueCount: dueItems.length,
     upcomingCount: upcomingItems.length,
     canReviewOthers,
-    revieweePortfolios,
+    memberPortfolios,
     digestSummary,
   });
 
@@ -179,12 +179,12 @@ export function DashboardPage({
             />
             <Text color={mutedText} fontSize="sm" mb={4}>
               {canReviewOthers
-                ? 'Reviewees are ordered by urgency so the first card is the best place to start.'
-                : 'This becomes your guide workspace after someone is connected to you as a reviewee.'}
+                ? 'Members are ordered by urgency so the first card is the best place to start.'
+                : 'This becomes your guide workspace after someone is connected to you as a member.'}
             </Text>
             <Stack spacing={3}>
-              {topReviewees.map((entry, index) => (
-                <Box key={entry.reviewee.id} bg={panelBg} borderRadius="2xl" p={4}>
+              {topMembers.map((entry, index) => (
+                <Box key={entry.member.id} bg={panelBg} borderRadius="2xl" p={4}>
                   <HStack justify="space-between" align="start" spacing={3}>
                     <Box>
                       <HStack spacing={2} mb={2} flexWrap="wrap">
@@ -202,7 +202,7 @@ export function DashboardPage({
                           {entry.relationship.mode === 'active' ? 'Active guide' : 'Passive guide'}
                         </Badge>
                       </HStack>
-                      <Text fontWeight="semibold">{entry.reviewee.name}</Text>
+                      <Text fontWeight="semibold">{entry.member.name}</Text>
                       <Text fontSize="sm" color={mutedText} mt={1}>
                         {entry.nextUrgent
                           ? entry.nextUrgent.action.detail
@@ -222,15 +222,15 @@ export function DashboardPage({
               ))}
               {!canReviewOthers && (
                 <EmptyCard
-                  title="No reviewees yet"
+                  title="No members yet"
                   body="Open Profile & Relationships to invite someone or set up a relationship."
                   panelBg={panelBg}
                   mutedText={mutedText}
                 />
               )}
             </Stack>
-            <Button as={RouterLink} to={canReviewOthers ? '/reviewees' : '/profile'} mt={5} size="sm" variant="outline">
-              {canReviewOthers ? 'Open Reviewees' : 'Open Profile & Relationships'}
+            <Button as={RouterLink} to={canReviewOthers ? '/members' : '/profile'} mt={5} size="sm" variant="outline">
+              {canReviewOthers ? 'Open Members' : 'Open Profile & Relationships'}
             </Button>
           </Box>
         </GridItem>
@@ -259,12 +259,12 @@ export function DashboardPage({
                 subtleText={subtleText}
               />
               <KeyValueCard
-                label="Your reviewers"
-                value={String(user.reviewers.length)}
+                label="Your guides"
+                value={String(user.guides.length)}
                 detail={
-                  user.reviewers.length > 0
-                    ? `${user.reviewers.length} people can review your progress.`
-                    : 'No reviewers are connected yet.'
+                  user.guides.length > 0
+                    ? `${user.guides.length} people can review your progress.`
+                    : 'No guides are connected yet.'
                 }
                 panelBg={panelBg}
                 mutedText={mutedText}
@@ -272,10 +272,10 @@ export function DashboardPage({
               />
               <KeyValueCard
                 label="People you guide"
-                value={String(user.reviewTargets.length)}
+                value={String(user.members.length)}
                 detail={
-                  user.reviewTargets.length > 0
-                    ? `${user.reviewTargets.length} relationships need clear review timing.`
+                  user.members.length > 0
+                    ? `${user.members.length} relationships need clear review timing.`
                     : 'You are not guiding anyone yet.'
                 }
                 panelBg={panelBg}
@@ -306,7 +306,7 @@ export function DashboardPage({
                 <Box key={entry.id} bg={panelBg} borderRadius="2xl" p={4}>
                   <Text fontWeight="semibold">{entry.itemTitle}</Text>
                   <Text color={mutedText} fontSize="sm" mt={1}>
-                    {entry.revieweeName} completed this on {new Date(entry.occurredAt).toLocaleString()}.
+                    {entry.memberName} completed this on {new Date(entry.occurredAt).toLocaleString()}.
                   </Text>
                   <Text color={subtleText} fontSize="sm" mt={2}>
                     {entry.note?.trim() ? entry.note : 'No note was added.'}
@@ -318,7 +318,7 @@ export function DashboardPage({
                   title="No shared completions yet"
                   body={
                     canReviewOthers
-                      ? 'Shared activity will appear here as your reviewees complete visible routines.'
+                      ? 'Shared activity will appear here as your members complete visible routines.'
                       : 'Recent shared completions appear here when you are guiding someone.'
                   }
                   panelBg={panelBg}
@@ -414,27 +414,27 @@ function buildHero({
   dueCount,
   upcomingCount,
   canReviewOthers,
-  revieweePortfolios,
+  memberPortfolios,
   digestSummary,
 }: {
   itemCount: number;
   dueCount: number;
   upcomingCount: number;
   canReviewOthers: boolean;
-  revieweePortfolios: RevieweePortfolio[];
+  memberPortfolios: MemberPortfolio[];
   digestSummary: string;
 }) {
-  const firstReviewee = revieweePortfolios[0] ?? null;
-  const guideUrgency = revieweePortfolios.reduce((total, entry) => total + entry.overdue.length + entry.dueToday.length, 0);
+  const firstMember = memberPortfolios[0] ?? null;
+  const guideUrgency = memberPortfolios.reduce((total, entry) => total + entry.overdue.length + entry.dueToday.length, 0);
 
-  if (dueCount > 0 && canReviewOthers && firstReviewee) {
+  if (dueCount > 0 && canReviewOthers && firstMember) {
     return {
       title: 'You have both member and guide work to review',
-      body: `${dueCount} personal routine${dueCount === 1 ? '' : 's'} need attention now, and ${firstReviewee.reviewee.name} is the first reviewee to check on.`,
+      body: `${dueCount} personal routine${dueCount === 1 ? '' : 's'} need attention now, and ${firstMember.member.name} is the first member to check on.`,
       primaryTo: '/my-items',
       primaryLabel: 'Open My Items',
-      secondaryTo: '/reviewees',
-      secondaryLabel: 'Open Reviewees',
+      secondaryTo: '/members',
+      secondaryLabel: 'Open Members',
     };
   }
 
@@ -449,15 +449,15 @@ function buildHero({
     };
   }
 
-  if (canReviewOthers && firstReviewee) {
+  if (canReviewOthers && firstMember) {
     return {
-      title: `Guide attention starts with ${firstReviewee.reviewee.name}`,
+      title: `Guide attention starts with ${firstMember.member.name}`,
       body:
         guideUrgency > 0
           ? `${guideUrgency} visible guide signal${guideUrgency === 1 ? '' : 's'} need review across your relationships.`
-          : 'Nothing is urgent right now, but this reviewee is first in line for your next check-in.',
-      primaryTo: '/reviewees',
-      primaryLabel: 'Open Reviewees',
+          : 'Nothing is urgent right now, but this member is first in line for your next check-in.',
+      primaryTo: '/members',
+      primaryLabel: 'Open Members',
       secondaryTo: '/profile',
       secondaryLabel: 'Review relationship settings',
     };

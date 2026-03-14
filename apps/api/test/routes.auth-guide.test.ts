@@ -74,7 +74,7 @@ vi.mock('../src/prisma.js', () => ({
   },
 }));
 
-describe('auth/reviewer routes', () => {
+describe('auth/guide routes', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     inviteCreateMock.mockResolvedValue({ id: 'inv_1', token: 'tok' });
@@ -189,7 +189,7 @@ describe('auth/reviewer routes', () => {
     await app.close();
   });
 
-  it('blocks non-admin from inviting reviewers for other users', async () => {
+  it('blocks non-admin from inviting guides for other users', async () => {
     userRolesMock.mockResolvedValue(['USER']);
     const { registerRoutes } = await import('../src/routes.js');
 
@@ -202,8 +202,8 @@ describe('auth/reviewer routes', () => {
 
     const res = await app.inject({
       method: 'POST',
-      url: '/reviewers/invite',
-      payload: { email: 'rev@example.com', targetUserId: 'u2' },
+      url: '/guides/invite',
+      payload: { email: 'guide@example.com', targetMemberId: 'u2' },
     });
 
     expect(res.statusCode).toBe(403);
@@ -211,7 +211,7 @@ describe('auth/reviewer routes', () => {
     await app.close();
   });
 
-  it('returns reviewee workspace data for authenticated guides', async () => {
+  it('returns member workspace data for authenticated guides', async () => {
     userFindUniqueMock.mockResolvedValue({
       id: 'u1',
       reviewTargets: [
@@ -258,12 +258,12 @@ describe('auth/reviewer routes', () => {
     );
     await app.register(registerRoutes);
 
-    const res = await app.inject({ method: 'GET', url: '/reviewees' });
+    const res = await app.inject({ method: 'GET', url: '/members' });
 
     expect(res.statusCode).toBe(200);
     expect(res.json()).toEqual([
       {
-        reviewee: {
+        member: {
           id: 'u2',
           email: 'member@example.com',
           name: 'Member',
@@ -289,7 +289,7 @@ describe('auth/reviewer routes', () => {
           mode: 'active',
           canActOnItems: true,
           canManageRoutines: true,
-          canManageAccountability: true,
+          canManageFollowThrough: true,
           historyWindow: 'Last 30 days + next due',
           hiddenItemCount: 1,
         },

@@ -1,6 +1,6 @@
 import type { ScheduleKind } from '@leaf/shared';
 import { categoryDefaultTitles, categoryOptions } from './appConstants';
-import type { ActionSummary, Item, RevieweeItem } from './appTypes';
+import type { ActionSummary, Item, MemberItem } from './appTypes';
 
 export function toInputDateTime(date: Date): string {
   const year = date.getFullYear();
@@ -346,10 +346,10 @@ export function summarizeActionableState(item: Item, now = new Date()): ActionSu
   };
 }
 
-export function summarizeRecentRevieweeActivity(items: RevieweeItem[]) {
+export function summarizeRecentRevieweeActivity(items: MemberItem[]) {
   return items
     .flatMap((item) =>
-      item.completions.map((completion) => ({
+      item.completions.map((completion: MemberItem['completions'][number]) => ({
         id: completion.id,
         itemTitle: item.title,
         occurredAt: completion.occurredAt,

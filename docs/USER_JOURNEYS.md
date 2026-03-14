@@ -112,7 +112,7 @@ The product should separate action-oriented surfaces from administrative ones.
 
 - `Dashboard`: overview across both member and guide roles, with drill-down into the pages below
 - `My Items`: the member’s action surface
-- `Reviewees`: the guide’s oversight workspace
+- `Members`: the guide’s oversight workspace
 - `Routines`: the definition and configuration surface for tracked items
 - `Notifications`: a unified in-app notification center
 
@@ -191,7 +191,7 @@ The member should also be able to inspect, guide by guide:
 
 ### 6. Review a portfolio of people
 
-The guide should have a dedicated `Reviewees` workspace rather than a copied version of the member action page.
+The guide should have a dedicated `Members` workspace rather than a copied version of the member action page.
 
 The guide’s workspace should be urgency-first, with:
 

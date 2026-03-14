@@ -5,7 +5,7 @@ API-first multi-user leaf app for homework, meds/supplements, exercise, and recu
 ## Highlights
 
 - API-first architecture with shared TypeScript/Zod contracts
-- Multi-user roles (`USER`, `ADMIN`) and reviewer relationships
+- Multi-user roles (`USER`, `ADMIN`) and guide relationships
 - Flexible schedules (`ONE_TIME`, `DAILY`, `WEEKLY`, `INTERVAL_DAYS`, `CUSTOM_DATES`)
 - Local auth by default with optional OAuth/OIDC (Google, Apple)
 - Refresh-token rotation + logout revocation
@@ -25,10 +25,10 @@ API-first multi-user leaf app for homework, meds/supplements, exercise, and recu
 
 - `apps/api/src/routes.ts` is now a thin composition layer; route domains live under `apps/api/src/routes/`
 - `apps/api/src/routes/setupAuth.ts` owns setup, login, refresh, logout, and OAuth flows
-- `apps/api/src/routes/userItems.ts` owns `/me`, `/reviewees`, items, and preference updates
-- `apps/api/src/routes/reviewerAdmin.ts` owns reviewer invitations plus admin relationship/user management
+- `apps/api/src/routes/userItems.ts` owns `/me`, `/members`, items, and preference updates
+- `apps/api/src/routes/guideAdmin.ts` owns guide invitations plus admin relationship/user management
 - `apps/web/src/App.tsx` is now the application shell/orchestrator only
-- `apps/web/src/pages/` contains page-level modules such as dashboard, profile, reviewees, routines, and admin
+- `apps/web/src/pages/` contains page-level modules such as dashboard, profile, members, routines, and admin
 - `apps/web/src/components/` contains reusable shell/navigation/account UI pieces
 - shared view models and schedule logic live in `apps/web/src/appTypes.ts`, `apps/web/src/appConstants.ts`, and `apps/web/src/scheduleUtils.ts`
 
@@ -75,7 +75,7 @@ Demo mode creates:
 
 - Sample routines for the new admin across multiple schedule types
 - Additional fake users for admin and guide views
-- Reviewer relationships in both directions, including active-guide and passive-guide examples from the original account
+- Guide relationships in both directions, including active-guide and passive-guide examples from the original account
 - Recent, overdue, due-today, and upcoming activity using dynamically generated relative dates
 - Shared login password across the spoofed demo users so quick manual switching is possible when needed
 

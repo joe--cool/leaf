@@ -8,11 +8,11 @@ export const completeSchema = z.object({
 
 export const inviteSchema = z.object({
   email: z.string().email(),
-  targetUserId: z.string().optional(),
+  targetMemberId: z.string().optional(),
 });
 
 export const acceptInviteSchema = z.object({ token: z.string().min(1) });
-export const adminReviewerSchema = z.object({ reviewerId: z.string(), revieweeId: z.string() });
+export const adminGuideSchema = z.object({ guideId: z.string(), memberId: z.string() });
 export const preferencesSchema = z.object({
   weeklyDigestHour: z.number().int().min(0).max(23).optional(),
   weeklyDigestDay: z.number().int().min(0).max(6).optional(),

@@ -27,7 +27,7 @@ export function relationshipDefaults() {
     mode: 'passive' as const,
     canActOnItems: false,
     canManageRoutines: false,
-    canManageAccountability: false,
+    canManageFollowThrough: false,
     historyWindow: 'Future only',
     hiddenItemCount: 0,
   };
@@ -47,7 +47,7 @@ export function normalizeRelationship(relation: RelationshipLike) {
     mode: relation.mode === 'active' ? 'active' : 'passive',
     canActOnItems: relation.canActOnItems ?? false,
     canManageRoutines: relation.canManageRoutines ?? false,
-    canManageAccountability: relation.canManageAccountability ?? false,
+    canManageFollowThrough: relation.canManageAccountability ?? false,
     historyWindow: relation.historyWindow ?? 'Future only',
     hiddenItemCount: relation.hiddenItemCount ?? 0,
   };

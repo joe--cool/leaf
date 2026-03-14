@@ -54,7 +54,7 @@ Templates should be transparent, editable, and explain what they allow before cr
 
 ### Multiple guides
 
-Multiple guides per member are first-class. The product should not assume one reviewer or one household authority figure.
+Multiple guides per member are first-class. The product should not assume one guide or one household authority figure.
 
 ### Parent / child relationships
 
@@ -91,7 +91,7 @@ The product should separate action-oriented experiences from administrative ones
 
 - `Dashboard`
 - `My Items`
-- `Reviewees`
+- `Members`
 - `Routines`
 - `Notifications`
 
@@ -174,7 +174,7 @@ The product should not force scope selection before action.
 
 ### Guide view
 
-`Reviewees` should be a guide-specific workspace optimized for:
+`Members` should be a guide-specific workspace optimized for:
 
 - urgent and overdue work
 - escalation visibility
@@ -335,7 +335,7 @@ The current repository already includes a useful starting point, including:
 - local auth and optional OAuth
 - first-run admin setup
 - tracked item creation with multiple schedule types
-- basic reviewer/admin relationships
+- basic guide/admin relationships
 - digest preferences
 - a CLI and macOS notifier
 

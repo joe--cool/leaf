@@ -33,31 +33,6 @@ Main UX gaps:
 
 ## Recommended implementation order
 
-### Introduce a first-class `Notifications` surface
-
-Why:
-
-- The docs define notifications as a main app surface, not only per-item reminder toggles.
-- Current notification UX is limited to routine-level reminder settings and weekly digest preferences.
-
-Root-level scope:
-
-- Add a unified notifications page and navigation entry.
-- Separate in-app notification history from notification preferences.
-- Expose digest cadence and channel settings in a way that matches member and guide roles.
-
-Review before closing:
-
-- Check that notification history and notification settings are clearly distinct.
-- Check that the page explains channels, cadence, and acknowledgement behavior in product language.
-- Check that member and guide notification choices are understandable without reading docs.
-- Check that the page still works when a user has no notifications yet.
-
-Validation:
-
-- A user can review notifications in one place.
-- A user can understand and change how they are notified without editing a routine.
-
 ### Add accountability status, scoring, and hidden-item transparency
 
 Why:
@@ -117,6 +92,7 @@ Validation:
 ## UX Review Notes
 
 - 2026-03-13: Reworked `Overview` into a role-aware dashboard centered on `Member Actions`, `Guide Attention`, and `Next Review`, with urgent summaries and recent shared completions ahead of background metrics.
-- 2026-03-13: Added a dedicated `Reviewees` workspace with guide-only navigation, urgency-ordered member cards, recent activity context, and observation-only states for passive relationships.
+- 2026-03-13: Added a dedicated `Members` workspace with guide-only navigation, urgency-ordered member cards, recent activity context, and observation-only states for passive relationships.
 - 2026-03-13: Split the old `Tracked Items` surface into `My Items` and `Routines`, moved the member-facing page toward due and upcoming work, and kept routine creation and schedule management on the separate builder page.
 - 2026-03-13: Replaced the old invite-and-counts account view with `Profile & Relationships`, including template-led relationship setup, explicit visibility/history explanations, and guide-by-guide permission cards for both incoming and outgoing relationships.
+- 2026-03-13: Added a dedicated `Notifications` surface with a unified in-app feed, distinct notification preferences, digest timing controls, and role-aware channel explanations for both members and guides.

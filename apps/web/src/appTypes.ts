@@ -9,14 +9,14 @@ export type User = {
   weeklyDigestDay: number;
   weeklyDigestHour: number;
   roles: Array<{ role: string }>;
-  reviewTargets: Array<
+  members: Array<
     RelationshipDetails & {
-      reviewee: { id: string; email: string; name: string };
+      member: { id: string; email: string; name: string };
     }
   >;
-  reviewers: Array<
+  guides: Array<
     RelationshipDetails & {
-      reviewer: { id: string; email: string; name: string };
+      guide: { id: string; email: string; name: string };
     }
   >;
 };
@@ -25,9 +25,10 @@ export type RelationshipDetails = {
   mode?: 'active' | 'passive';
   canActOnItems?: boolean;
   canManageRoutines?: boolean;
-  canManageAccountability?: boolean;
+  canManageFollowThrough?: boolean;
   historyWindow?: string;
   hiddenItemCount?: number;
+  createdAt?: string;
 };
 
 export type Item = {
@@ -36,6 +37,11 @@ export type Item = {
   category: string;
   scheduleKind: ScheduleKind;
   scheduleData?: Record<string, unknown>;
+  notificationEnabled?: boolean;
+  notificationHardToDismiss?: boolean;
+  notificationRepeatMinutes?: number;
+  createdAt?: string;
+  updatedAt?: string;
 };
 
 export type ItemCompletion = {
@@ -44,21 +50,21 @@ export type ItemCompletion = {
   note?: string | null;
 };
 
-export type RevieweeItem = Item & {
+export type MemberItem = Item & {
   completions: ItemCompletion[];
 };
 
-export type RevieweeWorkspace = {
-  reviewee: { id: string; email: string; name: string };
+export type MemberWorkspace = {
+  member: { id: string; email: string; name: string };
   relationship: {
     mode: 'active' | 'passive';
     canActOnItems: boolean;
     canManageRoutines: boolean;
-    canManageAccountability: boolean;
+    canManageFollowThrough: boolean;
     historyWindow: string;
     hiddenItemCount: number;
   };
-  items: RevieweeItem[];
+  items: MemberItem[];
 };
 
 export type OAuthProvider = 'google' | 'apple';
@@ -70,7 +76,7 @@ export type AdminUser = {
   roles: Array<{ role: string }>;
 };
 
-export type PageKey = 'dashboard' | 'profile' | 'my-items' | 'reviewees' | 'routines' | 'admin';
+export type PageKey = 'dashboard' | 'notifications' | 'profile' | 'my-items' | 'members' | 'routines' | 'admin';
 export type SingleScheduleKind = Exclude<ScheduleKind, 'MULTI'>;
 export type ActionBucket = 'due' | 'upcoming' | 'later';
 
@@ -87,22 +93,32 @@ export type ActionableItem = {
   action: ActionSummary;
 };
 
-export type RevieweeRecentActivity = {
+export type MemberRecentActivity = {
   id: string;
   itemTitle: string;
   occurredAt: string;
   note?: string | null;
 };
 
-export type RevieweePortfolio = RevieweeWorkspace & {
+export type MemberPortfolio = MemberWorkspace & {
   actionable: ActionableItem[];
   overdue: ActionableItem[];
   dueToday: ActionableItem[];
   upcoming: ActionableItem[];
   missedCount: number;
-  recentActivity: RevieweeRecentActivity[];
+  recentActivity: MemberRecentActivity[];
   nextUrgent: ActionableItem | null;
   rank: number;
+};
+
+export type NotificationFeedEntry = {
+  id: string;
+  category: 'member' | 'guide' | 'visibility';
+  title: string;
+  detail: string;
+  timestamp?: string;
+  status: string;
+  acknowledgement: string;
 };
 
 export type DraftSchedule = {
