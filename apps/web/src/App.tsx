@@ -29,12 +29,14 @@ import {
 import type {
   ActionableItem,
   AdminUser,
+  AuditLogEntry,
   DraftSchedule,
   Item,
   MemberPortfolio,
   MemberWorkspace,
   OAuthProvider,
   PageKey,
+  RetrospectiveEntry,
   User,
 } from './appTypes';
 import { AccountMenu } from './components/AccountMenu';
@@ -49,7 +51,10 @@ import { DashboardPage } from './pages/DashboardPage';
 import { MembersPage } from './pages/MembersPage';
 import { MyItemsPage } from './pages/MyItemsPage';
 import { ProfilePage } from './pages/ProfilePage';
+import { RetrospectivesPage } from './pages/RetrospectivesPage';
 import { RoutinesPage } from './pages/RoutinesPage';
+import { AuditLogPage } from './pages/AuditLogPage';
+import { buildRetrospectiveEntries } from './retrospectiveUtils';
 
 function startsWithPath(pathname: string, path: string): boolean {
   return pathname === path || pathname.startsWith(`${path}/`);
@@ -74,6 +79,7 @@ export function App() {
   const [items, setItems] = useState<Item[]>([]);
   const [adminUsers, setAdminUsers] = useState<AdminUser[]>([]);
   const [memberWorkspaces, setMemberWorkspaces] = useState<MemberWorkspace[]>([]);
+  const [auditEntries, setAuditEntries] = useState<AuditLogEntry[]>([]);
 
   const [title, setTitle] = useState(getDefaultTitle('health'));
   const [category, setCategory] = useState('health');
@@ -160,10 +166,16 @@ export function App() {
         .sort((left, right) => right.rank - left.rank || left.member.name.localeCompare(right.member.name)),
     [memberWorkspaces],
   );
+  const retrospectiveEntries = useMemo<RetrospectiveEntry[]>(
+    () => (user ? buildRetrospectiveEntries(user, items, memberPortfolios) : []),
+    [user, items, memberPortfolios],
+  );
 
   const canGuideMembers = (user?.members.length ?? 0) > 0;
   const currentPage: PageKey = useMemo(() => {
     if (startsWithPath(location.pathname, '/profile')) return 'profile';
+    if (startsWithPath(location.pathname, '/retrospectives')) return 'retrospectives';
+    if (startsWithPath(location.pathname, '/audit-log')) return 'audit-log';
     if (startsWithPath(location.pathname, '/my-items')) return 'my-items';
     if (startsWithPath(location.pathname, '/members')) return 'members';
     if (startsWithPath(location.pathname, '/routines')) return 'routines';
@@ -172,7 +184,8 @@ export function App() {
     return 'dashboard';
   }, [location.pathname]);
 
-  const accountMode = currentPage === 'profile' || currentPage === 'admin';
+  const accountMode =
+    currentPage === 'profile' || currentPage === 'retrospectives' || currentPage === 'audit-log' || currentPage === 'admin';
   const adminMode = currentPage === 'admin' && isAdmin;
 
   const shellBg = useColorModeValue('rgba(252, 249, 243, 0.9)', 'rgba(14, 19, 19, 0.92)');
@@ -238,18 +251,26 @@ export function App() {
             ? 'Routines'
             : currentPage === 'profile'
               ? 'Account'
+              : currentPage === 'retrospectives'
+                ? 'History'
+                : currentPage === 'audit-log'
+                  ? 'Transparency'
               : 'Admin';
   const pageTitle =
     currentPage === 'dashboard'
       ? 'Overview'
       : currentPage === 'my-items'
         ? 'My Items'
-      : currentPage === 'members'
+        : currentPage === 'members'
           ? 'Members'
         : currentPage === 'routines'
           ? 'Routines'
           : currentPage === 'profile'
             ? 'Profile & Relationships'
+            : currentPage === 'retrospectives'
+              ? 'Retrospectives'
+              : currentPage === 'audit-log'
+                ? 'Audit Log'
             : 'Admin';
   const pageSummary =
     currentPage === 'dashboard'
@@ -262,6 +283,10 @@ export function App() {
           ? 'Create, schedule, and refine routines in one management space.'
           : currentPage === 'profile'
               ? 'Update identity details and make relationship permissions visible.'
+              : currentPage === 'retrospectives'
+                ? 'Review reflection windows, accountability movement, and relationship context over time.'
+                : currentPage === 'audit-log'
+                  ? 'Inspect attributed account, relationship, and routine changes without leaving the product.'
               : 'User roles and relationship assignments.';
 
   async function refreshSetup() {
@@ -286,6 +311,8 @@ export function App() {
     } else {
       setMemberWorkspaces([]);
     }
+
+    setAuditEntries(await apiFetch<AuditLogEntry[]>('/history/audit'));
 
     if (me.roles.some((entry) => entry.role === 'ADMIN')) {
       const users = await apiFetch<AdminUser[]>('/admin/users');
@@ -477,6 +504,7 @@ export function App() {
     setItems([]);
     setAdminUsers([]);
     setMemberWorkspaces([]);
+    setAuditEntries([]);
     setProfileName('');
     setProfileAvatarUrl(null);
     setSessionLoadError(null);
@@ -596,6 +624,34 @@ export function App() {
           actionableItems={actionableItems}
           upcomingItems={upcomingItems}
           laterItems={laterItems}
+          modeGradient={modeGradient}
+          panelBgStrong={panelBgStrong}
+          panelBorder={panelBorder}
+          statGlow={statGlow}
+          subtleText={subtleText}
+          mutedText={mutedText}
+          panelBg={panelBg}
+        />
+      );
+    }
+    if (currentPage === 'retrospectives') {
+      return (
+        <RetrospectivesPage
+          entries={retrospectiveEntries}
+          modeGradient={modeGradient}
+          panelBgStrong={panelBgStrong}
+          panelBorder={panelBorder}
+          statGlow={statGlow}
+          subtleText={subtleText}
+          mutedText={mutedText}
+          panelBg={panelBg}
+        />
+      );
+    }
+    if (currentPage === 'audit-log') {
+      return (
+        <AuditLogPage
+          entries={auditEntries}
           modeGradient={modeGradient}
           panelBgStrong={panelBgStrong}
           panelBorder={panelBorder}

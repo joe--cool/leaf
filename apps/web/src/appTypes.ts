@@ -64,6 +64,7 @@ export type MemberWorkspace = {
     canManageFollowThrough: boolean;
     historyWindow: string;
     hiddenItemCount: number;
+    createdAt?: string;
   };
   items: MemberItem[];
 };
@@ -77,7 +78,43 @@ export type AdminUser = {
   roles: Array<{ role: string }>;
 };
 
-export type PageKey = 'dashboard' | 'profile' | 'my-items' | 'members' | 'routines' | 'admin';
+export type AuditLogEntry = {
+  id: string;
+  occurredAt: string;
+  category: 'account' | 'relationship' | 'routine' | 'activity' | 'invite';
+  scope: 'self' | 'member' | 'guide';
+  subjectName: string;
+  title: string;
+  detail: string;
+  actorName: string;
+  visibility: string;
+};
+
+export type RetrospectiveEntry = {
+  id: string;
+  periodStart: string;
+  periodEnd: string;
+  title: string;
+  audience: string;
+  subjectName: string;
+  summary: string;
+  accountabilityLabel: string;
+  accountabilityScore: number | null;
+  trendLabel: string;
+  trendDelta: number | null;
+  visibility: string;
+  highlights: string[];
+};
+
+export type PageKey =
+  | 'dashboard'
+  | 'profile'
+  | 'my-items'
+  | 'members'
+  | 'routines'
+  | 'retrospectives'
+  | 'audit-log'
+  | 'admin';
 export type SingleScheduleKind = Exclude<ScheduleKind, 'MULTI'>;
 export type ActionBucket = 'due' | 'upcoming' | 'later';
 

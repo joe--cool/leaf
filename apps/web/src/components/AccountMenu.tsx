@@ -103,6 +103,30 @@ export function AccountMenu({
           >
             Profile & Relationships
           </MenuItem>
+          <MenuItem
+            as={RouterLink}
+            to="/retrospectives"
+            borderRadius="xl"
+            bg="transparent"
+            color="inherit"
+            _hover={{ bg: 'var(--account-menu-hover-bg)' }}
+            _focus={{ bg: 'var(--account-menu-hover-bg)' }}
+            _active={{ bg: 'var(--account-menu-hover-bg)' }}
+          >
+            Retrospectives
+          </MenuItem>
+          <MenuItem
+            as={RouterLink}
+            to="/audit-log"
+            borderRadius="xl"
+            bg="transparent"
+            color="inherit"
+            _hover={{ bg: 'var(--account-menu-hover-bg)' }}
+            _focus={{ bg: 'var(--account-menu-hover-bg)' }}
+            _active={{ bg: 'var(--account-menu-hover-bg)' }}
+          >
+            Audit Log
+          </MenuItem>
           {isAdmin && (
             <MenuItem
               as={RouterLink}

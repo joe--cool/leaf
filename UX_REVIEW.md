@@ -31,33 +31,6 @@ Main UX gaps:
 - Notifications, digests, and accountability transparency are not first-class surfaces.
 - Audit and retrospective history are missing as user-facing product surfaces.
 
-## Recommended implementation order
-
-### Add user-facing `Retrospectives` and `Audit Log` surfaces
-
-Why:
-
-- Both are called out as administrative surfaces in the docs.
-- Important transparency and governance expectations depend on these views existing.
-
-Root-level scope:
-
-- Add routes and navigation for retrospectives history and audit history.
-- Surface attributed actions, relationship changes, and major account events.
-- Keep these distinct from workspace admin functions.
-
-Review before closing:
-
-- Check that retrospectives and audit history are clearly different concepts in the UI.
-- Check that attributed actions, relationship changes, and major events are legible and scannable.
-- Check that these pages support transparency without feeling like raw admin logs.
-- Check that navigation placement makes sense relative to profile, relationships, and admin.
-
-Validation:
-
-- A user can review past changes and accountability history without leaving the product.
-- Guide, member, and parent transparency expectations have visible product support.
-
 ## Notes on sizing
 
 - Each item above is intentionally atomic at the surface level, not at the component level.
@@ -66,6 +39,7 @@ Validation:
 
 ## UX Review Notes
 
+- 2026-03-14: Added account-level `Retrospectives` and `Audit Log` surfaces with dedicated navigation, reflective accountability windows for self and guided members, and attributed history for account, relationship, invite, routine, and completion events without collapsing those views into admin tooling.
 - 2026-03-14: Added shared accountability status, percentage, and trend summaries across `Overview`, `My Items`, and `Members`, while making guide-visible privacy limits explicit without exposing hidden-item details or counts.
 - 2026-03-13: Reworked `Overview` into a role-aware dashboard centered on `Member Actions`, `Guide Attention`, and `Next Review`, with urgent summaries and recent shared completions ahead of background metrics.
 - 2026-03-13: Added a dedicated `Members` workspace with guide-only navigation, urgency-ordered member cards, recent activity context, and observation-only states for passive relationships.

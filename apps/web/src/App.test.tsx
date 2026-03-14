@@ -69,6 +69,7 @@ function mockAuthedApi(overrides: Partial<MeResponse> = {}) {
     if (path === '/me') return response;
     if (path === '/items') return [];
     if (path === '/members') return [];
+    if (path === '/history/audit') return [];
     if (path === '/admin/users') return [];
     throw new Error(`Unexpected api path: ${path}`);
   });
@@ -162,6 +163,7 @@ describe('App routes', () => {
           },
         ];
       }
+      if (path === '/history/audit') return [];
       if (path === '/admin/users') return [];
       throw new Error(`Unexpected api path: ${path}`);
     });
@@ -253,6 +255,7 @@ describe('App routes', () => {
           },
         ];
       }
+      if (path === '/history/audit') return [];
       if (path === '/admin/users') return [];
       throw new Error(`Unexpected api path: ${path}`);
     });
@@ -324,6 +327,7 @@ describe('App routes', () => {
           },
         ];
       }
+      if (path === '/history/audit') return [];
       if (path === '/admin/users') return [];
       throw new Error(`Unexpected api path: ${path}`);
     });
@@ -348,6 +352,8 @@ describe('App routes', () => {
     expect(screen.queryByRole('link', { name: 'Admin' })).not.toBeInTheDocument();
     expect(screen.queryByRole('link', { name: 'Members' })).not.toBeInTheDocument();
     expect(screen.queryByRole('link', { name: 'Notifications' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Retrospectives' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Audit Log' })).not.toBeInTheDocument();
   });
 
   it('enters account mode from the user menu and offers a return path', async () => {
@@ -362,6 +368,129 @@ describe('App routes', () => {
       expect(screen.getAllByRole('heading', { name: 'Profile & Relationships' }).length).toBeGreaterThan(0);
     });
     expect(screen.getByRole('link', { name: 'Back to app' })).toBeInTheDocument();
+  });
+
+  it('renders retrospectives and audit log as dedicated account surfaces', async () => {
+    apiFetchMock.mockImplementation(async (path: string) => {
+      if (path === '/setup/status') return { needsSetup: false };
+      if (path === '/auth/oauth/options') return { providers: [] };
+      if (path === '/me') {
+        return {
+          ...meResponse,
+          members: [
+            {
+              mode: 'active',
+              canActOnItems: true,
+              canManageRoutines: true,
+              canManageFollowThrough: true,
+              historyWindow: 'Last 30 days + next due',
+              hiddenItemCount: 1,
+              createdAt: '2026-03-10T08:00:00.000Z',
+              member: { id: 'u2', email: 'member@example.com', name: 'Alex' },
+            },
+          ],
+          guides: [
+            {
+              mode: 'active',
+              canActOnItems: true,
+              canManageRoutines: true,
+              canManageFollowThrough: true,
+              historyWindow: 'Last 30 days + next due',
+              hiddenItemCount: 0,
+              createdAt: '2026-03-09T08:00:00.000Z',
+              guide: { id: 'u3', email: 'guide@example.com', name: 'Jordan' },
+            },
+          ],
+        };
+      }
+      if (path === '/items') {
+        return [
+          {
+            id: 'i1',
+            title: 'Morning meds',
+            category: 'health',
+            scheduleKind: 'DAILY',
+            scheduleData: { kind: 'DAILY', dailyTimes: ['08:00'] },
+            createdAt: '2026-03-10T08:00:00.000Z',
+            completions: [
+              {
+                id: 'c1',
+                occurredAt: '2026-03-13T08:00:00.000Z',
+                note: 'Handled before breakfast',
+              },
+            ],
+          },
+        ];
+      }
+      if (path === '/members') {
+        return [
+          {
+            member: { id: 'u2', email: 'member@example.com', name: 'Alex' },
+            relationship: {
+              mode: 'active',
+              canActOnItems: true,
+              canManageRoutines: true,
+              canManageFollowThrough: true,
+              historyWindow: 'Last 30 days + next due',
+              hiddenItemCount: 1,
+              createdAt: '2026-03-10T08:00:00.000Z',
+            },
+            items: [
+              {
+                id: 'ri1',
+                title: 'Speech practice',
+                category: 'exercise',
+                scheduleKind: 'INTERVAL_DAYS',
+                scheduleData: {
+                  kind: 'INTERVAL_DAYS',
+                  intervalDays: 2,
+                  intervalAnchor: '2026-03-09T08:00:00.000Z',
+                },
+                createdAt: '2026-03-10T08:00:00.000Z',
+                completions: [
+                  {
+                    id: 'rc1',
+                    occurredAt: '2026-03-13T09:00:00.000Z',
+                    note: 'Focused session',
+                  },
+                ],
+              },
+            ],
+          },
+        ];
+      }
+      if (path === '/history/audit') {
+        return [
+          {
+            id: 'a1',
+            occurredAt: '2026-03-13T09:00:00.000Z',
+            category: 'relationship',
+            scope: 'member',
+            subjectName: 'Alex',
+            title: 'Guide relationship started with Alex',
+            detail: 'Alex is connected as an active relationship with explicit history boundaries.',
+            actorName: 'User',
+            visibility: 'Visible because Alex is in your guide workspace.',
+          },
+        ];
+      }
+      if (path === '/admin/users') return [];
+      throw new Error(`Unexpected api path: ${path}`);
+    });
+
+    renderApp('/retrospectives');
+
+    expect((await screen.findAllByRole('heading', { name: 'Retrospectives' })).length).toBeGreaterThan(0);
+    expect(screen.getByText('Reflection History')).toBeInTheDocument();
+    expect(screen.getAllByText(/Your follow-through|Alex relationship review/).length).toBeGreaterThan(0);
+
+    cleanup();
+
+    renderApp('/audit-log');
+
+    expect((await screen.findAllByRole('heading', { name: 'Audit Log' })).length).toBeGreaterThan(0);
+    expect(screen.getByText('Attributed account and relationship history')).toBeInTheDocument();
+    expect(screen.getByText('Guide relationship started with Alex')).toBeInTheDocument();
   });
 
   it('shows relationship permissions and visibility details on the profile page', async () => {
@@ -411,6 +540,7 @@ describe('App routes', () => {
       if (path === '/auth/login') return { accessToken: 'token', refreshToken: 'refresh' };
       if (path === '/me') return meResponse;
       if (path === '/items') return [];
+      if (path === '/history/audit') return [];
       throw new Error(`Unexpected api path: ${path}`);
     });
 
@@ -444,6 +574,7 @@ describe('App routes', () => {
       if (path === '/me') return { ...meResponse, roles: [{ role: 'ADMIN' }, { role: 'USER' }] };
       if (path === '/items') return [];
       if (path === '/members') return [];
+      if (path === '/history/audit') return [];
       if (path === '/admin/users') return [];
       throw new Error(`Unexpected api path: ${path}`);
     });

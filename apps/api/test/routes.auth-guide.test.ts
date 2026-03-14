@@ -222,6 +222,7 @@ describe('auth/guide routes', () => {
           canManageAccountability: true,
           historyWindow: 'Last 30 days + next due',
           hiddenItemCount: 1,
+          createdAt: new Date('2026-03-10T07:00:00.000Z'),
           reviewee: {
             id: 'u2',
             email: 'member@example.com',
@@ -292,6 +293,7 @@ describe('auth/guide routes', () => {
           canManageFollowThrough: true,
           historyWindow: 'Last 30 days + next due',
           hiddenItemCount: 1,
+          createdAt: '2026-03-10T07:00:00.000Z',
         },
         items: [
           {
@@ -311,6 +313,144 @@ describe('auth/guide routes', () => {
           },
         ],
       },
+    ]);
+    await app.close();
+  });
+
+  it('returns attributed audit history for account and guided-member activity', async () => {
+    userFindUniqueMock.mockResolvedValue({
+      id: 'u1',
+      name: 'Guide User',
+      createdAt: new Date('2026-03-01T08:00:00.000Z'),
+      reviewers: [
+        {
+          reviewerId: 'u4',
+          revieweeId: 'u1',
+          createdAt: new Date('2026-03-02T08:00:00.000Z'),
+          historyWindow: 'Last 30 days + next due',
+          mode: 'active',
+          reviewer: {
+            id: 'u4',
+            name: 'Jordan',
+          },
+        },
+      ],
+      reviewTargets: [
+        {
+          reviewerId: 'u1',
+          revieweeId: 'u2',
+          createdAt: new Date('2026-03-10T08:00:00.000Z'),
+          historyWindow: 'Future only',
+          mode: 'passive',
+          reviewee: {
+            id: 'u2',
+            name: 'Alex',
+            items: [
+              {
+                id: 'item_2',
+                title: 'Speech practice',
+                createdAt: new Date('2026-03-11T08:00:00.000Z'),
+                completions: [
+                  {
+                    id: 'completion_2',
+                    occurredAt: new Date('2026-03-13T08:00:00.000Z'),
+                    note: 'Focused session',
+                    user: {
+                      id: 'u2',
+                      name: 'Alex',
+                    },
+                  },
+                ],
+              },
+            ],
+          },
+        },
+      ],
+      items: [
+        {
+          id: 'item_1',
+          title: 'Morning meds',
+          createdAt: new Date('2026-03-05T08:00:00.000Z'),
+          completions: [
+            {
+              id: 'completion_1',
+              occurredAt: new Date('2026-03-12T08:00:00.000Z'),
+              note: 'Handled early',
+              user: {
+                id: 'u1',
+                name: 'Guide User',
+              },
+            },
+          ],
+        },
+      ],
+      sentInvites: [
+        {
+          id: 'inv_1',
+          inviteeMail: 'newguide@example.com',
+          createdAt: new Date('2026-03-09T08:00:00.000Z'),
+          acceptedAt: null,
+          invitee: null,
+        },
+      ],
+    });
+    const { registerRoutes } = await import('../src/routes.js');
+
+    const app = Fastify();
+    app.decorate(
+      'authenticate',
+      async (request: { user?: { id: string; email: string; roles: string[] } }) => {
+        request.user = { id: 'u1', email: 'guide@example.com', roles: ['USER'] };
+      },
+    );
+    await app.register(registerRoutes);
+
+    const res = await app.inject({ method: 'GET', url: '/history/audit' });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toEqual([
+      expect.objectContaining({
+        category: 'activity',
+        scope: 'member',
+        subjectName: 'Alex',
+        title: 'Alex recorded activity on Speech practice',
+        actorName: 'Alex',
+      }),
+      expect.objectContaining({
+        category: 'activity',
+        scope: 'self',
+        subjectName: 'Guide User',
+        title: 'Recorded activity on Morning meds',
+        actorName: 'Guide User',
+      }),
+      expect.objectContaining({
+        category: 'routine',
+        scope: 'member',
+        title: 'Alex added Speech practice',
+      }),
+      expect.objectContaining({
+        category: 'relationship',
+        scope: 'member',
+        title: 'Guide relationship started with Alex',
+      }),
+      expect.objectContaining({
+        category: 'invite',
+        title: 'Sent guide invite to newguide@example.com',
+      }),
+      expect.objectContaining({
+        category: 'routine',
+        scope: 'self',
+        title: 'Created Morning meds',
+      }),
+      expect.objectContaining({
+        category: 'relationship',
+        scope: 'guide',
+        title: 'Jordan became your guide',
+      }),
+      expect.objectContaining({
+        category: 'account',
+        title: 'Account created',
+      }),
     ]);
     await app.close();
   });

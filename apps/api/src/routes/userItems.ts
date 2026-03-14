@@ -61,7 +61,10 @@ export async function registerUserItemRoutes(app: FastifyInstance): Promise<void
     return (
       user?.reviewTargets.map((relation) => ({
         member: relation.reviewee,
-        relationship: normalizeRelationship(relation),
+        relationship: {
+          ...normalizeRelationship(relation),
+          createdAt: relation.createdAt,
+        },
         items: relation.reviewee.items,
       })) ?? []
     );
