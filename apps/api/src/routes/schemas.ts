@@ -1,4 +1,4 @@
-import { loginSchema } from '@leaf/shared';
+import { loginSchema, relationshipTemplateIdSchema } from '@leaf/shared';
 import { z } from 'zod';
 
 export const completeSchema = z.object({
@@ -9,6 +9,7 @@ export const completeSchema = z.object({
 export const inviteSchema = z.object({
   email: z.string().email(),
   targetMemberId: z.string().optional(),
+  relationshipTemplateId: relationshipTemplateIdSchema.default('active-guide'),
 });
 
 export const acceptInviteSchema = z.object({ token: z.string().min(1) });
@@ -34,4 +35,8 @@ export const firstAdminSetupSchema = loginSchema.extend({
   name: z.string().min(1),
   setupToken: z.string().optional(),
   demoMode: z.boolean().optional(),
+});
+export const inviteRegistrationSchema = loginSchema.extend({
+  name: z.string().min(1),
+  token: z.string().min(1),
 });

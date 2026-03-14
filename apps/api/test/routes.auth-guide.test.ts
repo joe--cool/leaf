@@ -6,11 +6,16 @@ const userRolesMock = vi.fn();
 const enabledProvidersMock = vi.fn();
 const sendEmailMock = vi.fn();
 const inviteCreateMock = vi.fn();
+const inviteFindUniqueMock = vi.fn();
+const inviteUpdateMock = vi.fn();
 const userFindUniqueMock = vi.fn();
+const userFindManyMock = vi.fn();
 const seedDemoWorkspaceMock = vi.fn();
 const userCreateMock = vi.fn();
 const issueAuthTokensMock = vi.fn();
 const hashPasswordMock = vi.fn();
+const reviewerRelationUpsertMock = vi.fn();
+const transactionMock = vi.fn();
 
 vi.mock('../src/auth.js', () => ({
   hashPassword: hashPasswordMock,
@@ -40,18 +45,18 @@ vi.mock('../src/prisma.js', () => ({
     user: {
       count: vi.fn().mockResolvedValue(1),
       findUnique: userFindUniqueMock,
-      findMany: vi.fn(),
+      findMany: userFindManyMock,
       create: userCreateMock,
       update: vi.fn(),
     },
     invite: {
       create: inviteCreateMock,
-      findUnique: vi.fn(),
-      update: vi.fn(),
+      findUnique: inviteFindUniqueMock,
+      update: inviteUpdateMock,
     },
     reviewerRelation: {
       create: vi.fn(),
-      upsert: vi.fn(),
+      upsert: reviewerRelationUpsertMock,
     },
     userRole: {
       upsert: vi.fn(),
@@ -70,7 +75,7 @@ vi.mock('../src/prisma.js', () => ({
       update: vi.fn(),
       updateMany: vi.fn(),
     },
-    $transaction: vi.fn(),
+    $transaction: transactionMock,
   },
 }));
 
@@ -83,6 +88,7 @@ describe('auth/guide routes', () => {
       accessToken: 'access-token',
       refreshToken: 'refresh-token',
     });
+    transactionMock.mockImplementation(async (operations: unknown[]) => Promise.all(operations as Promise<unknown>[]));
   });
 
   it('returns enabled oauth providers', async () => {
@@ -208,6 +214,56 @@ describe('auth/guide routes', () => {
 
     expect(res.statusCode).toBe(403);
     expect(sendEmailMock).not.toHaveBeenCalled();
+    await app.close();
+  });
+
+  it('returns invite preview with relationship proposal and target member context', async () => {
+    inviteFindUniqueMock.mockResolvedValue({
+      id: 'inv_1',
+      token: 'tok',
+      type: 'GUIDE',
+      inviteeMail: 'newguide@example.com',
+      acceptedAt: null,
+      expiresAt: new Date('2026-03-21T08:00:00.000Z'),
+      targetUserId: 'u2',
+      relationshipTemplateId: 'active-guide',
+      relationshipMode: 'active',
+      canActOnItems: true,
+      canManageRoutines: true,
+      canManageAccountability: true,
+      historyWindow: 'Last 30 days + next due',
+      inviter: { id: 'u1', name: 'Alex', email: 'alex@example.com' },
+    });
+    userFindUniqueMock.mockResolvedValueOnce({
+      id: 'u2',
+      name: 'Jordan',
+      email: 'jordan@example.com',
+    });
+    const { registerRoutes } = await import('../src/routes.js');
+
+    const app = Fastify();
+    await app.register(sensible);
+    app.decorate('authenticate', async () => {});
+    await app.register(registerRoutes);
+
+    const res = await app.inject({ method: 'GET', url: '/invites/tok' });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toEqual({
+      token: 'tok',
+      inviteeEmail: 'newguide@example.com',
+      expiresAt: '2026-03-21T08:00:00.000Z',
+      inviter: { id: 'u1', name: 'Alex', email: 'alex@example.com' },
+      member: { id: 'u2', name: 'Jordan', email: 'jordan@example.com' },
+      proposedRelationship: {
+        templateId: 'active-guide',
+        mode: 'active',
+        canActOnItems: true,
+        canManageRoutines: true,
+        canManageFollowThrough: true,
+        historyWindow: 'Last 30 days + next due',
+      },
+    });
     await app.close();
   });
 

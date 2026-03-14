@@ -47,22 +47,6 @@ Main UX gaps:
 
 ## Open Items
 
-### Replace first-run setup with a real onboarding and invitation journey
-
-The docs describe onboarding as relationship-aware and consent-driven, but the current product still starts from an admin bootstrap form and a token-based invite flow that never becomes a real guided journey.
-
-Deliver:
-
-- Turn first-run into a short workspace setup flow that explains the product model, demo mode, and the next actions after account creation.
-- Add a real invite acceptance journey so a new person can understand who invited them, what template/role is being proposed, and what visibility or powers they are agreeing to before joining.
-- Make the first successful login land users in the right next step for their role: create first item, invite a guide, or review a member relationship.
-
-Review before closing:
-
-- A brand new workspace can be created and exercised end to end without needing to understand internal admin concepts.
-- An invited user can see relationship context before accepting and can complete the join flow without manual token handling.
-- The seeded demo workspace still shows the new onboarding states clearly.
-
 ### Ship a unified item creation flow with templates, one-time items, and better defaults
 
 The docs call for one creation flow for recurring and one-time work, with life-area-first templates. The current `Routines` page is still a builder-heavy configuration form and does not support the intended onboarding path.
@@ -211,6 +195,7 @@ Review before closing:
 
 ## UX Review Notes
 
+- 2026-03-14: Replaced the admin-flavored first-run form with workspace setup, added tokenless invite acceptance at `/join/:token` with visible relationship consent details, and routed newly authenticated users through a role-aware welcome step that points them to item creation, guide invitation, or member review while keeping demo mode visibly useful.
 - 2026-03-14: Added account-level `Retrospectives` and `Audit Log` surfaces with dedicated navigation, reflective accountability windows for self and guided members, and attributed history for account, relationship, invite, routine, and completion events without collapsing those views into admin tooling.
 - 2026-03-14: Added shared accountability status, percentage, and trend summaries across `Overview`, `My Items`, and `Members`, while making guide-visible privacy limits explicit without exposing hidden-item details or counts.
 - 2026-03-13: Reworked `Overview` into a role-aware dashboard centered on `Member Actions`, `Guide Attention`, and `Next Review`, with urgent summaries and recent shared completions ahead of background metrics.

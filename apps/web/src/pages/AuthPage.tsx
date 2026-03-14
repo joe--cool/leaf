@@ -32,6 +32,8 @@ export function AuthPage({
   inputBg,
   setupEmail,
   setSetupEmail,
+  setupName,
+  setSetupName,
   setupPassword,
   setSetupPassword,
   setupToken,
@@ -57,6 +59,8 @@ export function AuthPage({
   inputBg: string;
   setupEmail: string;
   setSetupEmail: (value: string) => void;
+  setupName: string;
+  setSetupName: (value: string) => void;
   setupPassword: string;
   setSetupPassword: (value: string) => void;
   setupToken: string;
@@ -142,12 +146,19 @@ export function AuthPage({
             >
               <Stack spacing={4}>
                 <Badge alignSelf="start" colorScheme="orange" borderRadius="full" px={3} py={1}>
-                  First-run setup
+                  Workspace setup
                 </Badge>
-                <Heading size="lg">Create the first administrator</Heading>
-                <Text color={mutedText}>Create the first account and open the workspace.</Text>
+                <Heading size="lg">Create your workspace</Heading>
+                <Text color={mutedText}>
+                  Start with one account, decide whether to seed a realistic demo, then invite people into explicit
+                  relationships after you land inside.
+                </Text>
                 <FormControl>
-                  <FormLabel>Admin email</FormLabel>
+                  <FormLabel>Your name</FormLabel>
+                  <Input bg={inputBg} value={setupName} onChange={(event) => setSetupName(event.target.value)} />
+                </FormControl>
+                <FormControl>
+                  <FormLabel>Email</FormLabel>
                   <Input bg={inputBg} value={setupEmail} onChange={(event) => setSetupEmail(event.target.value)} />
                 </FormControl>
                 <FormControl>
@@ -166,11 +177,12 @@ export function AuthPage({
                     Enable demo mode
                   </Checkbox>
                   <FormHelperText color={mutedText}>
-                    Seeds example routines, guide relationships, and additional users so every workspace has visible data.
+                    Seeds example items, active-guide and passive-guide relationships, and next-step states so the
+                    workspace is useful on first sign-in.
                   </FormHelperText>
                 </FormControl>
                 <Button colorScheme="leaf" type="submit">
-                  Create First Admin
+                  Create Workspace
                 </Button>
               </Stack>
             </Box>

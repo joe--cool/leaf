@@ -5,17 +5,21 @@ import { MemoryRouter } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { App } from './App';
 
-const { apiFetchMock, getTokenMock } = vi.hoisted(() => ({
+const { apiFetchMock, getTokenMock, setTokenMock, setRefreshTokenMock, clearTokenMock, tokenState } = vi.hoisted(() => ({
   apiFetchMock: vi.fn(),
   getTokenMock: vi.fn(),
+  setTokenMock: vi.fn(),
+  setRefreshTokenMock: vi.fn(),
+  clearTokenMock: vi.fn(),
+  tokenState: { value: 'token' as string | null },
 }));
 
 vi.mock('./api', () => ({
   apiFetch: apiFetchMock,
-  clearToken: vi.fn(),
+  clearToken: clearTokenMock,
   getToken: getTokenMock,
-  setRefreshToken: vi.fn(),
-  setToken: vi.fn(),
+  setRefreshToken: setRefreshTokenMock,
+  setToken: setTokenMock,
 }));
 
 type MeResponse = {
@@ -62,7 +66,7 @@ const meResponse: MeResponse = {
 
 function mockAuthedApi(overrides: Partial<MeResponse> = {}) {
   const response = { ...meResponse, ...overrides };
-  getTokenMock.mockReturnValue('token');
+  tokenState.value = 'token';
   apiFetchMock.mockImplementation(async (path: string) => {
     if (path === '/setup/status') return { needsSetup: false };
     if (path === '/auth/oauth/options') return { providers: [] };
@@ -88,6 +92,15 @@ function renderApp(initialPath = '/dashboard') {
 describe('App routes', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    window.localStorage.clear();
+    tokenState.value = 'token';
+    getTokenMock.mockImplementation(() => tokenState.value);
+    setTokenMock.mockImplementation((nextToken: string) => {
+      tokenState.value = nextToken;
+    });
+    clearTokenMock.mockImplementation(() => {
+      tokenState.value = null;
+    });
     Object.defineProperty(HTMLElement.prototype, 'scrollTo', {
       configurable: true,
       value: vi.fn(),
@@ -533,7 +546,7 @@ describe('App routes', () => {
   });
 
   it('submits login when pressing Enter in the password field', async () => {
-    getTokenMock.mockReturnValue(null);
+    tokenState.value = null;
     apiFetchMock.mockImplementation(async (path: string) => {
       if (path === '/setup/status') return { needsSetup: false };
       if (path === '/auth/oauth/options') return { providers: [] };
@@ -559,12 +572,13 @@ describe('App routes', () => {
   });
 
   it('submits first-run setup with demo mode when the checkbox is enabled', async () => {
-    getTokenMock.mockReturnValue(null);
+    tokenState.value = null;
     apiFetchMock.mockImplementation(async (path: string, options?: { body?: string }) => {
       if (path === '/setup/status') return { needsSetup: true };
       if (path === '/auth/oauth/options') return { providers: [] };
       if (path === '/setup/first-admin') {
         expect(JSON.parse(options?.body ?? '{}')).toMatchObject({
+          name: 'Admin User',
           email: 'admin@example.com',
           password: 'changeme123',
           demoMode: true,
@@ -582,10 +596,11 @@ describe('App routes', () => {
     renderApp('/dashboard');
 
     const user = userEvent.setup();
-    await user.type(await screen.findByLabelText('Admin email'), 'admin@example.com');
+    await user.type(await screen.findByLabelText('Your name'), 'Admin User');
+    await user.type(screen.getByLabelText('Email'), 'admin@example.com');
     await user.type(screen.getByLabelText('Password'), 'changeme123');
     await user.click(screen.getByRole('checkbox', { name: 'Enable demo mode' }));
-    await user.click(screen.getByRole('button', { name: 'Create First Admin' }));
+    await user.click(screen.getByRole('button', { name: 'Create Workspace' }));
 
     await waitFor(() => {
       expect(apiFetchMock).toHaveBeenCalledWith(
@@ -593,6 +608,84 @@ describe('App routes', () => {
         expect.objectContaining({ method: 'POST' }),
       );
     });
+    expect(await screen.findByRole('heading', { name: 'Welcome' })).toBeInTheDocument();
+    expect(screen.getByText('Demo mode is ready')).toBeInTheDocument();
+  });
+
+  it('shows invite context and accepts the invite without manual token handling', async () => {
+    tokenState.value = null;
+    apiFetchMock.mockImplementation(async (path: string, options?: { body?: string }) => {
+      if (path === '/setup/status') return { needsSetup: false };
+      if (path === '/auth/oauth/options') return { providers: [] };
+      if (path === '/invites/tok') {
+        return {
+          token: 'tok',
+          inviteeEmail: 'guide@example.com',
+          expiresAt: '2026-03-21T08:00:00.000Z',
+          inviter: { id: 'u1', name: 'Alex', email: 'alex@example.com' },
+          member: { id: 'u2', name: 'Jordan', email: 'jordan@example.com' },
+          proposedRelationship: {
+            templateId: 'active-guide',
+            mode: 'active',
+            canActOnItems: true,
+            canManageRoutines: true,
+            canManageFollowThrough: true,
+            historyWindow: 'Last 30 days + next due',
+          },
+        };
+      }
+      if (path === '/auth/register') {
+        expect(JSON.parse(options?.body ?? '{}')).toMatchObject({
+          name: 'Guide User',
+          email: 'guide@example.com',
+          password: 'changeme123',
+          token: 'tok',
+        });
+        return { accessToken: 'token', refreshToken: 'refresh' };
+      }
+      if (path === '/guides/accept') {
+        expect(JSON.parse(options?.body ?? '{}')).toEqual({ token: 'tok' });
+        return { accepted: true };
+      }
+      if (path === '/me') {
+        return {
+          ...meResponse,
+          email: 'guide@example.com',
+          name: 'Guide User',
+          members: [
+            {
+              mode: 'active',
+              canActOnItems: true,
+              canManageRoutines: true,
+              canManageFollowThrough: true,
+              historyWindow: 'Last 30 days + next due',
+              hiddenItemCount: 0,
+              member: { id: 'u2', email: 'jordan@example.com', name: 'Jordan' },
+            },
+          ],
+        };
+      }
+      if (path === '/items') return [];
+      if (path === '/members') return [];
+      if (path === '/history/audit') return [];
+      if (path === '/admin/users') return [];
+      throw new Error(`Unexpected api path: ${path}`);
+    });
+
+    renderApp('/join/tok');
+
+    expect(await screen.findByText('Alex invited you into Leaf')).toBeInTheDocument();
+    expect(screen.getByText('Alex is asking you to guide Jordan.')).toBeInTheDocument();
+    expect(screen.getByText(/Last 30 days \+ next due/)).toBeInTheDocument();
+
+    const user = userEvent.setup();
+    const registerSection = screen.getByRole('heading', { name: 'Create your account and accept' }).closest('form')!;
+    await user.type(within(registerSection).getByLabelText('Name'), 'Guide User');
+    await user.type(within(registerSection).getByLabelText('Password'), 'changeme123');
+    await user.click(within(registerSection).getByRole('button', { name: 'Create Account and Accept Invite' }));
+
+    expect(await screen.findByRole('heading', { name: 'Welcome' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Open Members' })).toBeInTheDocument();
   });
 
   it('renders the account menu in a high z-index overlay layer', async () => {

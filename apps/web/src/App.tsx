@@ -9,12 +9,13 @@ import {
   HStack,
   Image,
   Stack,
+  Text,
   useColorMode,
   useColorModeValue,
   useToast,
 } from '@chakra-ui/react';
 import { useEffect, useMemo, useState } from 'react';
-import { Link as RouterLink, useLocation } from 'react-router-dom';
+import { Link as RouterLink, matchPath, useLocation, useNavigate } from 'react-router-dom';
 import 'react-day-picker/dist/style.css';
 import './app.css';
 import { apiFetch, clearToken, getToken, setRefreshToken, setToken } from './api';
@@ -29,8 +30,10 @@ import {
 import type {
   ActionableItem,
   AdminUser,
+  AuthNextStep,
   AuditLogEntry,
   DraftSchedule,
+  InvitePreview,
   Item,
   MemberPortfolio,
   MemberWorkspace,
@@ -48,32 +51,80 @@ import { UserGlyph } from './components/UserGlyph';
 import { AdminPage } from './pages/AdminPage';
 import { AuthPage } from './pages/AuthPage';
 import { DashboardPage } from './pages/DashboardPage';
+import { InviteAcceptancePage } from './pages/InviteAcceptancePage';
 import { MembersPage } from './pages/MembersPage';
 import { MyItemsPage } from './pages/MyItemsPage';
 import { ProfilePage } from './pages/ProfilePage';
 import { RetrospectivesPage } from './pages/RetrospectivesPage';
 import { RoutinesPage } from './pages/RoutinesPage';
 import { AuditLogPage } from './pages/AuditLogPage';
+import { WelcomePage } from './pages/WelcomePage';
 import { buildRetrospectiveEntries } from './retrospectiveUtils';
 
 function startsWithPath(pathname: string, path: string): boolean {
   return pathname === path || pathname.startsWith(`${path}/`);
 }
 
+function onboardingStorageKey(userId: string): string {
+  return `leaf_onboarding_seen_${userId}`;
+}
+
+function buildNextStep(user: User, items: Item[]): AuthNextStep {
+  if (user.members.length > 0) {
+    return {
+      title: 'Review your member workspace',
+      description: 'Start in the guide workspace so you can see who needs support first and confirm the relationship context.',
+      path: '/members',
+      actionLabel: 'Open Members',
+    };
+  }
+  if (items.length === 0) {
+    return {
+      title: 'Create your first tracked item',
+      description: 'Begin with one useful item so the member workspace becomes actionable immediately.',
+      path: '/routines',
+      actionLabel: 'Create First Item',
+    };
+  }
+  if (user.guides.length === 0) {
+    return {
+      title: 'Invite a guide',
+      description: 'Set up a transparent relationship so someone can support or review your follow-through with explicit permissions.',
+      path: '/profile',
+      actionLabel: 'Invite a Guide',
+    };
+  }
+  return {
+    title: 'Start from your action workspace',
+    description: 'You already have a basic setup, so move into your queue and keep momentum.',
+    path: '/my-items',
+    actionLabel: 'Open My Items',
+  };
+}
+
 export function App() {
   const toast = useToast();
   const location = useLocation();
+  const navigate = useNavigate();
   const { colorMode, toggleColorMode } = useColorMode();
 
   const [needsSetup, setNeedsSetup] = useState(false);
+  const [setupName, setSetupName] = useState('');
   const [setupEmail, setSetupEmail] = useState('');
   const [setupPassword, setSetupPassword] = useState('');
   const [setupToken, setSetupToken] = useState('');
   const [setupDemoMode, setSetupDemoMode] = useState(false);
+  const [selectedTemplateId, setSelectedTemplateId] = useState('active-guide');
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [registerName, setRegisterName] = useState('');
+  const [registerEmail, setRegisterEmail] = useState('');
+  const [registerPassword, setRegisterPassword] = useState('');
   const [oauthProviders, setOauthProviders] = useState<OAuthProvider[]>([]);
+  const [invitePreview, setInvitePreview] = useState<InvitePreview | null>(null);
+  const [invitePreviewError, setInvitePreviewError] = useState<string | null>(null);
+  const [didSeedDemoWorkspace, setDidSeedDemoWorkspace] = useState(false);
 
   const [user, setUser] = useState<User | null>(null);
   const [items, setItems] = useState<Item[]>([]);
@@ -172,10 +223,14 @@ export function App() {
   );
 
   const canGuideMembers = (user?.members.length ?? 0) > 0;
+  const inviteMatch = matchPath('/join/:token', location.pathname);
+  const inviteToken = inviteMatch?.params.token ?? null;
+  const welcomeMode = startsWithPath(location.pathname, '/welcome');
   const currentPage: PageKey = useMemo(() => {
     if (startsWithPath(location.pathname, '/profile')) return 'profile';
     if (startsWithPath(location.pathname, '/retrospectives')) return 'retrospectives';
     if (startsWithPath(location.pathname, '/audit-log')) return 'audit-log';
+    if (startsWithPath(location.pathname, '/welcome')) return 'dashboard';
     if (startsWithPath(location.pathname, '/my-items')) return 'my-items';
     if (startsWithPath(location.pathname, '/members')) return 'members';
     if (startsWithPath(location.pathname, '/routines')) return 'routines';
@@ -241,7 +296,9 @@ export function App() {
   );
 
   const pageEyebrow =
-    currentPage === 'dashboard'
+    welcomeMode
+      ? 'Onboarding'
+      : currentPage === 'dashboard'
       ? 'Dashboard'
       : currentPage === 'my-items'
         ? 'My Items'
@@ -257,7 +314,9 @@ export function App() {
                   ? 'Transparency'
               : 'Admin';
   const pageTitle =
-    currentPage === 'dashboard'
+    welcomeMode
+      ? 'Welcome'
+      : currentPage === 'dashboard'
       ? 'Overview'
       : currentPage === 'my-items'
         ? 'My Items'
@@ -273,7 +332,9 @@ export function App() {
                 ? 'Audit Log'
             : 'Admin';
   const pageSummary =
-    currentPage === 'dashboard'
+    welcomeMode
+      ? 'Confirm how Leaf works, then jump straight into the next job that matches your role.'
+      : currentPage === 'dashboard'
       ? 'See what needs attention now across your items, members, and next check-in.'
       : currentPage === 'my-items'
         ? 'Focus on what needs attention now, what is coming up next, and what can wait.'
@@ -312,7 +373,8 @@ export function App() {
       setMemberWorkspaces([]);
     }
 
-    setAuditEntries(await apiFetch<AuditLogEntry[]>('/history/audit'));
+    const loadedAuditEntries = await apiFetch<AuditLogEntry[]>('/history/audit');
+    setAuditEntries(loadedAuditEntries);
 
     if (me.roles.some((entry) => entry.role === 'ADMIN')) {
       const users = await apiFetch<AdminUser[]>('/admin/users');
@@ -323,6 +385,12 @@ export function App() {
     } else {
       setAdminUsers([]);
     }
+
+    return {
+      user: me,
+      items: loadedItems,
+      auditEntries: loadedAuditEntries,
+    };
   }
 
   async function refreshOAuthOptions() {
@@ -341,6 +409,26 @@ export function App() {
       .then(() => setSessionLoadError(null))
       .catch((error) => setSessionLoadError(String(error)));
   }, [loggedIn]);
+
+  useEffect(() => {
+    if (!inviteToken) {
+      setInvitePreview(null);
+      setInvitePreviewError(null);
+      return;
+    }
+
+    apiFetch<InvitePreview>(`/invites/${inviteToken}`)
+      .then((preview) => {
+        setInvitePreview(preview);
+        setInvitePreviewError(null);
+        setEmail((current) => current || preview.inviteeEmail);
+        setRegisterEmail((current) => current || preview.inviteeEmail);
+      })
+      .catch((error) => {
+        setInvitePreview(null);
+        setInvitePreviewError(String(error));
+      });
+  }, [inviteToken]);
 
   function buildSingleSchedule(draft: DraftSchedule) {
     const timezone = prefTimezone || 'UTC';
@@ -392,12 +480,40 @@ export function App() {
     return { kind: 'MULTI' as const, schedules, timezone: prefTimezone || 'UTC' };
   }
 
+  function markOnboardingSeen(currentUser: User | null) {
+    if (!currentUser) return;
+    localStorage.setItem(onboardingStorageKey(currentUser.id), 'true');
+  }
+
+  async function acceptInvite(token: string) {
+    await apiFetch('/guides/accept', {
+      method: 'POST',
+      body: JSON.stringify({ token }),
+    });
+  }
+
+  async function finishAuthentication(options?: { inviteToken?: string; demoMode?: boolean }) {
+    if (options?.inviteToken) {
+      await acceptInvite(options.inviteToken);
+    }
+
+    const session = await refreshMe();
+    setDidSeedDemoWorkspace(Boolean(options?.demoMode));
+
+    if (!localStorage.getItem(onboardingStorageKey(session.user.id))) {
+      navigate('/welcome');
+      return;
+    }
+
+    navigate(buildNextStep(session.user, session.items).path);
+  }
+
   async function runSetup() {
     const result = await apiFetch<{ accessToken: string; refreshToken: string }>('/setup/first-admin', {
       method: 'POST',
       body: JSON.stringify({
         email: setupEmail,
-        name: setupEmail,
+        name: setupName,
         password: setupPassword,
         setupToken: setupToken || undefined,
         demoMode: setupDemoMode,
@@ -405,7 +521,7 @@ export function App() {
     });
     setToken(result.accessToken);
     setRefreshToken(result.refreshToken);
-    await refreshMe();
+    await finishAuthentication({ demoMode: setupDemoMode });
     await refreshSetup();
   }
 
@@ -416,7 +532,23 @@ export function App() {
     });
     setToken(result.accessToken);
     setRefreshToken(result.refreshToken);
-    await refreshMe();
+    await finishAuthentication({ inviteToken: inviteToken ?? undefined });
+  }
+
+  async function registerFromInvite() {
+    if (!inviteToken) throw new Error('Invite token is missing');
+    const result = await apiFetch<{ accessToken: string; refreshToken: string }>('/auth/register', {
+      method: 'POST',
+      body: JSON.stringify({
+        name: registerName,
+        email: registerEmail,
+        password: registerPassword,
+        token: inviteToken,
+      }),
+    });
+    setToken(result.accessToken);
+    setRefreshToken(result.refreshToken);
+    await finishAuthentication({ inviteToken });
   }
 
   async function loginWithProvider(provider: OAuthProvider) {
@@ -458,7 +590,11 @@ export function App() {
   async function inviteReviewer() {
     await apiFetch('/guides/invite', {
       method: 'POST',
-      body: JSON.stringify({ email: inviteEmail, ...(isAdmin ? { targetMemberId } : {}) }),
+      body: JSON.stringify({
+        email: inviteEmail,
+        relationshipTemplateId: selectedTemplateId,
+        ...(isAdmin ? { targetMemberId } : {}),
+      }),
     });
     toast({ status: 'success', title: 'Invite sent' });
     setInviteEmail('');
@@ -508,6 +644,8 @@ export function App() {
     setProfileName('');
     setProfileAvatarUrl(null);
     setSessionLoadError(null);
+    setDidSeedDemoWorkspace(false);
+    navigate('/dashboard');
   }
 
   async function onAvatarSelected(file: File | null) {
@@ -584,6 +722,22 @@ export function App() {
   function renderPage() {
     if (!user) return null;
 
+    if (startsWithPath(location.pathname, '/welcome')) {
+      return (
+        <WelcomePage
+          user={user}
+          nextStep={buildNextStep(user, items)}
+          panelBgStrong={panelBgStrong}
+          panelBorder={panelBorder}
+          statGlow={statGlow}
+          mutedText={mutedText}
+          modeGradient={modeGradient}
+          isDemoWorkspace={didSeedDemoWorkspace}
+          onFinish={() => markOnboardingSeen(user)}
+        />
+      );
+    }
+
     if (currentPage === 'profile') {
       return (
         <ProfilePage
@@ -605,6 +759,8 @@ export function App() {
           mutedText={mutedText}
           inviteEmail={inviteEmail}
           setInviteEmail={setInviteEmail}
+          selectedTemplateId={selectedTemplateId}
+          setSelectedTemplateId={setSelectedTemplateId}
           isAdmin={isAdmin}
           adminUsers={adminUsers}
           targetMemberId={targetMemberId}
@@ -832,32 +988,70 @@ export function App() {
           </Flex>
 
           {!loggedIn ? (
-            <AuthPage
-              needsSetup={needsSetup}
-              heroGradient={heroGradient}
-              panelBorder={panelBorder}
-              statGlow={statGlow}
-              subtleText={subtleText}
-              mutedText={mutedText}
-              panelBgStrong={panelBgStrong}
-              inputBg={inputBg}
-              setupEmail={setupEmail}
-              setSetupEmail={setSetupEmail}
-              setupPassword={setupPassword}
-              setSetupPassword={setSetupPassword}
-              setupToken={setupToken}
-              setSetupToken={setSetupToken}
-              setupDemoMode={setupDemoMode}
-              setSetupDemoMode={setSetupDemoMode}
-              email={email}
-              setEmail={setEmail}
-              password={password}
-              setPassword={setPassword}
-              oauthProviders={oauthProviders}
-              onRunSetup={runSetup}
-              onLogin={login}
-              onLoginWithProvider={loginWithProvider}
-            />
+            inviteToken ? (
+              invitePreview ? (
+                <InviteAcceptancePage
+                  invite={invitePreview}
+                  heroGradient={heroGradient}
+                  panelBorder={panelBorder}
+                  statGlow={statGlow}
+                  subtleText={subtleText}
+                  mutedText={mutedText}
+                  panelBgStrong={panelBgStrong}
+                  inputBg={inputBg}
+                  registerName={registerName}
+                  setRegisterName={setRegisterName}
+                  registerEmail={registerEmail}
+                  setRegisterEmail={setRegisterEmail}
+                  registerPassword={registerPassword}
+                  setRegisterPassword={setRegisterPassword}
+                  email={email}
+                  setEmail={setEmail}
+                  password={password}
+                  setPassword={setPassword}
+                  oauthProviders={[]}
+                  onRegister={registerFromInvite}
+                  onLogin={login}
+                  onLoginWithProvider={loginWithProvider}
+                />
+              ) : (
+                <Box bg={panelBgStrong} borderRadius="3xl" p={6} border="1px solid" borderColor={panelBorder} boxShadow={statGlow}>
+                  <Heading size="md">Invite unavailable</Heading>
+                  <Text mt={3} color={mutedText}>
+                    {invitePreviewError ?? 'We could not load this invite.'}
+                  </Text>
+                </Box>
+              )
+            ) : (
+              <AuthPage
+                needsSetup={needsSetup}
+                heroGradient={heroGradient}
+                panelBorder={panelBorder}
+                statGlow={statGlow}
+                subtleText={subtleText}
+                mutedText={mutedText}
+                panelBgStrong={panelBgStrong}
+                inputBg={inputBg}
+                setupEmail={setupEmail}
+                setSetupEmail={setSetupEmail}
+                setupName={setupName}
+                setSetupName={setSetupName}
+                setupPassword={setupPassword}
+                setSetupPassword={setSetupPassword}
+                setupToken={setupToken}
+                setSetupToken={setSetupToken}
+                setupDemoMode={setupDemoMode}
+                setSetupDemoMode={setSetupDemoMode}
+                email={email}
+                setEmail={setEmail}
+                password={password}
+                setPassword={setPassword}
+                oauthProviders={oauthProviders}
+                onRunSetup={runSetup}
+                onLogin={login}
+                onLoginWithProvider={loginWithProvider}
+              />
+            )
           ) : !user ? (
             <SessionErrorPanel
               panelBgStrong={panelBgStrong}

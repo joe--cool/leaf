@@ -1,4 +1,4 @@
-import type { ScheduleKind } from '@leaf/shared';
+import type { RelationshipTemplateId, ProposedRelationship, ScheduleKind } from '@leaf/shared';
 
 export type User = {
   id: string;
@@ -70,6 +70,33 @@ export type MemberWorkspace = {
 };
 
 export type OAuthProvider = 'google' | 'apple';
+
+export type InvitePreview = {
+  token: string;
+  inviteeEmail: string;
+  expiresAt: string;
+  inviter: { id: string; email: string; name: string };
+  member: { id: string; email: string; name: string } | null;
+  proposedRelationship: ProposedRelationship;
+};
+
+export type AuthNextStep = {
+  title: string;
+  description: string;
+  path: string;
+  actionLabel: string;
+};
+
+export type RelationshipTemplateCard = {
+  id: RelationshipTemplateId;
+  label: string;
+  badge: string;
+  mode: 'active' | 'passive';
+  guideCanDo: string;
+  guideReceives: string;
+  history: string;
+  privacy: string;
+};
 
 export type AdminUser = {
   id: string;

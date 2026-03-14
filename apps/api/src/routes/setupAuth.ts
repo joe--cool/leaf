@@ -14,6 +14,7 @@ import { buildAuthorizationUrl, completeOAuth, enabledProviders } from '../oauth
 import { env } from '../env.js';
 import {
   firstAdminSetupSchema,
+  inviteRegistrationSchema,
   oauthCallbackQuerySchema,
   oauthStartQuerySchema,
   refreshSchema,
@@ -65,8 +66,19 @@ export async function registerSetupAuthRoutes(app: FastifyInstance): Promise<voi
     return { ...tokens, userId: user.id, email: user.email, roles };
   });
 
-  app.post('/auth/register', async (request) => {
-    const body = loginSchema.extend({ name: z.string().min(1) }).parse(request.body);
+  app.post('/auth/register', async (request, reply) => {
+    const body = inviteRegistrationSchema.or(loginSchema.extend({ name: z.string().min(1) })).parse(request.body);
+
+    if ('token' in body) {
+      const invite = await prisma.invite.findUnique({ where: { token: body.token } });
+      if (!invite || invite.acceptedAt || invite.expiresAt < new Date()) {
+        throw app.httpErrors.badRequest('Invalid invite');
+      }
+      if (invite.inviteeMail.toLowerCase() !== body.email.toLowerCase()) {
+        throw app.httpErrors.badRequest('Invite email does not match this account');
+      }
+    }
+
     const user = await prisma.user.create({
       data: {
         email: body.email,
@@ -74,9 +86,17 @@ export async function registerSetupAuthRoutes(app: FastifyInstance): Promise<voi
         passwordHash: await hashPassword(body.password),
         roles: { create: [{ role: 'USER' }] },
       },
+      include: { roles: true },
     });
 
-    return { id: user.id, email: user.email };
+    const roles = user.roles.map((entry: { role: string }) => entry.role);
+    const tokens = await issueAuthTokens({
+      reply,
+      userId: user.id,
+      email: user.email,
+      roles,
+    });
+    return { ...tokens, userId: user.id, email: user.email, roles };
   });
 
   app.post('/auth/login', async (request, reply) => {

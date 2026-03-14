@@ -102,16 +102,22 @@ model TrackingCompletion {
 }
 
 model Invite {
-  id          String   @id @default(cuid())
-  inviterId   String
-  inviteeId   String?
-  inviteeMail String
-  token       String   @unique
-  type        String
-  targetUserId String?
-  acceptedAt  DateTime?
-  expiresAt   DateTime
-  createdAt   DateTime @default(now())
+  id                     String   @id @default(cuid())
+  inviterId              String
+  inviteeId              String?
+  inviteeMail            String
+  token                  String   @unique
+  type                   String
+  targetUserId           String?
+  relationshipTemplateId String?
+  relationshipMode       String?
+  canActOnItems          Boolean?
+  canManageRoutines      Boolean?
+  canManageAccountability Boolean?
+  historyWindow          String?
+  acceptedAt             DateTime?
+  expiresAt              DateTime
+  createdAt              DateTime @default(now())
 
   inviter User  @relation("inviter", fields: [inviterId], references: [id], onDelete: Cascade)
   invitee User? @relation("invitee", fields: [inviteeId], references: [id], onDelete: SetNull)

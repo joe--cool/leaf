@@ -65,6 +65,24 @@ export const loginSchema = z.object({
 
 export type LoginInput = z.infer<typeof loginSchema>;
 
+export const relationshipTemplateIdSchema = z.enum([
+  'active-guide',
+  'passive-guide',
+  'parent',
+  'accountability-partner',
+]);
+export type RelationshipTemplateId = z.infer<typeof relationshipTemplateIdSchema>;
+
+export const proposedRelationshipSchema = z.object({
+  templateId: relationshipTemplateIdSchema,
+  mode: z.enum(['active', 'passive']),
+  canActOnItems: z.boolean(),
+  canManageRoutines: z.boolean(),
+  canManageFollowThrough: z.boolean(),
+  historyWindow: z.string().min(1),
+});
+export type ProposedRelationship = z.infer<typeof proposedRelationshipSchema>;
+
 export const apiTokenSchema = z.object({
   accessToken: z.string(),
   refreshToken: z.string(),

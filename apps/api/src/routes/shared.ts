@@ -1,3 +1,5 @@
+import type { ProposedRelationship, RelationshipTemplateId } from '@leaf/shared';
+
 export type AuthenticatedUser = {
   id: string;
   email: string;
@@ -31,6 +33,48 @@ export function relationshipDefaults() {
     historyWindow: 'Future only',
     hiddenItemCount: 0,
   };
+}
+
+export function relationshipTemplate(templateId: RelationshipTemplateId): ProposedRelationship {
+  switch (templateId) {
+    case 'active-guide':
+      return {
+        templateId,
+        mode: 'active',
+        canActOnItems: true,
+        canManageRoutines: true,
+        canManageFollowThrough: true,
+        historyWindow: 'Last 30 days + next due',
+      };
+    case 'parent':
+      return {
+        templateId,
+        mode: 'active',
+        canActOnItems: true,
+        canManageRoutines: true,
+        canManageFollowThrough: true,
+        historyWindow: 'Last 90 days + upcoming items',
+      };
+    case 'accountability-partner':
+      return {
+        templateId,
+        mode: 'active',
+        canActOnItems: true,
+        canManageRoutines: false,
+        canManageFollowThrough: true,
+        historyWindow: 'Future only',
+      };
+    case 'passive-guide':
+    default:
+      return {
+        templateId: 'passive-guide',
+        mode: 'passive',
+        canActOnItems: false,
+        canManageRoutines: false,
+        canManageFollowThrough: false,
+        historyWindow: 'Future only',
+      };
+  }
 }
 
 type RelationshipLike = {
