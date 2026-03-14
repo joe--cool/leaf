@@ -9,8 +9,25 @@ export type User = {
   weeklyDigestDay: number;
   weeklyDigestHour: number;
   roles: Array<{ role: string }>;
-  reviewTargets: Array<{ reviewee: { id: string; email: string; name: string } }>;
-  reviewers: Array<{ reviewer: { id: string; email: string; name: string } }>;
+  reviewTargets: Array<
+    RelationshipDetails & {
+      reviewee: { id: string; email: string; name: string };
+    }
+  >;
+  reviewers: Array<
+    RelationshipDetails & {
+      reviewer: { id: string; email: string; name: string };
+    }
+  >;
+};
+
+export type RelationshipDetails = {
+  mode?: 'active' | 'passive';
+  canActOnItems?: boolean;
+  canManageRoutines?: boolean;
+  canManageAccountability?: boolean;
+  historyWindow?: string;
+  hiddenItemCount?: number;
 };
 
 export type Item = {

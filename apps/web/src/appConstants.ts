@@ -68,7 +68,7 @@ export const accountNavItems: Array<{
   label: string;
   adminOnly?: boolean;
 }> = [
-  { key: 'profile', path: '/profile', label: 'Preferences' },
+  { key: 'profile', path: '/profile', label: 'Profile & Relationships' },
   { key: 'admin', path: '/admin', label: 'Admin', adminOnly: true },
 ];
 

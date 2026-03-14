@@ -223,14 +223,14 @@ export function DashboardPage({
               {!canReviewOthers && (
                 <EmptyCard
                   title="No reviewees yet"
-                  body="Open Preferences to invite someone or set up a relationship."
+                  body="Open Profile & Relationships to invite someone or set up a relationship."
                   panelBg={panelBg}
                   mutedText={mutedText}
                 />
               )}
             </Stack>
             <Button as={RouterLink} to={canReviewOthers ? '/reviewees' : '/profile'} mt={5} size="sm" variant="outline">
-              {canReviewOthers ? 'Open Reviewees' : 'Open Preferences'}
+              {canReviewOthers ? 'Open Reviewees' : 'Open Profile & Relationships'}
             </Button>
           </Box>
         </GridItem>
@@ -284,7 +284,7 @@ export function DashboardPage({
               />
             </Stack>
             <Button as={RouterLink} to="/profile" mt={5} size="sm" variant="outline">
-              Manage Preferences
+              Open Profile & Relationships
             </Button>
           </Box>
         </GridItem>
@@ -470,7 +470,7 @@ function buildHero({
       primaryTo: '/routines',
       primaryLabel: 'Add a Routine',
       secondaryTo: '/profile',
-      secondaryLabel: 'Open Preferences',
+      secondaryLabel: 'Open Profile & Relationships',
     };
   }
 
@@ -489,7 +489,7 @@ function buildHero({
     title: 'Your next review moment is set',
     body: `Weekly digest review is scheduled for ${digestSummary}. Use this dashboard to keep workload and relationships in view between check-ins.`,
     primaryTo: '/profile',
-    primaryLabel: 'Manage Preferences',
+    primaryLabel: 'Open Profile & Relationships',
     secondaryTo: '/routines',
     secondaryLabel: 'Open Routines',
   };

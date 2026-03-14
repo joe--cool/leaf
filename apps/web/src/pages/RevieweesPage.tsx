@@ -44,11 +44,11 @@ export function RevieweesPage({
       <Box bg={panelBgStrong} borderRadius="3xl" p={6} border="1px solid" borderColor={panelBorder} boxShadow={statGlow}>
         <Heading size="md">No reviewees yet</Heading>
         <Text mt={3} color={mutedText} maxW="38rem">
-          This workspace appears when someone is connected to you as a reviewee. Use Preferences to
+          This workspace appears when someone is connected to you as a reviewee. Use Profile & Relationships to
           send an invite or set up the relationship first.
         </Text>
         <Button as={RouterLink} to="/profile" mt={5} colorScheme="leaf" size="sm">
-          Open preferences
+          Open Profile & Relationships
         </Button>
       </Box>
     );

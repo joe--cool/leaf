@@ -67,7 +67,7 @@ export function MyItemsPage({
                 Manage routines
               </Button>
               <Button as={RouterLink} to="/profile" variant="outline" size="sm">
-                Open preferences
+                Open profile & relationships
               </Button>
             </HStack>
           </Box>

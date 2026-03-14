@@ -101,7 +101,7 @@ export function AccountMenu({
             _focus={{ bg: 'var(--account-menu-hover-bg)' }}
             _active={{ bg: 'var(--account-menu-hover-bg)' }}
           >
-            Manage Preferences
+            Profile & Relationships
           </MenuItem>
           {isAdmin && (
             <MenuItem

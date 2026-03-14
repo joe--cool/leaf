@@ -245,11 +245,11 @@ export function App() {
         ? 'My Items'
         : currentPage === 'reviewees'
           ? 'Reviewees'
-          : currentPage === 'routines'
-            ? 'Routines'
-            : currentPage === 'profile'
-              ? 'Preferences'
-              : 'Admin';
+        : currentPage === 'routines'
+          ? 'Routines'
+          : currentPage === 'profile'
+            ? 'Profile & Relationships'
+            : 'Admin';
   const pageSummary =
     currentPage === 'dashboard'
       ? 'See what needs attention now across your items, reviewees, and next check-in.'
@@ -257,11 +257,11 @@ export function App() {
         ? 'Focus on what needs attention now, what is coming up next, and what can wait.'
         : currentPage === 'reviewees'
           ? 'See who needs support first, what is coming up next, and where your visibility is limited.'
-          : currentPage === 'routines'
-            ? 'Create, schedule, and refine routines in one management space.'
-            : currentPage === 'profile'
-              ? 'Account details, digest timing, invites, and reviewers.'
-              : 'User roles and reviewer assignments.';
+        : currentPage === 'routines'
+          ? 'Create, schedule, and refine routines in one management space.'
+          : currentPage === 'profile'
+              ? 'Update your profile, set digest timing, and make relationship permissions visible.'
+              : 'User roles and relationship assignments.';
 
   async function refreshSetup() {
     const status = await apiFetch<{ needsSetup: boolean }>('/setup/status');

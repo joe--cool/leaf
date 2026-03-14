@@ -70,7 +70,7 @@ export function AdminPage({
               Workspace administration
             </Heading>
             <Text mt={2} color={mutedText} maxW="42rem">
-              User management and reviewer assignments for the whole workspace.
+              User management and relationship assignments for the whole workspace.
             </Text>
           </Box>
           <Box bg="whiteAlpha.420" _dark={{ bg: 'whiteAlpha.120' }} borderRadius="2xl" px={4} py={3}>
@@ -111,9 +111,13 @@ export function AdminPage({
         <GridItem>
           <Box bg={panelBgStrong} borderRadius="3xl" p={6} border="1px solid" borderColor={panelBorder} boxShadow={statGlow}>
             <Heading size="md" mb={3}>
-              Reviewer Mapping
+              Relationship Mapping
             </Heading>
             <Stack spacing={4}>
+              <Text color={mutedText} fontSize="sm">
+                Use this to connect existing users when an email invite is not the right path. New admin-made
+                relationships start as passive and can be reviewed from Profile & Relationships.
+              </Text>
               <FormControl>
                 <FormLabel>Reviewer</FormLabel>
                 <Select value={adminReviewerId} onChange={(event) => setAdminReviewerId(event.target.value)}>

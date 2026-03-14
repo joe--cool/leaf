@@ -27,8 +27,24 @@ type MeResponse = {
   weeklyDigestDay: number;
   weeklyDigestHour: number;
   roles: Array<{ role: string }>;
-  reviewTargets: Array<{ reviewee: { id: string; email: string; name: string } }>;
-  reviewers: Array<{ reviewer: { id: string; email: string; name: string } }>;
+  reviewTargets: Array<{
+    mode?: 'active' | 'passive';
+    canActOnItems?: boolean;
+    canManageRoutines?: boolean;
+    canManageAccountability?: boolean;
+    historyWindow?: string;
+    hiddenItemCount?: number;
+    reviewee: { id: string; email: string; name: string };
+  }>;
+  reviewers: Array<{
+    mode?: 'active' | 'passive';
+    canActOnItems?: boolean;
+    canManageRoutines?: boolean;
+    canManageAccountability?: boolean;
+    historyWindow?: string;
+    hiddenItemCount?: number;
+    reviewer: { id: string; email: string; name: string };
+  }>;
 };
 
 const meResponse: MeResponse = {
@@ -233,7 +249,7 @@ describe('App routes', () => {
     renderApp('/dashboard');
 
     await screen.findAllByRole('heading', { name: 'Overview' });
-    expect(screen.queryByRole('link', { name: 'Preferences' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Profile & Relationships' })).not.toBeInTheDocument();
     expect(screen.queryByRole('link', { name: 'Admin' })).not.toBeInTheDocument();
     expect(screen.queryByRole('link', { name: 'Reviewees' })).not.toBeInTheDocument();
   });
@@ -244,12 +260,49 @@ describe('App routes', () => {
     const user = userEvent.setup();
     await user.click((await screen.findAllByRole('button', { name: 'Open account menu' }))[0]!);
     const openedMenu = (await screen.findAllByTestId('account-menu'))[0]!;
-    await user.click(within(openedMenu).getByText('Manage Preferences'));
+    await user.click(within(openedMenu).getByText('Profile & Relationships'));
 
     await waitFor(() => {
-      expect(screen.getAllByRole('heading', { name: 'Preferences' }).length).toBeGreaterThan(0);
+      expect(screen.getAllByRole('heading', { name: 'Profile & Relationships' }).length).toBeGreaterThan(0);
     });
     expect(screen.getByRole('link', { name: 'Back to app' })).toBeInTheDocument();
+  });
+
+  it('shows relationship permissions and visibility details on the profile page', async () => {
+    mockAuthedApi({
+      reviewers: [
+        {
+          mode: 'active',
+          canActOnItems: true,
+          canManageRoutines: true,
+          canManageAccountability: true,
+          historyWindow: 'Last 30 days + next due',
+          hiddenItemCount: 1,
+          reviewer: { id: 'u3', email: 'guide@example.com', name: 'Jordan' },
+        },
+      ],
+      reviewTargets: [
+        {
+          mode: 'passive',
+          canActOnItems: false,
+          canManageRoutines: false,
+          canManageAccountability: false,
+          historyWindow: 'Future only',
+          hiddenItemCount: 0,
+          reviewee: { id: 'u2', email: 'member@example.com', name: 'Alex' },
+        },
+      ],
+    });
+
+    renderApp('/profile');
+
+    await screen.findAllByRole('heading', { name: 'Profile & Relationships' });
+    expect(screen.getByRole('heading', { name: 'Relationship Setup' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Active Guide/i })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Guides For You' })).toBeInTheDocument();
+    expect(screen.getByText('Jordan')).toBeInTheDocument();
+    expect(screen.getByText("1 hidden item stays outside this guide's view.")).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'People You Guide' })).toBeInTheDocument();
   });
 
   it('submits login when pressing Enter in the password field', async () => {
@@ -325,7 +378,7 @@ describe('App routes', () => {
     expect(screen.getByTestId('account-menu-item-preferences')).toHaveStyle({
       background: 'var(--chakra-colors-transparent)',
     });
-    expect(within(menu).getByText('Manage Preferences')).toBeInTheDocument();
+    expect(within(menu).getByText('Profile & Relationships')).toBeInTheDocument();
   });
 
   it('shows admin entry in the user menu only for admins', async () => {

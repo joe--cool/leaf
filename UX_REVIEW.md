@@ -33,31 +33,6 @@ Main UX gaps:
 
 ## Recommended implementation order
 
-### Replace basic invite settings with relationship setup and transparency
-
-Why:
-
-- The docs require relationship templates, permission summaries, and clear visibility rules.
-- The current `Preferences` page only offers invite email, digest settings, and relationship counts.
-
-Root-level scope:
-
-- Add relationship creation flows using template choices such as `Active Guide`, `Passive Guide`, `Parent`, and `Accountability Partner`.
-- Show what each guide can see, do, and receive.
-- Add visibility/privacy explanations in the UI rather than leaving them implicit.
-
-Review before closing:
-
-- Check that each relationship template explains permissions in plain language before selection.
-- Check that a member can inspect relationship capabilities after setup without guessing.
-- Check that invite, relationship, and visibility language is consistent across pages.
-- Check that privacy explanations are explicit where hidden-item or history rules matter.
-
-Validation:
-
-- A user can understand a relationship before creating it.
-- A member can inspect guide-by-guide permissions after setup.
-
 ### Introduce a first-class `Notifications` surface
 
 Why:
@@ -144,3 +119,4 @@ Validation:
 - 2026-03-13: Reworked `Overview` into a role-aware dashboard centered on `Member Actions`, `Guide Attention`, and `Next Review`, with urgent summaries and recent shared completions ahead of background metrics.
 - 2026-03-13: Added a dedicated `Reviewees` workspace with guide-only navigation, urgency-ordered member cards, recent activity context, and observation-only states for passive relationships.
 - 2026-03-13: Split the old `Tracked Items` surface into `My Items` and `Routines`, moved the member-facing page toward due and upcoming work, and kept routine creation and schedule management on the separate builder page.
+- 2026-03-13: Replaced the old invite-and-counts account view with `Profile & Relationships`, including template-led relationship setup, explicit visibility/history explanations, and guide-by-guide permission cards for both incoming and outgoing relationships.
