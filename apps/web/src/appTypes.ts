@@ -37,6 +37,7 @@ export type Item = {
   category: string;
   scheduleKind: ScheduleKind;
   scheduleData?: Record<string, unknown>;
+  completions?: ItemCompletion[];
   notificationEnabled?: boolean;
   notificationHardToDismiss?: boolean;
   notificationRepeatMinutes?: number;

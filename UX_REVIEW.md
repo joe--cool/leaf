@@ -33,31 +33,6 @@ Main UX gaps:
 
 ## Recommended implementation order
 
-### Add accountability status, scoring, and hidden-item transparency
-
-Why:
-
-- The docs repeatedly reference accountability status, percentage scoring, trends, and privacy-preserving hidden-item indicators.
-- The current UI shows counts and categories, but not status quality or transparent visibility boundaries.
-
-Root-level scope:
-
-- Introduce shared status components for labels, percentages, and trend summaries.
-- Add hidden-item disclosure patterns for guide-facing views.
-- Use the same accountability language across dashboard, member, and guide surfaces.
-
-Review before closing:
-
-- Check that status labels and percentages are consistent across all touched surfaces.
-- Check that the meaning of `complete`, `skipped`, `missed`, and related accountability signals is understandable in context.
-- Check that guide views disclose privacy limits without leaking hidden-item details.
-- Check that status presentation supports fast scanning rather than forcing detailed reading.
-
-Validation:
-
-- Status is visible and understandable across key surfaces.
-- Guide views make privacy limits explicit without leaking hidden-item details.
-
 ### Add user-facing `Retrospectives` and `Audit Log` surfaces
 
 Why:
@@ -91,6 +66,7 @@ Validation:
 
 ## UX Review Notes
 
+- 2026-03-14: Added shared accountability status, percentage, and trend summaries across `Overview`, `My Items`, and `Members`, while making guide-visible privacy limits explicit without exposing hidden-item details or counts.
 - 2026-03-13: Reworked `Overview` into a role-aware dashboard centered on `Member Actions`, `Guide Attention`, and `Next Review`, with urgent summaries and recent shared completions ahead of background metrics.
 - 2026-03-13: Added a dedicated `Members` workspace with guide-only navigation, urgency-ordered member cards, recent activity context, and observation-only states for passive relationships.
 - 2026-03-13: Split the old `Tracked Items` surface into `My Items` and `Routines`, moved the member-facing page toward due and upcoming work, and kept routine creation and schedule management on the separate builder page.

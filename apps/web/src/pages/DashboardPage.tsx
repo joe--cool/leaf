@@ -15,6 +15,8 @@ import {
   Text,
 } from '@chakra-ui/react';
 import { Link as RouterLink } from 'react-router-dom';
+import { buildAccountabilitySummary } from '../accountabilityUtils';
+import { AccountabilitySummaryBlock, PrivacyDisclosure } from '../components/AccountabilitySummary';
 import { getCategoryLabel, summarizeSchedule } from '../scheduleUtils';
 import type { ActionableItem, Item, MemberPortfolio, User } from '../appTypes';
 
@@ -69,6 +71,8 @@ export function DashboardPage({
     (total, entry) => total + entry.overdue.length + entry.dueToday.length,
     0,
   );
+  const personalAccountability = buildAccountabilitySummary(items);
+  const guideAccountability = buildAccountabilitySummary(memberPortfolios.flatMap((entry) => entry.items));
 
   const hero = buildHero({
     itemCount: items.length,
@@ -132,6 +136,13 @@ export function DashboardPage({
                   ? 'Start here before reviewing anything else.'
                   : 'Nothing is urgent right now, so this is the next member work to review.'}
             </Text>
+            <Box mb={4} bg={panelBg} borderRadius="2xl" p={4}>
+              <AccountabilitySummaryBlock
+                summary={personalAccountability}
+                mutedText={mutedText}
+                subtleText={subtleText}
+              />
+            </Box>
             <Stack spacing={3}>
               {topMemberItems.map(({ item, action }) => (
                 <ActionCard
@@ -182,44 +193,67 @@ export function DashboardPage({
                 ? 'Members are ordered by urgency so the first card is the best place to start.'
                 : 'This becomes your guide workspace after someone is connected to you as a member.'}
             </Text>
+            <Box mb={4} bg={panelBg} borderRadius="2xl" p={4}>
+              <AccountabilitySummaryBlock
+                summary={guideAccountability}
+                mutedText={mutedText}
+                subtleText={subtleText}
+                scopeLabel="Guide-visible only."
+              />
+            </Box>
             <Stack spacing={3}>
-              {topMembers.map((entry, index) => (
-                <Box key={entry.member.id} bg={panelBg} borderRadius="2xl" p={4}>
-                  <HStack justify="space-between" align="start" spacing={3}>
-                    <Box>
-                      <HStack spacing={2} mb={2} flexWrap="wrap">
-                        {index === 0 ? (
-                          <Badge colorScheme="orange" borderRadius="full" px={3} py={1}>
-                            Needs attention first
+              {topMembers.map((entry, index) => {
+                const memberAccountability = buildAccountabilitySummary(entry.items);
+
+                return (
+                  <Box key={entry.member.id} bg={panelBg} borderRadius="2xl" p={4}>
+                    <HStack justify="space-between" align="start" spacing={3}>
+                      <Box>
+                        <HStack spacing={2} mb={2} flexWrap="wrap">
+                          {index === 0 ? (
+                            <Badge colorScheme="orange" borderRadius="full" px={3} py={1}>
+                              Needs attention first
+                            </Badge>
+                          ) : null}
+                          <Badge
+                            colorScheme={entry.relationship.mode === 'active' ? 'green' : 'gray'}
+                            borderRadius="full"
+                            px={3}
+                            py={1}
+                          >
+                            {entry.relationship.mode === 'active' ? 'Active guide' : 'Passive guide'}
                           </Badge>
+                        </HStack>
+                        <Text fontWeight="semibold">{entry.member.name}</Text>
+                        <Text fontSize="sm" color={mutedText} mt={1}>
+                          {entry.nextUrgent
+                            ? entry.nextUrgent.action.detail
+                            : 'No visible routine urgency yet.'}
+                        </Text>
+                        <Text fontSize="sm" color={mutedText} mt={2}>
+                          {memberAccountability.label}
+                          {memberAccountability.score === null
+                            ? ' with no visible score yet.'
+                            : ` at ${memberAccountability.score}% accountability.`}
+                        </Text>
+                        <Text fontSize="sm" color={subtleText} mt={2}>
+                          {entry.recentActivity[0]
+                            ? `Recent completion: ${entry.recentActivity[0].itemTitle}`
+                            : `Visibility: ${entry.relationship.historyWindow}`}
+                        </Text>
+                        {entry.relationship.hiddenItemCount > 0 ? (
+                          <Text fontSize="sm" color={subtleText} mt={1}>
+                            Some items stay hidden from this guide view.
+                          </Text>
                         ) : null}
-                        <Badge
-                          colorScheme={entry.relationship.mode === 'active' ? 'green' : 'gray'}
-                          borderRadius="full"
-                          px={3}
-                          py={1}
-                        >
-                          {entry.relationship.mode === 'active' ? 'Active guide' : 'Passive guide'}
-                        </Badge>
-                      </HStack>
-                      <Text fontWeight="semibold">{entry.member.name}</Text>
-                      <Text fontSize="sm" color={mutedText} mt={1}>
-                        {entry.nextUrgent
-                          ? entry.nextUrgent.action.detail
-                          : 'No visible routine urgency yet.'}
-                      </Text>
-                      <Text fontSize="sm" color={subtleText} mt={2}>
-                        {entry.recentActivity[0]
-                          ? `Recent completion: ${entry.recentActivity[0].itemTitle}`
-                          : `Visibility: ${entry.relationship.historyWindow}`}
-                      </Text>
-                    </Box>
-                    <Badge borderRadius="full" px={3} py={1}>
-                      {entry.overdue.length + entry.dueToday.length}
-                    </Badge>
-                  </HStack>
-                </Box>
-              ))}
+                      </Box>
+                      <Badge borderRadius="full" px={3} py={1}>
+                        {entry.overdue.length + entry.dueToday.length}
+                      </Badge>
+                    </HStack>
+                  </Box>
+                );
+              })}
               {!canReviewOthers && (
                 <EmptyCard
                   title="No members yet"
@@ -232,6 +266,16 @@ export function DashboardPage({
             <Button as={RouterLink} to={canReviewOthers ? '/members' : '/profile'} mt={5} size="sm" variant="outline">
               {canReviewOthers ? 'Open Members' : 'Open Profile & Relationships'}
             </Button>
+            {canReviewOthers && firstMember ? (
+              <Box mt={4}>
+                <PrivacyDisclosure
+                  hidden={memberPortfolios.some((entry) => entry.relationship.hiddenItemCount > 0)}
+                  historyWindow={firstMember.relationship.historyWindow}
+                  mutedText={mutedText}
+                  subtleText={subtleText}
+                />
+              </Box>
+            ) : null}
           </Box>
         </GridItem>
 

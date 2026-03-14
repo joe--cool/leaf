@@ -92,7 +92,15 @@ export async function registerUserItemRoutes(app: FastifyInstance): Promise<void
 
   app.get('/items', { preHandler: [app.authenticate] }, async (request) => {
     const actor = authUser(request);
-    return prisma.trackingItem.findMany({ where: { ownerId: actor.id } });
+    return prisma.trackingItem.findMany({
+      where: { ownerId: actor.id },
+      include: {
+        completions: {
+          orderBy: { occurredAt: 'desc' },
+          take: 10,
+        },
+      },
+    });
   });
 
   app.post('/items/:id/complete', { preHandler: [app.authenticate] }, async (request) => {

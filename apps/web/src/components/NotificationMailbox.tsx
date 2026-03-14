@@ -101,14 +101,14 @@ function buildMailboxEntries({
     .map((entry, index) => {
       const personName = 'guide' in entry ? entry.guide.name : entry.member.name;
       const direction = 'guide' in entry ? 'Guide for you' : 'Member you guide';
-      const hiddenCount = entry.hiddenItemCount ?? 0;
+      const hasHiddenItems = (entry.hiddenItemCount ?? 0) > 0;
       return {
         id: `visibility-${index}-${personName}`,
         category: 'visibility' as const,
         title: `${direction}: ${personName}`,
         detail:
-          hiddenCount > 0
-            ? `${hiddenCount} hidden item${hiddenCount === 1 ? ' stays' : 's stay'} outside this relationship view.`
+          hasHiddenItems
+            ? 'Some items stay outside this relationship view.'
             : 'This relationship is visibility-first, so updates stay summary-oriented.',
         timestamp: entry.createdAt,
         status: entry.mode === 'active' ? 'Visibility boundary' : 'Observation only',

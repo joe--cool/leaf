@@ -15,6 +15,8 @@ import {
   Text,
 } from '@chakra-ui/react';
 import { Link as RouterLink } from 'react-router-dom';
+import { buildAccountabilitySummary } from '../accountabilityUtils';
+import { AccountabilitySummaryBlock, PrivacyDisclosure } from '../components/AccountabilitySummary';
 import { getCategoryLabel } from '../scheduleUtils';
 import type { MemberPortfolio } from '../appTypes';
 
@@ -55,6 +57,8 @@ export function MembersPage({
   }
 
   const firstAttention = memberPortfolios[0] ?? null;
+  const guideSummary = buildAccountabilitySummary(memberPortfolios.flatMap((entry) => entry.items));
+  const hasHiddenItems = memberPortfolios.some((entry) => entry.relationship.hiddenItemCount > 0);
 
   return (
     <Stack spacing={5}>
@@ -74,6 +78,14 @@ export function MembersPage({
                 ? `${firstAttention.member.name} has the highest urgency right now: ${firstAttention.nextUrgent.action.detail}`
                 : 'You can still review relationship visibility here before there is enough routine activity to rank people by urgency.'}
             </Text>
+            <Box mt={5} borderRadius="2xl" px={4} py={4} bg={panelBg}>
+              <AccountabilitySummaryBlock
+                summary={guideSummary}
+                mutedText={mutedText}
+                subtleText={subtleText}
+                scopeLabel="Guide-visible only."
+              />
+            </Box>
             <HStack mt={5} spacing={3} flexWrap="wrap">
               <Badge colorScheme="orange" borderRadius="full" px={3} py={1}>
                 Ordered by urgency first
@@ -103,6 +115,13 @@ export function MembersPage({
         </GridItem>
       </Grid>
 
+      <PrivacyDisclosure
+        hidden={hasHiddenItems}
+        historyWindow={firstAttention?.relationship.historyWindow ?? 'shared relationship visibility'}
+        mutedText={mutedText}
+        subtleText={subtleText}
+      />
+
       <Stack spacing={4}>
         {memberPortfolios.map((workspace, index) => (
           <Box key={workspace.member.id} bg={panelBgStrong} borderRadius="3xl" p={6} border="1px solid" borderColor={panelBorder} boxShadow={statGlow}>
@@ -128,7 +147,7 @@ export function MembersPage({
                   {workspace.member.email}
                 </Text>
                 <Text color={mutedText} fontSize="sm" mt={1}>
-                  Visibility: {workspace.relationship.historyWindow}. Hidden items stay private and are not shown here.
+                  Visibility: {workspace.relationship.historyWindow}.
                 </Text>
               </Box>
               {workspace.relationship.canActOnItems || workspace.relationship.canManageRoutines ? (
@@ -142,6 +161,23 @@ export function MembersPage({
                 </Badge>
               )}
             </Flex>
+
+            <Box mb={5} bg={panelBg} borderRadius="2xl" p={4}>
+              <AccountabilitySummaryBlock
+                summary={buildAccountabilitySummary(workspace.items)}
+                mutedText={mutedText}
+                subtleText={subtleText}
+                scopeLabel="Visible items only."
+              />
+              <Box mt={3}>
+                <PrivacyDisclosure
+                  hidden={workspace.relationship.hiddenItemCount > 0}
+                  historyWindow={workspace.relationship.historyWindow}
+                  mutedText={mutedText}
+                  subtleText={subtleText}
+                />
+              </Box>
+            </Box>
 
             <SimpleGrid columns={{ base: 2, lg: 4 }} spacing={3}>
               <MetricCard title="Overdue" value={workspace.overdue.length} detail={workspace.overdue[0]?.item.title ?? 'No overdue items visible'} mutedText={mutedText} subtleText={subtleText} panelBg={panelBg} />

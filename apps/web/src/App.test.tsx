@@ -262,6 +262,8 @@ describe('App routes', () => {
     expect((await screen.findAllByRole('heading', { name: 'Members' })).length).toBeGreaterThan(0);
     expect(screen.getByText('Needs attention first')).toBeInTheDocument();
     expect(screen.getByText('Observation only')).toBeInTheDocument();
+    expect(screen.getAllByText(/Guide-visible only\./).length).toBeGreaterThan(0);
+    expect(screen.getAllByText('This score only reflects items shared in this relationship.').length).toBeGreaterThan(0);
     expect(screen.queryByRole('button', { name: 'Manage routines' })).not.toBeInTheDocument();
   });
 
@@ -334,6 +336,8 @@ describe('App routes', () => {
     expect(screen.getByRole('heading', { name: 'Next Review' })).toBeInTheDocument();
     expect(screen.getByText('You have both member and guide work to review')).toBeInTheDocument();
     expect(screen.getByText('Recent Shared Completions')).toBeInTheDocument();
+    expect(screen.getAllByText(/% accountability/).length).toBeGreaterThan(0);
+    expect(screen.getByText('Some items are hidden from this view.')).toBeInTheDocument();
   });
 
   it('keeps preferences and admin out of the main app navigation', async () => {

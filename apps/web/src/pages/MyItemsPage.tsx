@@ -11,6 +11,8 @@ import {
   Text,
 } from '@chakra-ui/react';
 import { Link as RouterLink } from 'react-router-dom';
+import { buildAccountabilitySummary } from '../accountabilityUtils';
+import { AccountabilitySummaryBlock } from '../components/AccountabilitySummary';
 import { getCategoryLabel, summarizeSchedule } from '../scheduleUtils';
 import type { ActionableItem, Item } from '../appTypes';
 
@@ -43,6 +45,7 @@ export function MyItemsPage({
 }) {
   const primaryItems = dueItems.length > 0 ? dueItems : actionableItems.slice(0, 3);
   const secondaryItems = upcomingItems.slice(0, 4);
+  const accountability = buildAccountabilitySummary(items);
 
   return (
     <Grid templateColumns={{ base: '1fr', xl: '1.08fr 0.92fr' }} gap={5}>
@@ -62,6 +65,13 @@ export function MyItemsPage({
                   ? `${dueItems.length} routine${dueItems.length === 1 ? '' : 's'} need attention today.`
                   : 'Use this page to work through today, then glance ahead before the next check-in.'}
             </Text>
+            <Box mt={5} borderRadius="2xl" px={4} py={4} bg={panelBg}>
+              <AccountabilitySummaryBlock
+                summary={accountability}
+                mutedText={mutedText}
+                subtleText={subtleText}
+              />
+            </Box>
             <HStack mt={5} spacing={3} flexWrap="wrap">
               <Button as={RouterLink} to="/routines" colorScheme="leaf" size="sm">
                 Manage routines
@@ -168,6 +178,9 @@ export function MyItemsPage({
               ))}
               {laterItems.length === 0 && <Text color={mutedText}>All configured routines are already represented above.</Text>}
             </Stack>
+            <Text color={subtleText} fontSize="sm" mt={4}>
+              Complete improves accountability. Skipped will stay neutral. Missed appears only after miss thresholds are configured.
+            </Text>
           </Box>
         </Stack>
       </GridItem>
