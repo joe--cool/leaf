@@ -18,7 +18,20 @@ vi.mock('./api', () => ({
   setToken: vi.fn(),
 }));
 
-const meResponse = {
+type MeResponse = {
+  id: string;
+  email: string;
+  name: string;
+  avatarUrl: string | null;
+  timezone: string;
+  weeklyDigestDay: number;
+  weeklyDigestHour: number;
+  roles: Array<{ role: string }>;
+  reviewTargets: Array<{ reviewee: { id: string; email: string; name: string } }>;
+  reviewers: Array<{ reviewer: { id: string; email: string; name: string } }>;
+};
+
+const meResponse: MeResponse = {
   id: 'u1',
   email: 'user@example.com',
   name: 'User',
@@ -31,7 +44,7 @@ const meResponse = {
   reviewers: [],
 };
 
-function mockAuthedApi(overrides: Partial<typeof meResponse> = {}) {
+function mockAuthedApi(overrides: Partial<MeResponse> = {}) {
   const response = { ...meResponse, ...overrides };
   getTokenMock.mockReturnValue('token');
   apiFetchMock.mockImplementation(async (path: string) => {
@@ -39,6 +52,7 @@ function mockAuthedApi(overrides: Partial<typeof meResponse> = {}) {
     if (path === '/auth/oauth/options') return { providers: [] };
     if (path === '/me') return response;
     if (path === '/items') return [];
+    if (path === '/reviewees') return [];
     if (path === '/admin/users') return [];
     throw new Error(`Unexpected api path: ${path}`);
   });
@@ -87,12 +101,70 @@ describe('App routes', () => {
     });
   });
 
+  it('renders the reviewees workspace for guide users and hides operational controls for passive relationships', async () => {
+    mockAuthedApi({
+      reviewTargets: [{ reviewee: { id: 'u2', email: 'member@example.com', name: 'Alex' } }],
+    });
+    apiFetchMock.mockImplementation(async (path: string) => {
+      if (path === '/setup/status') return { needsSetup: false };
+      if (path === '/auth/oauth/options') return { providers: [] };
+      if (path === '/me') {
+        return {
+          ...meResponse,
+          reviewTargets: [{ reviewee: { id: 'u2', email: 'member@example.com', name: 'Alex' } }],
+        };
+      }
+      if (path === '/items') return [];
+      if (path === '/reviewees') {
+        return [
+          {
+            reviewee: { id: 'u2', email: 'member@example.com', name: 'Alex' },
+            relationship: {
+              mode: 'passive',
+              canActOnItems: false,
+              canManageRoutines: false,
+              canManageAccountability: false,
+              historyWindow: 'Future only',
+              hiddenItemCount: 0,
+            },
+            items: [
+              {
+                id: 'i1',
+                title: 'Morning meds',
+                category: 'health',
+                scheduleKind: 'ONE_TIME',
+                scheduleData: { kind: 'ONE_TIME', oneTimeAt: '2026-03-12T08:00:00.000Z' },
+                completions: [
+                  {
+                    id: 'c1',
+                    occurredAt: '2026-03-11T08:00:00.000Z',
+                    note: 'Handled early',
+                  },
+                ],
+              },
+            ],
+          },
+        ];
+      }
+      if (path === '/admin/users') return [];
+      throw new Error(`Unexpected api path: ${path}`);
+    });
+
+    renderApp('/reviewees');
+
+    expect((await screen.findAllByRole('heading', { name: 'Reviewees' })).length).toBeGreaterThan(0);
+    expect(screen.getByText('Needs attention first')).toBeInTheDocument();
+    expect(screen.getByText('Observation only')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Manage routines' })).not.toBeInTheDocument();
+  });
+
   it('keeps preferences and admin out of the main app navigation', async () => {
     renderApp('/dashboard');
 
     await screen.findAllByRole('heading', { name: 'Overview' });
     expect(screen.queryByRole('link', { name: 'Preferences' })).not.toBeInTheDocument();
     expect(screen.queryByRole('link', { name: 'Admin' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Reviewees' })).not.toBeInTheDocument();
   });
 
   it('enters account mode from the user menu and offers a return path', async () => {

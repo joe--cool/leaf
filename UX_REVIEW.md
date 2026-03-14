@@ -31,31 +31,6 @@ Main UX gaps:
 
 ## Recommended implementation order
 
-### Create a dedicated `Reviewees` workspace for guides
-
-Why:
-
-- The docs explicitly say the guide experience should not be a copy of the member page.
-- The current app only shows relationship counts and names, with no urgency-first oversight flow.
-
-Root-level scope:
-
-- Add a `Reviewees` route and navigation entry.
-- Show per-member status cards with overdue, missed, upcoming, and recent activity signals.
-- Hide operational controls unless the current relationship permits them.
-
-Review before closing:
-
-- Check that the page reads like a guide workspace rather than a renamed member page.
-- Check that urgency ordering is visible and understandable without extra explanation.
-- Check that passive or restricted guide states do not expose inappropriate controls.
-- Check that empty and low-data states still explain what a guide should do next.
-
-Validation:
-
-- A guide can identify who needs attention first from one page.
-- The page is meaningfully different from the member action surface.
-
 ### Redesign `Overview` into a role-aware dashboard
 
 Why:
@@ -189,4 +164,5 @@ Validation:
 
 ## UX Review Notes
 
+- 2026-03-13: Added a dedicated `Reviewees` workspace with guide-only navigation, urgency-ordered member cards, recent activity context, and observation-only states for passive relationships.
 - 2026-03-13: Split the old `Tracked Items` surface into `My Items` and `Routines`, moved the member-facing page toward due and upcoming work, and kept routine creation and schedule management on the separate builder page.

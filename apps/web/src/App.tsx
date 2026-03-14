@@ -71,6 +71,29 @@ type Item = {
   scheduleData?: Record<string, unknown>;
 };
 
+type ItemCompletion = {
+  id: string;
+  occurredAt: string;
+  note?: string | null;
+};
+
+type RevieweeItem = Item & {
+  completions: ItemCompletion[];
+};
+
+type RevieweeWorkspace = {
+  reviewee: { id: string; email: string; name: string };
+  relationship: {
+    mode: 'active' | 'passive';
+    canActOnItems: boolean;
+    canManageRoutines: boolean;
+    canManageAccountability: boolean;
+    historyWindow: string;
+    hiddenItemCount: number;
+  };
+  items: RevieweeItem[];
+};
+
 type OAuthProvider = 'google' | 'apple';
 
 type AdminUser = {
@@ -80,7 +103,7 @@ type AdminUser = {
   roles: Array<{ role: string }>;
 };
 
-type PageKey = 'dashboard' | 'profile' | 'my-items' | 'routines' | 'admin';
+type PageKey = 'dashboard' | 'profile' | 'my-items' | 'reviewees' | 'routines' | 'admin';
 type SingleScheduleKind = Exclude<ScheduleKind, 'MULTI'>;
 type ActionBucket = 'due' | 'upcoming' | 'later';
 type ActionSummary = {
@@ -528,6 +551,21 @@ function summarizeActionableState(item: Item, now = new Date()): ActionSummary {
   };
 }
 
+function summarizeRecentRevieweeActivity(items: RevieweeItem[]) {
+  return items
+    .flatMap((item) =>
+      item.completions.map((completion) => ({
+        id: completion.id,
+        itemTitle: item.title,
+        occurredAt: completion.occurredAt,
+        note: completion.note,
+      })),
+    )
+    .filter((entry) => !Number.isNaN(new Date(entry.occurredAt).valueOf()))
+    .sort((left, right) => new Date(right.occurredAt).getTime() - new Date(left.occurredAt).getTime())
+    .slice(0, 3);
+}
+
 function NavButton({
   label,
   to,
@@ -598,6 +636,7 @@ export function App() {
   const [user, setUser] = useState<User | null>(null);
   const [items, setItems] = useState<Item[]>([]);
   const [adminUsers, setAdminUsers] = useState<AdminUser[]>([]);
+  const [revieweeWorkspaces, setRevieweeWorkspaces] = useState<RevieweeWorkspace[]>([]);
 
   const [title, setTitle] = useState(getDefaultTitle('health'));
   const [category, setCategory] = useState('health');
@@ -671,10 +710,52 @@ export function App() {
     () => actionableItems.filter((entry) => entry.action.bucket === 'later'),
     [actionableItems],
   );
+  const revieweePortfolios = useMemo(
+    () =>
+      revieweeWorkspaces
+        .map((workspace) => {
+          const actionable = workspace.items
+            .map((item) => ({ item, action: summarizeActionableState(item) }))
+            .sort((left, right) => {
+              if (left.action.urgency !== right.action.urgency) {
+                return left.action.urgency - right.action.urgency;
+              }
+              return (left.action.dueAt ?? Number.MAX_SAFE_INTEGER) - (right.action.dueAt ?? Number.MAX_SAFE_INTEGER);
+            });
+          const overdue = actionable.filter((entry) => entry.action.status === 'Overdue');
+          const dueToday = actionable.filter(
+            (entry) => entry.action.bucket === 'due' && entry.action.status !== 'Overdue',
+          );
+          const upcoming = actionable.filter((entry) => entry.action.bucket === 'upcoming');
+          const recentActivity = summarizeRecentRevieweeActivity(workspace.items);
+          const nextUrgent = overdue[0] ?? dueToday[0] ?? upcoming[0] ?? actionable[0] ?? null;
+          const rank =
+            overdue.length * 1000 +
+            dueToday.length * 100 +
+            upcoming.length * 10 +
+            Math.max(recentActivity.length, 1);
+
+          return {
+            ...workspace,
+            actionable,
+            overdue,
+            dueToday,
+            upcoming,
+            missedCount: 0,
+            recentActivity,
+            nextUrgent,
+            rank,
+          };
+        })
+        .sort((left, right) => right.rank - left.rank || left.reviewee.name.localeCompare(right.reviewee.name)),
+    [revieweeWorkspaces],
+  );
+  const canReviewOthers = (user?.reviewTargets.length ?? 0) > 0;
 
   const currentPage: PageKey = useMemo(() => {
     if (startsWithPath(location.pathname, '/profile')) return 'profile';
     if (startsWithPath(location.pathname, '/my-items')) return 'my-items';
+    if (startsWithPath(location.pathname, '/reviewees')) return 'reviewees';
     if (startsWithPath(location.pathname, '/routines')) return 'routines';
     if (startsWithPath(location.pathname, '/items')) return 'routines';
     if (startsWithPath(location.pathname, '/admin')) return 'admin';
@@ -744,6 +825,8 @@ export function App() {
       ? 'Dashboard'
       : currentPage === 'my-items'
         ? 'My Items'
+        : currentPage === 'reviewees'
+          ? 'Guide Workspace'
         : currentPage === 'routines'
           ? 'Routines'
         : currentPage === 'profile'
@@ -754,6 +837,8 @@ export function App() {
       ? 'Overview'
       : currentPage === 'my-items'
         ? 'My Items'
+        : currentPage === 'reviewees'
+          ? 'Reviewees'
         : currentPage === 'routines'
           ? 'Routines'
         : currentPage === 'profile'
@@ -764,6 +849,8 @@ export function App() {
       ? 'Your routines, workload, and people at a glance.'
       : currentPage === 'my-items'
         ? 'Focus on what needs attention now, what is coming up next, and what can wait.'
+        : currentPage === 'reviewees'
+          ? 'See who needs support first, what is coming up next, and where your visibility is limited.'
         : currentPage === 'routines'
           ? 'Create, schedule, and refine routines in one management space.'
         : currentPage === 'profile'
@@ -832,6 +919,13 @@ export function App() {
 
     const loadedItems = await apiFetch<Item[]>('/items');
     setItems(loadedItems);
+
+    if (me.reviewTargets.length > 0) {
+      const loadedReviewees = await apiFetch<RevieweeWorkspace[]>('/reviewees');
+      setRevieweeWorkspaces(loadedReviewees);
+    } else {
+      setRevieweeWorkspaces([]);
+    }
 
     if (me.roles.some((entry) => entry.role === 'ADMIN')) {
       const users = await apiFetch<AdminUser[]>('/admin/users');
@@ -1027,6 +1121,7 @@ export function App() {
     setUser(null);
     setItems([]);
     setAdminUsers([]);
+    setRevieweeWorkspaces([]);
     setProfileName('');
     setProfileAvatarUrl(null);
     setSessionLoadError(null);
@@ -1966,6 +2061,278 @@ export function App() {
     );
   }
 
+  function renderReviewees() {
+    if (!canReviewOthers) {
+      return (
+        <Box
+          bg={panelBgStrong}
+          borderRadius="3xl"
+          p={6}
+          border="1px solid"
+          borderColor={panelBorder}
+          boxShadow={statGlow}
+        >
+          <Heading size="md">No reviewees yet</Heading>
+          <Text mt={3} color={mutedText} maxW="38rem">
+            This workspace appears when someone is connected to you as a reviewee. Use Preferences to
+            send an invite or set up the relationship first.
+          </Text>
+          <Button as={RouterLink} to="/profile" mt={5} colorScheme="leaf" size="sm">
+            Open preferences
+          </Button>
+        </Box>
+      );
+    }
+
+    const firstAttention = revieweePortfolios[0] ?? null;
+
+    return (
+      <Stack spacing={5}>
+        <Grid templateColumns={{ base: '1fr', xl: '1.08fr 0.92fr' }} gap={5}>
+          <GridItem>
+            <Box
+              bgGradient={modeGradient}
+              borderRadius="3xl"
+              p={6}
+              border="1px solid"
+              borderColor={panelBorder}
+              boxShadow={statGlow}
+            >
+              <Text fontSize="xs" textTransform="uppercase" letterSpacing="0.16em" color={subtleText}>
+                Guide Focus
+              </Text>
+              <Heading size="lg" mt={2}>
+                {firstAttention
+                  ? `Start with ${firstAttention.reviewee.name}`
+                  : 'Reviewees will appear here as activity starts to flow'}
+              </Heading>
+              <Text mt={3} maxW="38rem" color={mutedText}>
+                {firstAttention?.nextUrgent
+                  ? `${firstAttention.reviewee.name} has the highest urgency right now: ${firstAttention.nextUrgent.action.detail}`
+                  : 'You can still review relationship visibility here before there is enough routine activity to rank people by urgency.'}
+              </Text>
+              <HStack mt={5} spacing={3} flexWrap="wrap">
+                <Badge colorScheme="orange" borderRadius="full" px={3} py={1}>
+                  Ordered by urgency first
+                </Badge>
+                <Badge colorScheme="green" borderRadius="full" px={3} py={1}>
+                  Passive guides stay observation-only
+                </Badge>
+              </HStack>
+            </Box>
+          </GridItem>
+
+          <GridItem>
+            <SimpleGrid columns={{ base: 1, md: 2, xl: 1 }} spacing={4}>
+              <Stat
+                bg={panelBgStrong}
+                borderRadius="2xl"
+                p={5}
+                border="1px solid"
+                borderColor={panelBorder}
+                boxShadow={statGlow}
+              >
+                <StatLabel color={subtleText}>People you guide</StatLabel>
+                <StatNumber>{revieweePortfolios.length}</StatNumber>
+              </Stat>
+              <Stat
+                bg={panelBgStrong}
+                borderRadius="2xl"
+                p={5}
+                border="1px solid"
+                borderColor={panelBorder}
+                boxShadow={statGlow}
+              >
+                <StatLabel color={subtleText}>Overdue signals</StatLabel>
+                <StatNumber>{revieweePortfolios.reduce((total, entry) => total + entry.overdue.length, 0)}</StatNumber>
+              </Stat>
+              <Stat
+                bg={panelBgStrong}
+                borderRadius="2xl"
+                p={5}
+                border="1px solid"
+                borderColor={panelBorder}
+                boxShadow={statGlow}
+              >
+                <StatLabel color={subtleText}>Recent completions</StatLabel>
+                <StatNumber>{revieweePortfolios.reduce((total, entry) => total + entry.recentActivity.length, 0)}</StatNumber>
+              </Stat>
+            </SimpleGrid>
+          </GridItem>
+        </Grid>
+
+        <Stack spacing={4}>
+          {revieweePortfolios.map((workspace, index) => (
+            <Box
+              key={workspace.reviewee.id}
+              bg={panelBgStrong}
+              borderRadius="3xl"
+              p={6}
+              border="1px solid"
+              borderColor={panelBorder}
+              boxShadow={statGlow}
+            >
+              <Flex
+                justify="space-between"
+                align={{ base: 'start', lg: 'center' }}
+                direction={{ base: 'column', lg: 'row' }}
+                gap={4}
+                mb={5}
+              >
+                <Box>
+                  <HStack spacing={3} flexWrap="wrap">
+                    <Heading size="md">{workspace.reviewee.name}</Heading>
+                    {index === 0 && (
+                      <Badge colorScheme="orange" borderRadius="full" px={3} py={1}>
+                        Needs attention first
+                      </Badge>
+                    )}
+                    <Badge
+                      colorScheme={workspace.relationship.mode === 'active' ? 'green' : 'gray'}
+                      borderRadius="full"
+                      px={3}
+                      py={1}
+                    >
+                      {workspace.relationship.mode === 'active' ? 'Active guide' : 'Passive guide'}
+                    </Badge>
+                  </HStack>
+                  <Text color={mutedText} mt={2}>
+                    {workspace.reviewee.email}
+                  </Text>
+                  <Text color={mutedText} fontSize="sm" mt={1}>
+                    Visibility: {workspace.relationship.historyWindow}. Hidden items stay private and are not shown here.
+                  </Text>
+                </Box>
+                {workspace.relationship.canActOnItems || workspace.relationship.canManageRoutines ? (
+                  <HStack spacing={3}>
+                    {workspace.relationship.canActOnItems && (
+                      <Button size="sm" colorScheme="leaf">
+                        Add note
+                      </Button>
+                    )}
+                    {workspace.relationship.canManageRoutines && (
+                      <Button size="sm" variant="outline">
+                        Manage routines
+                      </Button>
+                    )}
+                  </HStack>
+                ) : (
+                  <Badge borderRadius="full" px={3} py={1}>
+                    Observation only
+                  </Badge>
+                )}
+              </Flex>
+
+              <SimpleGrid columns={{ base: 2, lg: 4 }} spacing={3}>
+                <Box bg={panelBg} borderRadius="2xl" p={4}>
+                  <Text fontSize="sm" color={mutedText}>
+                    Overdue
+                  </Text>
+                  <Text fontSize="2xl" fontWeight="bold">
+                    {workspace.overdue.length}
+                  </Text>
+                  <Text fontSize="sm" color={subtleText}>
+                    {workspace.overdue[0]?.item.title ?? 'No overdue items visible'}
+                  </Text>
+                </Box>
+                <Box bg={panelBg} borderRadius="2xl" p={4}>
+                  <Text fontSize="sm" color={mutedText}>
+                    Missed
+                  </Text>
+                  <Text fontSize="2xl" fontWeight="bold">
+                    {workspace.missedCount}
+                  </Text>
+                  <Text fontSize="sm" color={subtleText}>
+                    Miss thresholds are not configured yet
+                  </Text>
+                </Box>
+                <Box bg={panelBg} borderRadius="2xl" p={4}>
+                  <Text fontSize="sm" color={mutedText}>
+                    Upcoming
+                  </Text>
+                  <Text fontSize="2xl" fontWeight="bold">
+                    {workspace.upcoming.length}
+                  </Text>
+                  <Text fontSize="sm" color={subtleText}>
+                    {workspace.upcoming[0]?.action.detail ?? 'No upcoming items shared yet'}
+                  </Text>
+                </Box>
+                <Box bg={panelBg} borderRadius="2xl" p={4}>
+                  <Text fontSize="sm" color={mutedText}>
+                    Recent activity
+                  </Text>
+                  <Text fontSize="2xl" fontWeight="bold">
+                    {workspace.recentActivity.length}
+                  </Text>
+                  <Text fontSize="sm" color={subtleText}>
+                    {workspace.recentActivity[0]
+                      ? `${workspace.recentActivity[0].itemTitle} on ${new Date(workspace.recentActivity[0].occurredAt).toLocaleDateString()}`
+                      : 'No recent completions visible yet'}
+                  </Text>
+                </Box>
+              </SimpleGrid>
+
+              <Grid templateColumns={{ base: '1fr', xl: '1fr 1fr' }} gap={4} mt={5}>
+                <Box bg={panelBg} borderRadius="2xl" p={4}>
+                  <Heading size="sm" mb={3}>
+                    Urgent and upcoming
+                  </Heading>
+                  <Stack spacing={3}>
+                    {workspace.actionable.slice(0, 4).map(({ item, action }) => (
+                      <Box key={item.id} borderRadius="xl" border="1px solid" borderColor={panelBorder} p={3}>
+                        <HStack spacing={2} flexWrap="wrap" mb={2}>
+                          <Badge colorScheme={action.status === 'Overdue' ? 'red' : action.bucket === 'due' ? 'orange' : 'green'} borderRadius="full" px={3} py={1}>
+                            {action.status}
+                          </Badge>
+                          <Badge variant="subtle" borderRadius="full" px={3} py={1}>
+                            {getCategoryLabel(item.category)}
+                          </Badge>
+                        </HStack>
+                        <Text fontWeight="semibold">{item.title}</Text>
+                        <Text fontSize="sm" color={mutedText} mt={1}>
+                          {action.detail}
+                        </Text>
+                      </Box>
+                    ))}
+                    {workspace.actionable.length === 0 && (
+                      <Text color={mutedText}>
+                        No routines are visible yet. Ask this member to create a routine or wait for the first shared item.
+                      </Text>
+                    )}
+                  </Stack>
+                </Box>
+
+                <Box bg={panelBg} borderRadius="2xl" p={4}>
+                  <Heading size="sm" mb={3}>
+                    Recent context
+                  </Heading>
+                  <Stack spacing={3}>
+                    {workspace.recentActivity.map((entry) => (
+                      <Box key={entry.id} borderRadius="xl" border="1px solid" borderColor={panelBorder} p={3}>
+                        <Text fontWeight="semibold">{entry.itemTitle}</Text>
+                        <Text fontSize="sm" color={mutedText} mt={1}>
+                          Completed {new Date(entry.occurredAt).toLocaleString()}
+                        </Text>
+                        <Text fontSize="sm" color={subtleText} mt={1}>
+                          {entry.note?.trim() ? entry.note : 'No note was added.'}
+                        </Text>
+                      </Box>
+                    ))}
+                    {workspace.recentActivity.length === 0 && (
+                      <Text color={mutedText}>
+                        No recent completions or notes are visible yet. Use this space to monitor when activity starts to pick up.
+                      </Text>
+                    )}
+                  </Stack>
+                </Box>
+              </Grid>
+            </Box>
+          ))}
+        </Stack>
+      </Stack>
+    );
+  }
+
   function renderRoutines() {
     return (
       <Grid templateColumns={{ base: '1fr', xl: '1.08fr 0.92fr' }} gap={5}>
@@ -2577,6 +2944,7 @@ export function App() {
   function renderPage() {
     if (currentPage === 'profile') return renderProfile();
     if (currentPage === 'my-items') return renderMyItems();
+    if (currentPage === 'reviewees') return renderReviewees();
     if (currentPage === 'routines') return renderRoutines();
     if (currentPage === 'admin') return renderAdmin();
     return renderDashboard();
@@ -2636,7 +3004,9 @@ export function App() {
         </Text>
 
         <Stack spacing={2}>
-          {appNavItems.map((item) => (
+          {appNavItems
+            .concat(canReviewOthers ? [{ key: 'reviewees' as const, path: '/reviewees', label: 'Reviewees' }] : [])
+            .map((item) => (
             <NavButton
               key={item.key}
               label={item.label}
@@ -2644,7 +3014,7 @@ export function App() {
               active={currentPage === item.key}
               accent={accent}
             />
-          ))}
+            ))}
         </Stack>
       </Stack>
     );

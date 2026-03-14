@@ -64,6 +64,17 @@ function scheduleKindForStorage(schedule: { kind: string; schedules?: Array<{ ki
   return schedule.kind;
 }
 
+function relationshipDefaults() {
+  return {
+    mode: 'passive' as const,
+    canActOnItems: false,
+    canManageRoutines: false,
+    canManageAccountability: false,
+    historyWindow: 'Future only',
+    hiddenItemCount: 0,
+  };
+}
+
 export async function registerRoutes(app: FastifyInstance): Promise<void> {
   app.get('/health', async () => ({ ok: true }));
 
@@ -209,6 +220,40 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
         reviewers: { include: { reviewer: true } },
       },
     });
+  });
+
+  app.get('/reviewees', { preHandler: [app.authenticate] }, async (request) => {
+    const actor = authUser(request);
+    const user = await prisma.user.findUnique({
+      where: { id: actor.id },
+      include: {
+        reviewTargets: {
+          include: {
+            reviewee: {
+              include: {
+                items: {
+                  include: {
+                    completions: {
+                      orderBy: { occurredAt: 'desc' },
+                      take: 5,
+                    },
+                  },
+                  orderBy: { createdAt: 'desc' },
+                },
+              },
+            },
+          },
+        },
+      },
+    });
+
+    return (
+      user?.reviewTargets.map((relation) => ({
+        reviewee: relation.reviewee,
+        relationship: relationshipDefaults(),
+        items: relation.reviewee.items,
+      })) ?? []
+    );
   });
 
   app.post('/items', { preHandler: [app.authenticate] }, async (request) => {

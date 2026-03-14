@@ -6,6 +6,7 @@ const userRolesMock = vi.fn();
 const enabledProvidersMock = vi.fn();
 const sendEmailMock = vi.fn();
 const inviteCreateMock = vi.fn();
+const userFindUniqueMock = vi.fn();
 
 vi.mock('../src/auth.js', () => ({
   hashPassword: vi.fn(),
@@ -30,7 +31,7 @@ vi.mock('../src/prisma.js', () => ({
   prisma: {
     user: {
       count: vi.fn().mockResolvedValue(1),
-      findUnique: vi.fn(),
+      findUnique: userFindUniqueMock,
       findMany: vi.fn(),
       create: vi.fn(),
       update: vi.fn(),
@@ -109,6 +110,104 @@ describe('auth/reviewer routes', () => {
 
     expect(res.statusCode).toBe(403);
     expect(sendEmailMock).not.toHaveBeenCalled();
+    await app.close();
+  });
+
+  it('returns reviewee workspace data for authenticated guides', async () => {
+    userFindUniqueMock.mockResolvedValue({
+      id: 'u1',
+      reviewTargets: [
+        {
+          reviewee: {
+            id: 'u2',
+            email: 'member@example.com',
+            name: 'Member',
+            items: [
+              {
+                id: 'item_1',
+                title: 'Morning meds',
+                category: 'health',
+                scheduleKind: 'DAILY',
+                scheduleData: { kind: 'DAILY', dailyTimes: ['08:00'] },
+                createdAt: new Date('2026-03-10T08:00:00.000Z'),
+                completions: [
+                  {
+                    id: 'completion_1',
+                    occurredAt: new Date('2026-03-12T08:00:00.000Z'),
+                    note: 'Handled before school',
+                  },
+                ],
+              },
+            ],
+          },
+        },
+      ],
+    });
+    const { registerRoutes } = await import('../src/routes.js');
+
+    const app = Fastify();
+    app.decorate(
+      'authenticate',
+      async (request: { user?: { id: string; email: string; roles: string[] } }) => {
+        request.user = { id: 'u1', email: 'guide@example.com', roles: ['USER'] };
+      },
+    );
+    await app.register(registerRoutes);
+
+    const res = await app.inject({ method: 'GET', url: '/reviewees' });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toEqual([
+      {
+        reviewee: {
+          id: 'u2',
+          email: 'member@example.com',
+          name: 'Member',
+          items: [
+            {
+              id: 'item_1',
+              title: 'Morning meds',
+              category: 'health',
+              scheduleKind: 'DAILY',
+              scheduleData: { kind: 'DAILY', dailyTimes: ['08:00'] },
+              createdAt: '2026-03-10T08:00:00.000Z',
+              completions: [
+                {
+                  id: 'completion_1',
+                  occurredAt: '2026-03-12T08:00:00.000Z',
+                  note: 'Handled before school',
+                },
+              ],
+            },
+          ],
+        },
+        relationship: {
+          mode: 'passive',
+          canActOnItems: false,
+          canManageRoutines: false,
+          canManageAccountability: false,
+          historyWindow: 'Future only',
+          hiddenItemCount: 0,
+        },
+        items: [
+          {
+            id: 'item_1',
+            title: 'Morning meds',
+            category: 'health',
+            scheduleKind: 'DAILY',
+            scheduleData: { kind: 'DAILY', dailyTimes: ['08:00'] },
+            createdAt: '2026-03-10T08:00:00.000Z',
+            completions: [
+              {
+                id: 'completion_1',
+                occurredAt: '2026-03-12T08:00:00.000Z',
+                note: 'Handled before school',
+              },
+            ],
+          },
+        ],
+      },
+    ]);
     await app.close();
   });
 });
