@@ -252,7 +252,7 @@ export function App() {
               : 'Admin';
   const pageSummary =
     currentPage === 'dashboard'
-      ? 'Your routines, workload, and people at a glance.'
+      ? 'See what needs attention now across your items, reviewees, and next check-in.'
       : currentPage === 'my-items'
         ? 'Focus on what needs attention now, what is coming up next, and what can wait.'
         : currentPage === 'reviewees'
@@ -668,12 +668,17 @@ export function App() {
     return (
       <DashboardPage
         items={items}
+        actionableItems={actionableItems}
+        dueItems={dueItems}
+        upcomingItems={upcomingItems}
+        laterItems={laterItems}
         projectedWeekChecks={projectedWeekChecks}
         relationshipsCount={relationshipsCount}
         digestSummary={digestSummary}
         categoryBreakdown={categoryBreakdown}
         user={user}
-        dueItemsCount={dueItems.length}
+        canReviewOthers={canReviewOthers}
+        revieweePortfolios={revieweePortfolios}
         panelBgStrong={panelBgStrong}
         panelBorder={panelBorder}
         statGlow={statGlow}

@@ -158,6 +158,77 @@ describe('App routes', () => {
     expect(screen.queryByRole('button', { name: 'Manage routines' })).not.toBeInTheDocument();
   });
 
+  it('shows member actions, guide attention, and next review on the dashboard for dual-role users', async () => {
+    mockAuthedApi({
+      reviewTargets: [{ reviewee: { id: 'u2', email: 'member@example.com', name: 'Alex' } }],
+      reviewers: [{ reviewer: { id: 'u3', email: 'guide@example.com', name: 'Jordan' } }],
+    });
+    apiFetchMock.mockImplementation(async (path: string) => {
+      if (path === '/setup/status') return { needsSetup: false };
+      if (path === '/auth/oauth/options') return { providers: [] };
+      if (path === '/me') {
+        return {
+          ...meResponse,
+          reviewTargets: [{ reviewee: { id: 'u2', email: 'member@example.com', name: 'Alex' } }],
+          reviewers: [{ reviewer: { id: 'u3', email: 'guide@example.com', name: 'Jordan' } }],
+        };
+      }
+      if (path === '/items') {
+        return [
+          {
+            id: 'i1',
+            title: 'Morning meds',
+            category: 'health',
+            scheduleKind: 'DAILY',
+            scheduleData: { kind: 'DAILY', dailyTimes: ['08:00'] },
+          },
+        ];
+      }
+      if (path === '/reviewees') {
+        return [
+          {
+            reviewee: { id: 'u2', email: 'member@example.com', name: 'Alex' },
+            relationship: {
+              mode: 'active',
+              canActOnItems: true,
+              canManageRoutines: true,
+              canManageAccountability: true,
+              historyWindow: 'Last 30 days and upcoming items',
+              hiddenItemCount: 1,
+            },
+            items: [
+              {
+                id: 'ri1',
+                title: 'Evening stretch',
+                category: 'exercise',
+                scheduleKind: 'ONE_TIME',
+                scheduleData: { kind: 'ONE_TIME', oneTimeAt: '2026-03-12T08:00:00.000Z' },
+                completions: [
+                  {
+                    id: 'c1',
+                    occurredAt: '2026-03-11T08:00:00.000Z',
+                    note: 'Finished before work',
+                  },
+                ],
+              },
+            ],
+          },
+        ];
+      }
+      if (path === '/admin/users') return [];
+      throw new Error(`Unexpected api path: ${path}`);
+    });
+
+    renderApp('/dashboard');
+
+    await screen.findAllByRole('heading', { name: 'Overview' });
+    expect(screen.getByRole('heading', { name: 'Member Actions' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Guide Attention' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Next Review' })).toBeInTheDocument();
+    expect(screen.getByText('You have both member and guide work to review')).toBeInTheDocument();
+    expect(screen.getByText('Recent Shared Completions')).toBeInTheDocument();
+  });
+
   it('keeps preferences and admin out of the main app navigation', async () => {
     renderApp('/dashboard');
 
@@ -254,7 +325,7 @@ describe('App routes', () => {
     expect(screen.getByTestId('account-menu-item-preferences')).toHaveStyle({
       background: 'var(--chakra-colors-transparent)',
     });
-    expect(screen.getByText('Manage Preferences')).toBeInTheDocument();
+    expect(within(menu).getByText('Manage Preferences')).toBeInTheDocument();
   });
 
   it('shows admin entry in the user menu only for admins', async () => {

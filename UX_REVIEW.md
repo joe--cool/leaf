@@ -33,31 +33,6 @@ Main UX gaps:
 
 ## Recommended implementation order
 
-### Redesign `Overview` into a role-aware dashboard
-
-Why:
-
-- The docs expect a dashboard that supports users who are both members and guides.
-- The current dashboard mostly summarizes routine counts and relationship totals.
-
-Root-level scope:
-
-- Rework dashboard modules around `member actions`, `guide attention`, and `next review`.
-- Surface urgent work, recent completions, and digest timing in a clearer hierarchy.
-- Treat dual-role users as a first-class case.
-
-Review before closing:
-
-- Check that the first screen answers "what needs my attention now?" before showing background metrics.
-- Check that both member and guide responsibilities are represented when a user has both roles.
-- Check that visual hierarchy favors urgent and recent information over static counts.
-- Check that dashboard modules link cleanly into the deeper pages they summarize.
-
-Validation:
-
-- A user can tell what needs action next in each role within one screen.
-- The dashboard is useful even when the user is both a member and a guide.
-
 ### Replace basic invite settings with relationship setup and transparency
 
 Why:
@@ -166,5 +141,6 @@ Validation:
 
 ## UX Review Notes
 
+- 2026-03-13: Reworked `Overview` into a role-aware dashboard centered on `Member Actions`, `Guide Attention`, and `Next Review`, with urgent summaries and recent shared completions ahead of background metrics.
 - 2026-03-13: Added a dedicated `Reviewees` workspace with guide-only navigation, urgency-ordered member cards, recent activity context, and observation-only states for passive relationships.
 - 2026-03-13: Split the old `Tracked Items` surface into `My Items` and `Routines`, moved the member-facing page toward due and upcoming work, and kept routine creation and schedule management on the separate builder page.
