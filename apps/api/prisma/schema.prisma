@@ -55,6 +55,12 @@ model ReviewerRelation {
   id         String   @id @default(cuid())
   reviewerId String
   revieweeId String
+  mode       String   @default("passive")
+  canActOnItems Boolean @default(false)
+  canManageRoutines Boolean @default(false)
+  canManageAccountability Boolean @default(false)
+  historyWindow String @default("Future only")
+  hiddenItemCount Int @default(0)
   createdAt  DateTime @default(now())
 
   reviewer User @relation("reviewer", fields: [reviewerId], references: [id], onDelete: Cascade)

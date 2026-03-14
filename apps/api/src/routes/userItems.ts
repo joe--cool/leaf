@@ -1,7 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import { trackingItemCreateSchema } from '@leaf/shared';
 import { prisma } from '../prisma.js';
-import { authUser, relationshipDefaults, scheduleKindForStorage } from './shared.js';
+import { authUser, normalizeRelationship, scheduleKindForStorage } from './shared.js';
 import { completeSchema, idParamSchema, preferencesSchema } from './schemas.js';
 
 export async function registerUserItemRoutes(app: FastifyInstance): Promise<void> {
@@ -45,7 +45,7 @@ export async function registerUserItemRoutes(app: FastifyInstance): Promise<void
     return (
       user?.reviewTargets.map((relation) => ({
         reviewee: relation.reviewee,
-        relationship: relationshipDefaults(),
+        relationship: normalizeRelationship(relation),
         items: relation.reviewee.items,
       })) ?? []
     );

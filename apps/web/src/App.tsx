@@ -63,6 +63,7 @@ export function App() {
   const [setupEmail, setSetupEmail] = useState('');
   const [setupPassword, setSetupPassword] = useState('');
   const [setupToken, setSetupToken] = useState('');
+  const [setupDemoMode, setSetupDemoMode] = useState(false);
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -371,6 +372,7 @@ export function App() {
         name: setupEmail,
         password: setupPassword,
         setupToken: setupToken || undefined,
+        demoMode: setupDemoMode,
       }),
     });
     setToken(result.accessToken);
@@ -756,6 +758,8 @@ export function App() {
               setSetupPassword={setSetupPassword}
               setupToken={setupToken}
               setSetupToken={setSetupToken}
+              setupDemoMode={setupDemoMode}
+              setSetupDemoMode={setSetupDemoMode}
               email={email}
               setEmail={setEmail}
               password={password}

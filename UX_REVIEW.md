@@ -15,6 +15,8 @@ Primary references:
 - Run relevant tests after every completed item before closing the work.
 - After every iteration, once the changes are signed off, add a UX review note here before moving on to the next iteration.
 - Treat each item's `Review before closing` list as the minimum acceptance review.
+- Keep first-run demo mode current with shipped UX: if a new surface needs meaningful data, update `apps/api/src/demoSeed.ts`, prefer relative past/future dates, and add or extend tests so the seeded workspace continues to exercise the feature.
+- Keep the seeded workspace useful from the original account alone: demo mode should keep exposing member, active-guide, and passive-guide states without forcing user switching just to see core UX.
 
 ## What the review found
 

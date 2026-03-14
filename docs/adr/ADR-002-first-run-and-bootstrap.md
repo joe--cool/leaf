@@ -13,6 +13,7 @@ leaf must support both secure first-use setup and quick trial onboarding.
 2. Optional `SETUP_TOKEN` can be required for first-admin creation.
 3. Optional bootstrap env mode can create an admin automatically for scripted/demo scenarios.
 4. Local startup helper can generate one-time setup token and print to terminal only.
+5. First-run web setup may optionally enable a seeded demo workspace for the initial admin.
 
 ## Rationale
 
@@ -20,6 +21,7 @@ leaf must support both secure first-use setup and quick trial onboarding.
 - Setup token adds protection against accidental/remote unauthorized bootstrap.
 - Env bootstrap supports CI, demos, and automated installations.
 - Terminal-only token output avoids leaking secrets into persistent app logs.
+- Relative-date demo seeding keeps the trial workspace representative instead of aging into stale examples.
 
 ## Consequences
 
@@ -32,6 +34,7 @@ Tradeoffs:
 
 - More configuration branches to document and test.
 - Operators need to understand secure vs demo mode differences.
+- Demo seed data becomes product surface area that must be updated with new user-visible features.
 
 ## Alternatives considered
 

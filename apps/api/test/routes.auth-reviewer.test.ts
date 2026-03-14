@@ -7,12 +7,16 @@ const enabledProvidersMock = vi.fn();
 const sendEmailMock = vi.fn();
 const inviteCreateMock = vi.fn();
 const userFindUniqueMock = vi.fn();
+const seedDemoWorkspaceMock = vi.fn();
+const userCreateMock = vi.fn();
+const issueAuthTokensMock = vi.fn();
+const hashPasswordMock = vi.fn();
 
 vi.mock('../src/auth.js', () => ({
-  hashPassword: vi.fn(),
+  hashPassword: hashPasswordMock,
   verifyPassword: vi.fn(),
   userRoles: userRolesMock,
-  issueAuthTokens: vi.fn(),
+  issueAuthTokens: issueAuthTokensMock,
   rotateRefreshToken: vi.fn(),
   revokeRefreshToken: vi.fn(),
 }));
@@ -27,13 +31,17 @@ vi.mock('../src/email.js', () => ({
   sendEmail: sendEmailMock,
 }));
 
+vi.mock('../src/demoSeed.js', () => ({
+  seedDemoWorkspace: seedDemoWorkspaceMock,
+}));
+
 vi.mock('../src/prisma.js', () => ({
   prisma: {
     user: {
       count: vi.fn().mockResolvedValue(1),
       findUnique: userFindUniqueMock,
       findMany: vi.fn(),
-      create: vi.fn(),
+      create: userCreateMock,
       update: vi.fn(),
     },
     invite: {
@@ -70,6 +78,11 @@ describe('auth/reviewer routes', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     inviteCreateMock.mockResolvedValue({ id: 'inv_1', token: 'tok' });
+    hashPasswordMock.mockResolvedValue('hashed-password');
+    issueAuthTokensMock.mockResolvedValue({
+      accessToken: 'access-token',
+      refreshToken: 'refresh-token',
+    });
   });
 
   it('returns enabled oauth providers', async () => {
@@ -88,6 +101,91 @@ describe('auth/reviewer routes', () => {
     const res = await app.inject({ method: 'GET', url: '/auth/oauth/options' });
     expect(res.statusCode).toBe(200);
     expect(res.json()).toEqual({ providers: ['google'] });
+    await app.close();
+  });
+
+  it('seeds demo workspace when first admin setup enables demo mode', async () => {
+    const { prisma } = await import('../src/prisma.js');
+    const { registerRoutes } = await import('../src/routes.js');
+    vi.mocked(prisma.user.count).mockResolvedValue(0);
+    userCreateMock.mockResolvedValue({
+      id: 'admin_1',
+      email: 'admin@example.com',
+      name: 'admin@example.com',
+      roles: [{ role: 'ADMIN' }, { role: 'USER' }],
+    });
+
+    const app = Fastify();
+    await app.register(sensible);
+    app.decorate('authenticate', async () => {});
+    await app.register(registerRoutes);
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/setup/first-admin',
+      payload: {
+        email: 'admin@example.com',
+        name: 'admin@example.com',
+        password: 'changeme123',
+        demoMode: true,
+      },
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(hashPasswordMock).toHaveBeenCalledWith('changeme123');
+    expect(seedDemoWorkspaceMock).toHaveBeenCalledWith({
+      id: 'admin_1',
+      email: 'admin@example.com',
+      name: 'admin@example.com',
+    }, 'hashed-password');
+    expect(userCreateMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          passwordHash: 'hashed-password',
+        }),
+      }),
+    );
+    expect(issueAuthTokensMock).toHaveBeenCalled();
+    await app.close();
+  });
+
+  it('creates only the original admin password in non-demo mode', async () => {
+    const { prisma } = await import('../src/prisma.js');
+    const { registerRoutes } = await import('../src/routes.js');
+    vi.mocked(prisma.user.count).mockResolvedValue(0);
+    userCreateMock.mockResolvedValue({
+      id: 'admin_1',
+      email: 'admin@example.com',
+      name: 'admin@example.com',
+      roles: [{ role: 'ADMIN' }, { role: 'USER' }],
+    });
+
+    const app = Fastify();
+    await app.register(sensible);
+    app.decorate('authenticate', async () => {});
+    await app.register(registerRoutes);
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/setup/first-admin',
+      payload: {
+        email: 'admin@example.com',
+        name: 'admin@example.com',
+        password: 'changeme123',
+      },
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(hashPasswordMock).toHaveBeenCalledWith('changeme123');
+    expect(userCreateMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          passwordHash: 'hashed-password',
+        }),
+      }),
+    );
+    expect(seedDemoWorkspaceMock).not.toHaveBeenCalled();
+    expect(issueAuthTokensMock).toHaveBeenCalled();
     await app.close();
   });
 
@@ -118,6 +216,12 @@ describe('auth/reviewer routes', () => {
       id: 'u1',
       reviewTargets: [
         {
+          mode: 'active',
+          canActOnItems: true,
+          canManageRoutines: true,
+          canManageAccountability: true,
+          historyWindow: 'Last 30 days + next due',
+          hiddenItemCount: 1,
           reviewee: {
             id: 'u2',
             email: 'member@example.com',
@@ -182,12 +286,12 @@ describe('auth/reviewer routes', () => {
           ],
         },
         relationship: {
-          mode: 'passive',
-          canActOnItems: false,
-          canManageRoutines: false,
-          canManageAccountability: false,
-          historyWindow: 'Future only',
-          hiddenItemCount: 0,
+          mode: 'active',
+          canActOnItems: true,
+          canManageRoutines: true,
+          canManageAccountability: true,
+          historyWindow: 'Last 30 days + next due',
+          hiddenItemCount: 1,
         },
         items: [
           {

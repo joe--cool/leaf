@@ -32,3 +32,23 @@ export function relationshipDefaults() {
     hiddenItemCount: 0,
   };
 }
+
+type RelationshipLike = {
+  mode?: string | null;
+  canActOnItems?: boolean | null;
+  canManageRoutines?: boolean | null;
+  canManageAccountability?: boolean | null;
+  historyWindow?: string | null;
+  hiddenItemCount?: number | null;
+};
+
+export function normalizeRelationship(relation: RelationshipLike) {
+  return {
+    mode: relation.mode === 'active' ? 'active' : 'passive',
+    canActOnItems: relation.canActOnItems ?? false,
+    canManageRoutines: relation.canManageRoutines ?? false,
+    canManageAccountability: relation.canManageAccountability ?? false,
+    historyWindow: relation.historyWindow ?? 'Future only',
+    hiddenItemCount: relation.hiddenItemCount ?? 0,
+  };
+}

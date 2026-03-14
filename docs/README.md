@@ -36,3 +36,11 @@ This folder contains the product, design, and architecture documentation for `le
 - API route registration is split by domain under `apps/api/src/routes/` so auth/setup, member/item flows, reviewer/admin flows, and validation can evolve independently.
 - Web page modules live under `apps/web/src/pages/`, reusable shell and navigation pieces live under `apps/web/src/components/`, and `apps/web/src/App.tsx` is intentionally limited to shell/orchestration concerns.
 - Web scheduling constants, shared app types, and schedule summarization logic stay outside page components so UI composition code is not mixed with schedule interpretation rules.
+
+## Demo mode maintenance
+
+- First-run demo mode is seeded by `apps/api/src/demoSeed.ts`.
+- Keep demo data current whenever a new user-visible feature, page, or workflow is added.
+- Prefer runtime-relative dates over hard-coded dates so demo routines always show past activity, current urgency, and future work.
+- Keep the original demo account useful on its own: it should continue to show member, active-guide, and passive-guide states from one login.
+- If a feature is intended to be visible in the seeded workspace, update tests for first-run setup or the affected page so demo drift is caught in CI.

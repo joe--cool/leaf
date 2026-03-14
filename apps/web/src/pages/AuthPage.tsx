@@ -2,6 +2,7 @@ import {
   Badge,
   Box,
   Button,
+  Checkbox,
   Divider,
   FormControl,
   FormHelperText,
@@ -35,6 +36,8 @@ export function AuthPage({
   setSetupPassword,
   setupToken,
   setSetupToken,
+  setupDemoMode,
+  setSetupDemoMode,
   email,
   setEmail,
   password,
@@ -58,6 +61,8 @@ export function AuthPage({
   setSetupPassword: (value: string) => void;
   setupToken: string;
   setSetupToken: (value: string) => void;
+  setupDemoMode: boolean;
+  setSetupDemoMode: (value: boolean) => void;
   email: string;
   setEmail: (value: string) => void;
   password: string;
@@ -154,6 +159,14 @@ export function AuthPage({
                   <Input bg={inputBg} value={setupToken} onChange={(event) => setSetupToken(event.target.value)} />
                   <FormHelperText color={mutedText}>
                     Only needed if your server requires a protected first-run token.
+                  </FormHelperText>
+                </FormControl>
+                <FormControl>
+                  <Checkbox isChecked={setupDemoMode} onChange={(event) => setSetupDemoMode(event.target.checked)}>
+                    Enable demo mode
+                  </Checkbox>
+                  <FormHelperText color={mutedText}>
+                    Seeds example routines, reviewer relationships, and additional users so every workspace has visible data.
                   </FormHelperText>
                 </FormControl>
                 <Button colorScheme="leaf" type="submit">

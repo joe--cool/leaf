@@ -67,6 +67,23 @@ BOOTSTRAP_ADMIN_PASSWORD=changeme123 \
 docker compose up --build
 ```
 
+3. First-run demo workspace
+
+Start the stack in secure or bootstrap mode, then enable `Demo mode` in the web First-run Setup form when creating the first admin.
+
+Demo mode creates:
+
+- Sample routines for the new admin across multiple schedule types
+- Additional fake users for admin and guide views
+- Reviewer relationships in both directions, including active-guide and passive-guide examples from the original account
+- Recent, overdue, due-today, and upcoming activity using dynamically generated relative dates
+- Shared login password across the spoofed demo users so quick manual switching is possible when needed
+
+Maintenance rule:
+
+- When a new user-facing feature needs seeded data to be visible, update `apps/api/src/demoSeed.ts` and keep the seeded timestamps relative to the current date so the demo workspace remains useful over time.
+- Preserve a single-account walkthrough: the original user should continue to land in member, active-guide, and passive-guide states without requiring account switching.
+
 ## Optional LAN/Hostname Access
 
 Use runtime overrides (example hostname only):

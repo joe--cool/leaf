@@ -18,6 +18,7 @@ import {
   oauthStartQuerySchema,
   refreshSchema,
 } from './schemas.js';
+import { seedDemoWorkspace } from '../demoSeed.js';
 
 export async function registerSetupAuthRoutes(app: FastifyInstance): Promise<void> {
   app.get('/health', async () => ({ ok: true }));
@@ -35,15 +36,24 @@ export async function registerSetupAuthRoutes(app: FastifyInstance): Promise<voi
       return reply.forbidden('Invalid setup token');
     }
 
+    const passwordHash = await hashPassword(body.password);
     const user = await prisma.user.create({
       data: {
         email: body.email,
         name: body.name,
-        passwordHash: await hashPassword(body.password),
+        passwordHash,
         roles: { create: [{ role: 'ADMIN' }, { role: 'USER' }] },
       },
       include: { roles: true },
     });
+
+    if (body.demoMode) {
+      await seedDemoWorkspace({
+        id: user.id,
+        email: user.email,
+        name: user.name,
+      }, passwordHash);
+    }
 
     const roles = user.roles.map((entry: { role: string }) => entry.role);
     const tokens = await issueAuthTokens({

@@ -33,4 +33,5 @@ export const refreshSchema = z.object({ refreshToken: z.string().min(1) });
 export const firstAdminSetupSchema = loginSchema.extend({
   name: z.string().min(1),
   setupToken: z.string().optional(),
+  demoMode: z.boolean().optional(),
 });

@@ -82,6 +82,12 @@ export async function registerReviewerAdminRoutes(app: FastifyInstance): Promise
       create: {
         reviewerId: body.reviewerId,
         revieweeId: body.revieweeId,
+        mode: 'passive',
+        canActOnItems: false,
+        canManageRoutines: false,
+        canManageAccountability: false,
+        historyWindow: 'Future only',
+        hiddenItemCount: 0,
       },
       update: {},
     });

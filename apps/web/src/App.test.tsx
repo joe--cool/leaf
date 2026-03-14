@@ -206,6 +206,42 @@ describe('App routes', () => {
     });
   });
 
+  it('submits first-run setup with demo mode when the checkbox is enabled', async () => {
+    getTokenMock.mockReturnValue(null);
+    apiFetchMock.mockImplementation(async (path: string, options?: { body?: string }) => {
+      if (path === '/setup/status') return { needsSetup: true };
+      if (path === '/auth/oauth/options') return { providers: [] };
+      if (path === '/setup/first-admin') {
+        expect(JSON.parse(options?.body ?? '{}')).toMatchObject({
+          email: 'admin@example.com',
+          password: 'changeme123',
+          demoMode: true,
+        });
+        return { accessToken: 'token', refreshToken: 'refresh' };
+      }
+      if (path === '/me') return { ...meResponse, roles: [{ role: 'ADMIN' }, { role: 'USER' }] };
+      if (path === '/items') return [];
+      if (path === '/reviewees') return [];
+      if (path === '/admin/users') return [];
+      throw new Error(`Unexpected api path: ${path}`);
+    });
+
+    renderApp('/dashboard');
+
+    const user = userEvent.setup();
+    await user.type(await screen.findByLabelText('Admin email'), 'admin@example.com');
+    await user.type(screen.getByLabelText('Password'), 'changeme123');
+    await user.click(screen.getByRole('checkbox', { name: 'Enable demo mode' }));
+    await user.click(screen.getByRole('button', { name: 'Create First Admin' }));
+
+    await waitFor(() => {
+      expect(apiFetchMock).toHaveBeenCalledWith(
+        '/setup/first-admin',
+        expect.objectContaining({ method: 'POST' }),
+      );
+    });
+  });
+
   it('renders the account menu in a high z-index overlay layer', async () => {
     renderApp('/dashboard');
 
