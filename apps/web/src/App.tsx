@@ -1,621 +1,57 @@
 import {
-  Alert,
-  AlertIcon,
-  Avatar,
   Badge,
   Box,
-  Button,
-  Checkbox,
-  CheckboxGroup,
   Container,
-  Divider,
   Flex,
-  FormControl,
-  FormHelperText,
-  FormLabel,
   Grid,
   GridItem,
   Heading,
   HStack,
-  Icon,
-  IconButton,
   Image,
-  Input,
-  Menu,
-  MenuButton,
-  MenuDivider,
-  MenuItem,
-  MenuList,
-  Portal,
-  Select,
-  SimpleGrid,
-  Radio,
-  RadioGroup,
   Stack,
-  Stat,
-  StatLabel,
-  StatNumber,
-  Switch,
-  Text,
   useColorMode,
   useColorModeValue,
   useToast,
 } from '@chakra-ui/react';
-import { MoonIcon, SunIcon } from '@chakra-ui/icons';
-import { useEffect, useMemo, useState, type CSSProperties, type FormEvent } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link as RouterLink, useLocation } from 'react-router-dom';
-import { DayPicker } from 'react-day-picker';
 import 'react-day-picker/dist/style.css';
 import './app.css';
-import type { ScheduleKind } from '@leaf/shared';
 import { apiFetch, clearToken, getToken, setRefreshToken, setToken } from './api';
-
-type User = {
-  id: string;
-  email: string;
-  name: string;
-  avatarUrl?: string | null;
-  timezone: string;
-  weeklyDigestDay: number;
-  weeklyDigestHour: number;
-  roles: Array<{ role: string }>;
-  reviewTargets: Array<{ reviewee: { id: string; email: string; name: string } }>;
-  reviewers: Array<{ reviewer: { id: string; email: string; name: string } }>;
-};
-
-type Item = {
-  id: string;
-  title: string;
-  category: string;
-  scheduleKind: ScheduleKind;
-  scheduleData?: Record<string, unknown>;
-};
-
-type ItemCompletion = {
-  id: string;
-  occurredAt: string;
-  note?: string | null;
-};
-
-type RevieweeItem = Item & {
-  completions: ItemCompletion[];
-};
-
-type RevieweeWorkspace = {
-  reviewee: { id: string; email: string; name: string };
-  relationship: {
-    mode: 'active' | 'passive';
-    canActOnItems: boolean;
-    canManageRoutines: boolean;
-    canManageAccountability: boolean;
-    historyWindow: string;
-    hiddenItemCount: number;
-  };
-  items: RevieweeItem[];
-};
-
-type OAuthProvider = 'google' | 'apple';
-
-type AdminUser = {
-  id: string;
-  email: string;
-  name: string;
-  roles: Array<{ role: string }>;
-};
-
-type PageKey = 'dashboard' | 'profile' | 'my-items' | 'reviewees' | 'routines' | 'admin';
-type SingleScheduleKind = Exclude<ScheduleKind, 'MULTI'>;
-type ActionBucket = 'due' | 'upcoming' | 'later';
-type ActionSummary = {
-  bucket: ActionBucket;
-  urgency: number;
-  status: string;
-  detail: string;
-  dueAt?: number;
-};
-
-type DraftSchedule = {
-  kind: SingleScheduleKind;
-  label: string;
-  oneTimeAt: string;
-  dailyTimes: string[];
-  weekdays: number[];
-  intervalDays: string;
-  intervalAnchor: string;
-  customDates: string[];
-};
-
-const weekdayOptions = [
-  { value: 0, label: 'Sun' },
-  { value: 1, label: 'Mon' },
-  { value: 2, label: 'Tue' },
-  { value: 3, label: 'Wed' },
-  { value: 4, label: 'Thu' },
-  { value: 5, label: 'Fri' },
-  { value: 6, label: 'Sat' },
-];
-
-const categoryOptions = [
-  { value: 'homework', label: 'Schoolwork' },
-  { value: 'health', label: 'Medicine or supplements' },
-  { value: 'exercise', label: 'Exercise' },
-  { value: 'other', label: 'Other routine' },
-];
-
-const categoryDefaultTitles: Record<string, string> = {
-  homework: 'Finish math homework',
-  health: 'Take evening supplement',
-  exercise: 'Go for a walk',
-  other: 'Water the plants',
-};
-
-const scheduleKindOptions: Array<{ value: SingleScheduleKind; label: string; help: string }> = [
-  {
-    value: 'DAILY',
-    label: 'Every day',
-    help: 'Use one or more times each day.',
-  },
-  {
-    value: 'WEEKLY',
-    label: 'Selected weekdays',
-    help: 'Choose the days of the week that apply.',
-  },
-  {
-    value: 'INTERVAL_DAYS',
-    label: 'Every few days',
-    help: 'Repeat after a fixed number of days.',
-  },
-  {
-    value: 'CUSTOM_DATES',
-    label: 'Specific dates',
-    help: 'Hand-pick dates on the calendar.',
-  },
-  {
-    value: 'ONE_TIME',
-    label: 'One time',
-    help: 'Schedule a single occurrence.',
-  },
-];
-
-const appNavItems: Array<{ key: PageKey; path: string; label: string }> = [
-  { key: 'dashboard', path: '/dashboard', label: 'Overview' },
-  { key: 'my-items', path: '/my-items', label: 'My Items' },
-  { key: 'routines', path: '/routines', label: 'Routines' },
-];
-
-const accountNavItems: Array<{ key: PageKey; path: string; label: string; adminOnly?: boolean }> = [
-  { key: 'profile', path: '/profile', label: 'Preferences' },
-  { key: 'admin', path: '/admin', label: 'Admin', adminOnly: true },
-];
+import { categoryOptions, createDraftSchedule } from './appConstants';
+import {
+  getDefaultTitle,
+  projectedChecksPerWeek,
+  summarizeActionableState,
+  summarizeRecentRevieweeActivity,
+  toDayName,
+} from './scheduleUtils';
+import type {
+  ActionableItem,
+  AdminUser,
+  DraftSchedule,
+  Item,
+  OAuthProvider,
+  PageKey,
+  RevieweePortfolio,
+  RevieweeWorkspace,
+  User,
+} from './appTypes';
+import { AccountMenu } from './components/AccountMenu';
+import { PageIntro } from './components/PageIntro';
+import { SessionErrorPanel } from './components/SessionErrorPanel';
+import { SidebarNav } from './components/SidebarNav';
+import { UserGlyph } from './components/UserGlyph';
+import { AdminPage } from './pages/AdminPage';
+import { AuthPage } from './pages/AuthPage';
+import { DashboardPage } from './pages/DashboardPage';
+import { MyItemsPage } from './pages/MyItemsPage';
+import { ProfilePage } from './pages/ProfilePage';
+import { RevieweesPage } from './pages/RevieweesPage';
+import { RoutinesPage } from './pages/RoutinesPage';
 
 function startsWithPath(pathname: string, path: string): boolean {
   return pathname === path || pathname.startsWith(`${path}/`);
-}
-
-function createDraftSchedule(kind: SingleScheduleKind = 'DAILY'): DraftSchedule {
-  return {
-    kind,
-    label: '',
-    oneTimeAt: '',
-    dailyTimes: ['09:00'],
-    weekdays: [1, 3, 5],
-    intervalDays: '2',
-    intervalAnchor: '',
-    customDates: [''],
-  };
-}
-
-function toInputDateTime(date: Date): string {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  const day = String(date.getDate()).padStart(2, '0');
-  const hours = String(date.getHours()).padStart(2, '0');
-  const minutes = String(date.getMinutes()).padStart(2, '0');
-  return `${year}-${month}-${day}T${hours}:${minutes}`;
-}
-
-function toDayName(value: number): string {
-  const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-  return days[value] ?? `Day ${value}`;
-}
-
-function getCategoryLabel(value: string): string {
-  return categoryOptions.find((option) => option.value === value)?.label ?? value;
-}
-
-function getDefaultTitle(value: string): string {
-  return categoryDefaultTitles[value] ?? 'Add routine';
-}
-
-function summarizeSchedule(item: Item): string {
-  const schedule = item.scheduleData ?? {};
-  const scheduleKind = typeof schedule.kind === 'string' ? schedule.kind : item.scheduleKind;
-  const scheduleLabel = typeof schedule.label === 'string' ? schedule.label.trim() : '';
-
-  if (scheduleKind === 'MULTI') {
-    const schedules = Array.isArray(schedule.schedules)
-      ? schedule.schedules.filter(
-          (entry): entry is Record<string, unknown> => typeof entry === 'object' && entry !== null,
-        )
-      : [];
-    if (schedules.length === 0) return 'Multiple schedules';
-    const labeled = schedules
-      .map((entry, index) => {
-        const label = typeof entry.label === 'string' ? entry.label.trim() : '';
-        const kind =
-          typeof entry.kind === 'string' ? entry.kind.toLowerCase().replace('_', ' ') : 'schedule';
-        return label || `Schedule ${index + 1} (${kind})`;
-      })
-      .slice(0, 2);
-    return `${schedules.length} schedules: ${labeled.join(', ')}${schedules.length > 2 ? ', ...' : ''}`;
-  }
-
-  if (scheduleKind === 'ONE_TIME') {
-    const raw = schedule.oneTimeAt;
-    if (typeof raw === 'string') {
-      const date = new Date(raw);
-      if (!Number.isNaN(date.valueOf())) {
-        return `${scheduleLabel ? `${scheduleLabel}: ` : ''}One-time ${date.toLocaleString()}`;
-      }
-    }
-    return 'One-time event';
-  }
-
-  if (scheduleKind === 'DAILY') {
-    const times = Array.isArray(schedule.dailyTimes)
-      ? schedule.dailyTimes.filter((value): value is string => typeof value === 'string')
-      : [];
-    if (times.length > 0) {
-      return `${scheduleLabel ? `${scheduleLabel}: ` : ''}Daily at ${times.slice(0, 2).join(', ')}${times.length > 2 ? ', ...' : ''}`;
-    }
-    return `${scheduleLabel ? `${scheduleLabel}: ` : ''}Daily`;
-  }
-
-  if (scheduleKind === 'WEEKLY') {
-    const weekdays = Array.isArray(schedule.weekdays)
-      ? schedule.weekdays.filter((value): value is number => typeof value === 'number')
-      : [];
-    if (weekdays.length > 0) {
-      return `${scheduleLabel ? `${scheduleLabel}: ` : ''}Weekly on ${weekdays.map((value) => toDayName(value)).join(', ')}`;
-    }
-    return `${scheduleLabel ? `${scheduleLabel}: ` : ''}Weekly`;
-  }
-
-  if (scheduleKind === 'INTERVAL_DAYS') {
-    const interval = schedule.intervalDays;
-    if (typeof interval === 'number') {
-      return `${scheduleLabel ? `${scheduleLabel}: ` : ''}Every ${interval} day${interval === 1 ? '' : 's'}`;
-    }
-    return `${scheduleLabel ? `${scheduleLabel}: ` : ''}Repeats by interval`;
-  }
-
-  const dates = Array.isArray(schedule.customDates)
-    ? schedule.customDates.filter((value): value is string => typeof value === 'string')
-    : [];
-  if (dates.length > 0) {
-    return `${scheduleLabel ? `${scheduleLabel}: ` : ''}${dates.length} custom schedule date${dates.length === 1 ? '' : 's'}`;
-  }
-  return `${scheduleLabel ? `${scheduleLabel}: ` : ''}Custom dates`;
-}
-
-function projectedChecksPerWeek(item: Item): number {
-  const schedule = item.scheduleData ?? {};
-  const scheduleKind = typeof schedule.kind === 'string' ? schedule.kind : item.scheduleKind;
-
-  if (scheduleKind === 'MULTI') {
-    const schedules = Array.isArray(schedule.schedules)
-      ? schedule.schedules.filter(
-          (entry): entry is Record<string, unknown> => typeof entry === 'object' && entry !== null,
-        )
-      : [];
-    return schedules.reduce((total, entry) => {
-      const nestedItem: Item = {
-        id: item.id,
-        title: item.title,
-        category: item.category,
-        scheduleKind:
-          typeof entry.kind === 'string' ? (entry.kind as ScheduleKind) : item.scheduleKind,
-        scheduleData: entry,
-      };
-      return total + projectedChecksPerWeek(nestedItem);
-    }, 0);
-  }
-
-  if (scheduleKind === 'ONE_TIME') return 1;
-
-  if (scheduleKind === 'DAILY') {
-    const times = Array.isArray(schedule.dailyTimes)
-      ? schedule.dailyTimes.filter((value): value is string => typeof value === 'string')
-      : [];
-    return Math.max(times.length, 1) * 7;
-  }
-
-  if (scheduleKind === 'WEEKLY') {
-    const days = Array.isArray(schedule.weekdays)
-      ? schedule.weekdays.filter((value): value is number => typeof value === 'number')
-      : [];
-    return Math.max(days.length, 1);
-  }
-
-  if (scheduleKind === 'INTERVAL_DAYS') {
-    const interval = typeof schedule.intervalDays === 'number' ? schedule.intervalDays : 1;
-    return Math.max(Math.round(7 / Math.max(interval, 1)), 1);
-  }
-
-  const customDates = Array.isArray(schedule.customDates)
-    ? schedule.customDates.filter((value): value is string => typeof value === 'string')
-    : [];
-  return customDates.length;
-}
-
-function formatDateTime(value: number): string {
-  return new Date(value).toLocaleString(undefined, {
-    weekday: 'short',
-    month: 'short',
-    day: 'numeric',
-    hour: 'numeric',
-    minute: '2-digit',
-  });
-}
-
-function startOfToday(now: Date): Date {
-  const result = new Date(now);
-  result.setHours(0, 0, 0, 0);
-  return result;
-}
-
-function daysUntilWeekday(currentDay: number, targetDay: number): number {
-  return (targetDay - currentDay + 7) % 7;
-}
-
-function summarizeActionableState(item: Item, now = new Date()): ActionSummary {
-  const schedule = item.scheduleData ?? {};
-  const scheduleKind = typeof schedule.kind === 'string' ? schedule.kind : item.scheduleKind;
-  const today = startOfToday(now);
-  const currentTime = now.getTime();
-
-  if (scheduleKind === 'MULTI') {
-    const schedules = Array.isArray(schedule.schedules)
-      ? schedule.schedules.filter(
-          (entry): entry is Record<string, unknown> => typeof entry === 'object' && entry !== null,
-        )
-      : [];
-
-    const nested = schedules.map((entry) =>
-      summarizeActionableState(
-        {
-          ...item,
-          scheduleKind: typeof entry.kind === 'string' ? (entry.kind as ScheduleKind) : item.scheduleKind,
-          scheduleData: entry,
-        },
-        now,
-      ),
-    );
-
-    return (
-      nested.sort(
-        (left, right) =>
-          left.urgency !== right.urgency
-            ? left.urgency - right.urgency
-            : (left.dueAt ?? Number.MAX_SAFE_INTEGER) - (right.dueAt ?? Number.MAX_SAFE_INTEGER),
-      )[0] ?? {
-        bucket: 'later',
-        urgency: 5,
-        status: 'Needs schedule review',
-        detail: 'This routine has multiple schedules but none are configured yet.',
-      }
-    );
-  }
-
-  if (scheduleKind === 'ONE_TIME') {
-    const raw = typeof schedule.oneTimeAt === 'string' ? schedule.oneTimeAt : '';
-    const dueAt = raw ? new Date(raw).getTime() : Number.NaN;
-    if (!Number.isNaN(dueAt)) {
-      if (dueAt < currentTime) {
-        return {
-          bucket: 'due',
-          urgency: 0,
-          status: 'Overdue',
-          detail: `Scheduled for ${formatDateTime(dueAt)}.`,
-          dueAt,
-        };
-      }
-      return {
-        bucket: 'upcoming',
-        urgency: dueAt - currentTime < 1000 * 60 * 60 * 24 ? 1 : 2,
-        status: 'Scheduled next',
-        detail: `Due ${formatDateTime(dueAt)}.`,
-        dueAt,
-      };
-    }
-  }
-
-  if (scheduleKind === 'DAILY') {
-    const times = Array.isArray(schedule.dailyTimes)
-      ? schedule.dailyTimes.filter((value): value is string => typeof value === 'string' && value.trim().length > 0)
-      : [];
-    if (times.length > 0) {
-      return {
-        bucket: 'due',
-        urgency: 1,
-        status: 'Due today',
-        detail: `${times.length} check${times.length === 1 ? '' : 's'} scheduled today.`,
-      };
-    }
-    return {
-      bucket: 'due',
-      urgency: 2,
-      status: 'Due today',
-      detail: 'This routine repeats every day.',
-    };
-  }
-
-  if (scheduleKind === 'WEEKLY') {
-    const weekdays = Array.isArray(schedule.weekdays)
-      ? schedule.weekdays.filter((value): value is number => typeof value === 'number')
-      : [];
-    if (weekdays.length > 0) {
-      if (weekdays.includes(now.getDay())) {
-        return {
-          bucket: 'due',
-          urgency: 1,
-          status: 'Due today',
-          detail: 'Today is one of the selected routine days.',
-        };
-      }
-      const nextDay = weekdays
-        .map((day) => ({ day, diff: daysUntilWeekday(now.getDay(), day) }))
-        .sort((left, right) => left.diff - right.diff)[0];
-      if (nextDay) {
-        return {
-          bucket: 'upcoming',
-          urgency: nextDay.diff <= 2 ? 2 : 3,
-          status: 'Coming up',
-          detail: `Next due ${toDayName(nextDay.day)}.`,
-        };
-      }
-    }
-  }
-
-  if (scheduleKind === 'INTERVAL_DAYS') {
-    const interval = typeof schedule.intervalDays === 'number' ? Math.max(schedule.intervalDays, 1) : 1;
-    const rawAnchor = typeof schedule.intervalAnchor === 'string' ? schedule.intervalAnchor : '';
-    const anchorDate = rawAnchor ? new Date(rawAnchor) : today;
-    const anchorTime = anchorDate.getTime();
-
-    if (!Number.isNaN(anchorTime)) {
-      const intervalMs = interval * 24 * 60 * 60 * 1000;
-      const elapsed = Math.max(currentTime - anchorTime, 0);
-      const cycles = Math.floor(elapsed / intervalMs);
-      const nextDueAt = anchorTime + cycles * intervalMs;
-      const followingDueAt = nextDueAt < currentTime ? nextDueAt + intervalMs : nextDueAt;
-
-      if (nextDueAt <= currentTime && now.toDateString() === new Date(nextDueAt).toDateString()) {
-        return {
-          bucket: 'due',
-          urgency: 1,
-          status: 'Due today',
-          detail: `Repeats every ${interval} day${interval === 1 ? '' : 's'}.`,
-          dueAt: nextDueAt,
-        };
-      }
-
-      return {
-        bucket: 'upcoming',
-        urgency: followingDueAt - currentTime < intervalMs ? 2 : 3,
-        status: 'Coming up',
-        detail: `Next due ${formatDateTime(followingDueAt)}.`,
-        dueAt: followingDueAt,
-      };
-    }
-  }
-
-  const customDates = Array.isArray(schedule.customDates)
-    ? schedule.customDates
-        .filter((value): value is string => typeof value === 'string')
-        .map((value) => new Date(value).getTime())
-        .filter((value) => !Number.isNaN(value))
-        .sort((left, right) => left - right)
-    : [];
-
-  if (customDates.length > 0) {
-    const dueTodayDate = customDates.find(
-      (value) => value >= today.getTime() && value <= currentTime,
-    );
-    if (dueTodayDate) {
-      return {
-        bucket: 'due',
-        urgency: 0,
-        status: 'Due today',
-        detail: `Scheduled for ${formatDateTime(dueTodayDate)}.`,
-        dueAt: dueTodayDate,
-      };
-    }
-    const upcomingDate = customDates.find((value) => value >= currentTime);
-    if (upcomingDate) {
-      return {
-        bucket: 'upcoming',
-        urgency: upcomingDate - currentTime < 1000 * 60 * 60 * 24 * 3 ? 2 : 3,
-        status: 'Scheduled next',
-        detail: `Next on ${formatDateTime(upcomingDate)}.`,
-        dueAt: upcomingDate,
-      };
-    }
-  }
-
-  return {
-    bucket: 'later',
-    urgency: 4,
-    status: 'Needs routine review',
-    detail: 'Open Routines to confirm the cadence and reminder settings.',
-  };
-}
-
-function summarizeRecentRevieweeActivity(items: RevieweeItem[]) {
-  return items
-    .flatMap((item) =>
-      item.completions.map((completion) => ({
-        id: completion.id,
-        itemTitle: item.title,
-        occurredAt: completion.occurredAt,
-        note: completion.note,
-      })),
-    )
-    .filter((entry) => !Number.isNaN(new Date(entry.occurredAt).valueOf()))
-    .sort((left, right) => new Date(right.occurredAt).getTime() - new Date(left.occurredAt).getTime())
-    .slice(0, 3);
-}
-
-function NavButton({
-  label,
-  to,
-  active,
-  accent,
-}: {
-  label: string;
-  to: string;
-  active: boolean;
-  accent: string;
-}) {
-  const activeBg = accent === 'clay' ? 'clay.500' : 'leaf.500';
-  const activeShadow =
-    accent === 'clay'
-      ? '0 18px 36px rgba(163, 88, 54, 0.24)'
-      : '0 18px 36px rgba(79, 118, 88, 0.22)';
-
-  return (
-    <Button
-      as={RouterLink}
-      to={to}
-      justifyContent="flex-start"
-      h="auto"
-      py={3}
-      px={4}
-      variant="ghost"
-      borderRadius="2xl"
-      bg={active ? activeBg : 'transparent'}
-      color={active ? 'white' : 'inherit'}
-      boxShadow={active ? activeShadow : 'none'}
-      _hover={{ bg: active ? activeBg : 'blackAlpha.100', transform: 'translateX(2px)' }}
-      _dark={{ _hover: { bg: active ? activeBg : 'whiteAlpha.140' } }}
-      transition="0.18s ease"
-    >
-      <Stack spacing={0.5} align="start">
-        <Text fontWeight="semibold">{label}</Text>
-      </Stack>
-    </Button>
-  );
-}
-
-function UserGlyph() {
-  return (
-    <Icon viewBox="0 0 24 24" boxSize={5}>
-      <path
-        fill="currentColor"
-        d="M12 12a4 4 0 1 0-4-4 4 4 0 0 0 4 4Zm0 2c-4.42 0-8 2.24-8 5v1h16v-1c0-2.76-3.58-5-8-5Z"
-      />
-    </Icon>
-  );
 }
 
 export function App() {
@@ -630,7 +66,6 @@ export function App() {
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-
   const [oauthProviders, setOauthProviders] = useState<OAuthProvider[]>([]);
 
   const [user, setUser] = useState<User | null>(null);
@@ -641,20 +76,16 @@ export function App() {
   const [title, setTitle] = useState(getDefaultTitle('health'));
   const [category, setCategory] = useState('health');
   const [draftSchedules, setDraftSchedules] = useState<DraftSchedule[]>([createDraftSchedule()]);
-
   const [notificationEnabled, setNotificationEnabled] = useState(true);
   const [hardToDismiss, setHardToDismiss] = useState(false);
   const [repeatMinutes, setRepeatMinutes] = useState('15');
 
   const [inviteEmail, setInviteEmail] = useState('');
   const [targetUserId, setTargetUserId] = useState('');
-
   const [adminReviewerId, setAdminReviewerId] = useState('');
   const [adminRevieweeId, setAdminRevieweeId] = useState('');
 
-  const [prefTimezone, setPrefTimezone] = useState(
-    Intl.DateTimeFormat().resolvedOptions().timeZone,
-  );
+  const [prefTimezone, setPrefTimezone] = useState(Intl.DateTimeFormat().resolvedOptions().timeZone);
   const [prefDay, setPrefDay] = useState('1');
   const [prefHour, setPrefHour] = useState('8');
   const [profileName, setProfileName] = useState('');
@@ -662,20 +93,10 @@ export function App() {
   const [sessionLoadError, setSessionLoadError] = useState<string | null>(null);
 
   const loggedIn = Boolean(getToken());
+  const isAdmin = useMemo(() => user?.roles.some((entry) => entry.role === 'ADMIN') ?? false, [user?.roles]);
 
-  const isAdmin = useMemo(
-    () => user?.roles.some((entry) => entry.role === 'ADMIN') ?? false,
-    [user?.roles],
-  );
-
-  const projectedWeekChecks = useMemo(
-    () => items.reduce((total, item) => total + projectedChecksPerWeek(item), 0),
-    [items],
-  );
-  const relationshipsCount = useMemo(
-    () => (user ? user.reviewTargets.length + user.reviewers.length : 0),
-    [user],
-  );
+  const projectedWeekChecks = useMemo(() => items.reduce((total, item) => total + projectedChecksPerWeek(item), 0), [items]);
+  const relationshipsCount = useMemo(() => (user ? user.reviewTargets.length + user.reviewers.length : 0), [user]);
   const categoryBreakdown = useMemo(() => {
     const counts = new Map<string, number>();
     for (const item of items) {
@@ -686,46 +107,33 @@ export function App() {
       .filter((entry) => entry.count > 0);
   }, [items]);
   const digestSummary = `${toDayName(Number(prefDay))} at ${prefHour.padStart(2, '0')}:00`;
-  const actionableItems = useMemo(
+
+  const actionableItems = useMemo<ActionableItem[]>(
     () =>
       items
         .map((item) => ({ item, action: summarizeActionableState(item) }))
         .sort((left, right) => {
-          if (left.action.urgency !== right.action.urgency) {
-            return left.action.urgency - right.action.urgency;
-          }
+          if (left.action.urgency !== right.action.urgency) return left.action.urgency - right.action.urgency;
           return (left.action.dueAt ?? Number.MAX_SAFE_INTEGER) - (right.action.dueAt ?? Number.MAX_SAFE_INTEGER);
         }),
     [items],
   );
-  const dueItems = useMemo(
-    () => actionableItems.filter((entry) => entry.action.bucket === 'due'),
-    [actionableItems],
-  );
-  const upcomingItems = useMemo(
-    () => actionableItems.filter((entry) => entry.action.bucket === 'upcoming'),
-    [actionableItems],
-  );
-  const laterItems = useMemo(
-    () => actionableItems.filter((entry) => entry.action.bucket === 'later'),
-    [actionableItems],
-  );
-  const revieweePortfolios = useMemo(
+  const dueItems = useMemo(() => actionableItems.filter((entry) => entry.action.bucket === 'due'), [actionableItems]);
+  const upcomingItems = useMemo(() => actionableItems.filter((entry) => entry.action.bucket === 'upcoming'), [actionableItems]);
+  const laterItems = useMemo(() => actionableItems.filter((entry) => entry.action.bucket === 'later'), [actionableItems]);
+
+  const revieweePortfolios = useMemo<RevieweePortfolio[]>(
     () =>
       revieweeWorkspaces
         .map((workspace) => {
           const actionable = workspace.items
             .map((item) => ({ item, action: summarizeActionableState(item) }))
             .sort((left, right) => {
-              if (left.action.urgency !== right.action.urgency) {
-                return left.action.urgency - right.action.urgency;
-              }
+              if (left.action.urgency !== right.action.urgency) return left.action.urgency - right.action.urgency;
               return (left.action.dueAt ?? Number.MAX_SAFE_INTEGER) - (right.action.dueAt ?? Number.MAX_SAFE_INTEGER);
             });
           const overdue = actionable.filter((entry) => entry.action.status === 'Overdue');
-          const dueToday = actionable.filter(
-            (entry) => entry.action.bucket === 'due' && entry.action.status !== 'Overdue',
-          );
+          const dueToday = actionable.filter((entry) => entry.action.bucket === 'due' && entry.action.status !== 'Overdue');
           const upcoming = actionable.filter((entry) => entry.action.bucket === 'upcoming');
           const recentActivity = summarizeRecentRevieweeActivity(workspace.items);
           const nextUrgent = overdue[0] ?? dueToday[0] ?? upcoming[0] ?? actionable[0] ?? null;
@@ -750,8 +158,8 @@ export function App() {
         .sort((left, right) => right.rank - left.rank || left.reviewee.name.localeCompare(right.reviewee.name)),
     [revieweeWorkspaces],
   );
-  const canReviewOthers = (user?.reviewTargets.length ?? 0) > 0;
 
+  const canReviewOthers = (user?.reviewTargets.length ?? 0) > 0;
   const currentPage: PageKey = useMemo(() => {
     if (startsWithPath(location.pathname, '/profile')) return 'profile';
     if (startsWithPath(location.pathname, '/my-items')) return 'my-items';
@@ -764,6 +172,7 @@ export function App() {
 
   const accountMode = currentPage === 'profile' || currentPage === 'admin';
   const adminMode = currentPage === 'admin' && isAdmin;
+
   const shellBg = useColorModeValue('rgba(252, 249, 243, 0.9)', 'rgba(14, 19, 19, 0.92)');
   const shellBorder = useColorModeValue('rgba(161, 129, 107, 0.18)', 'rgba(219, 208, 189, 0.12)');
   const panelBg = useColorModeValue('rgba(255, 253, 249, 0.88)', 'rgba(23, 29, 29, 0.88)');
@@ -771,12 +180,8 @@ export function App() {
   const panelBorder = useColorModeValue('rgba(161, 129, 107, 0.16)', 'rgba(222, 212, 194, 0.11)');
   const mutedText = useColorModeValue('blackAlpha.700', 'whiteAlpha.700');
   const subtleText = useColorModeValue('blackAlpha.600', 'whiteAlpha.600');
-  const statGlow = useColorModeValue(
-    '0 24px 80px rgba(107, 85, 69, 0.12)',
-    '0 24px 80px rgba(0, 0, 0, 0.34)',
-  );
+  const statGlow = useColorModeValue('0 24px 80px rgba(107, 85, 69, 0.12)', '0 24px 80px rgba(0, 0, 0, 0.34)');
   const inputBg = useColorModeValue('rgba(255, 251, 246, 0.94)', 'rgba(16, 21, 21, 0.92)');
-  const iconBg = useColorModeValue('rgba(255, 248, 240, 0.84)', 'rgba(67, 90, 73, 0.42)');
   const accountButtonBg = useColorModeValue(
     accountMode ? 'rgba(241, 225, 216, 0.96)' : 'rgba(239, 229, 214, 0.96)',
     accountMode ? 'rgba(55, 35, 29, 0.96)' : 'rgba(30, 39, 39, 0.96)',
@@ -794,32 +199,32 @@ export function App() {
     accountMode ? 'rgba(192, 88, 40, 0.18)' : 'rgba(161, 129, 107, 0.18)',
     accountMode ? 'rgba(242, 215, 199, 0.14)' : 'rgba(222, 212, 194, 0.12)',
   );
-  const accountMenuHoverBg = useColorModeValue(
-    'rgba(122, 97, 77, 0.10)',
-    'rgba(255, 255, 255, 0.08)',
-  );
+  const accountMenuHoverBg = useColorModeValue('rgba(122, 97, 77, 0.10)', 'rgba(255, 255, 255, 0.08)');
   const accountMenuDivider = useColorModeValue(
-    accountMode ? 'rgba(192, 88, 40, 0.14)' : 'rgba(161, 129, 107, 0.14)',
-    accountMode ? 'rgba(242, 215, 199, 0.12)' : 'rgba(222, 212, 194, 0.10)',
+    accountMode ? 'rgba(192, 88, 40, 0.16)' : 'rgba(161, 129, 107, 0.16)',
+    accountMode ? 'rgba(242, 215, 199, 0.10)' : 'rgba(222, 212, 194, 0.10)',
   );
-  const brandTextColor = useColorModeValue('#1e2a23', '#eef4ef');
-  const sectionBg = useColorModeValue('rgba(250, 245, 237, 0.92)', 'rgba(18, 24, 24, 0.92)');
-  const appBg = useColorModeValue('#f5efe6', '#0e1313');
-  const overlayGradient = useColorModeValue(
-    'radial(circle at top left, rgba(192, 88, 40, 0.15), transparent 32%), radial(circle at bottom right, rgba(74, 109, 83, 0.16), transparent 28%)',
-    'radial(circle at top left, rgba(192, 88, 40, 0.20), transparent 30%), radial(circle at bottom right, rgba(86, 126, 96, 0.22), transparent 28%)',
-  );
-  const heroGradient = useColorModeValue(
-    'linear(135deg, rgba(247, 239, 227, 0.96), rgba(244, 249, 242, 0.96) 55%, rgba(255, 248, 243, 0.92))',
-    'linear(135deg, rgba(34, 25, 22, 0.96), rgba(18, 28, 24, 0.96) 55%, rgba(31, 23, 21, 0.96))',
-  );
-  const adminModeGradient = useColorModeValue(
-    'linear(135deg, rgba(243, 224, 214, 0.98), rgba(251, 242, 236, 0.94))',
-    'linear(135deg, rgba(70, 40, 31, 0.94), rgba(31, 21, 18, 0.96))',
-  );
-  const modeGradient = accountMode ? adminModeGradient : heroGradient;
-  const progressTrackBg = useColorModeValue('rgba(108, 92, 80, 0.10)', 'rgba(255, 255, 255, 0.08)');
   const accent = accountMode ? 'clay' : 'leaf';
+  const brandTextColor = accountMode ? 'clay.700' : 'leaf.700';
+  const heroGradient = useColorModeValue(
+    'linear(to-br, rgba(229, 238, 228, 0.96), rgba(247, 235, 222, 0.92))',
+    'linear(to-br, rgba(34, 53, 40, 0.96), rgba(61, 43, 36, 0.92))',
+  );
+  const modeGradient = useColorModeValue(
+    accountMode
+      ? 'linear(to-br, rgba(252, 232, 223, 0.96), rgba(249, 244, 236, 0.96))'
+      : 'linear(to-br, rgba(231, 241, 233, 0.96), rgba(250, 240, 227, 0.96))',
+    accountMode
+      ? 'linear(to-br, rgba(73, 41, 30, 0.92), rgba(34, 29, 29, 0.92))'
+      : 'linear(to-br, rgba(31, 50, 36, 0.92), rgba(38, 33, 26, 0.92))',
+  );
+  const sectionBg = useColorModeValue('rgba(249, 244, 236, 0.88)', 'rgba(18, 24, 24, 0.88)');
+  const appBg = useColorModeValue('linear(to-br, #f8f2ea, #f4f7ef)', 'linear(to-br, #121616, #191511)');
+  const overlayGradient = useColorModeValue(
+    'radial-gradient(circle at top left, rgba(255,255,255,0.65), transparent 45%)',
+    'radial-gradient(circle at top left, rgba(120, 139, 122, 0.12), transparent 42%)',
+  );
+
   const pageEyebrow =
     currentPage === 'dashboard'
       ? 'Dashboard'
@@ -827,11 +232,11 @@ export function App() {
         ? 'My Items'
         : currentPage === 'reviewees'
           ? 'Guide Workspace'
-        : currentPage === 'routines'
-          ? 'Routines'
-        : currentPage === 'profile'
-          ? 'Account'
-          : 'Admin';
+          : currentPage === 'routines'
+            ? 'Routines'
+            : currentPage === 'profile'
+              ? 'Account'
+              : 'Admin';
   const pageTitle =
     currentPage === 'dashboard'
       ? 'Overview'
@@ -839,11 +244,11 @@ export function App() {
         ? 'My Items'
         : currentPage === 'reviewees'
           ? 'Reviewees'
-        : currentPage === 'routines'
-          ? 'Routines'
-        : currentPage === 'profile'
-          ? 'Preferences'
-          : 'Admin';
+          : currentPage === 'routines'
+            ? 'Routines'
+            : currentPage === 'profile'
+              ? 'Preferences'
+              : 'Admin';
   const pageSummary =
     currentPage === 'dashboard'
       ? 'Your routines, workload, and people at a glance.'
@@ -851,57 +256,11 @@ export function App() {
         ? 'Focus on what needs attention now, what is coming up next, and what can wait.'
         : currentPage === 'reviewees'
           ? 'See who needs support first, what is coming up next, and where your visibility is limited.'
-        : currentPage === 'routines'
-          ? 'Create, schedule, and refine routines in one management space.'
-        : currentPage === 'profile'
-          ? 'Account details, digest timing, invites, and reviewers.'
-          : 'User roles and reviewer assignments.';
-
-  function renderPageIntro() {
-    return (
-      <Flex
-        justify="space-between"
-        align={{ base: 'start', md: 'center' }}
-        direction={{ base: 'column', md: 'row' }}
-        gap={4}
-      >
-        <Box>
-          <Text
-            fontSize="xs"
-            textTransform="uppercase"
-            letterSpacing="0.16em"
-            color={subtleText}
-          >
-            {pageEyebrow}
-          </Text>
-          <Heading size="lg" mt={2}>
-            {pageTitle}
-          </Heading>
-          <Text mt={2} color={mutedText} maxW="40rem">
-            {pageSummary}
-          </Text>
-        </Box>
-        {currentPage === 'dashboard' && (
-          <Box
-            bg={panelBgStrong}
-            borderRadius="2xl"
-            px={4}
-            py={3}
-            border="1px solid"
-            borderColor={panelBorder}
-            minW={{ md: '220px' }}
-          >
-            <Text fontSize="sm" color={mutedText}>
-              Weekly digest
-            </Text>
-            <Text mt={1} fontWeight="semibold">
-              {digestSummary}
-            </Text>
-          </Box>
-        )}
-      </Flex>
-    );
-  }
+          : currentPage === 'routines'
+            ? 'Create, schedule, and refine routines in one management space.'
+            : currentPage === 'profile'
+              ? 'Account details, digest timing, invites, and reviewers.'
+              : 'User roles and reviewer assignments.';
 
   async function refreshSetup() {
     const status = await apiFetch<{ needsSetup: boolean }>('/setup/status');
@@ -921,8 +280,7 @@ export function App() {
     setItems(loadedItems);
 
     if (me.reviewTargets.length > 0) {
-      const loadedReviewees = await apiFetch<RevieweeWorkspace[]>('/reviewees');
-      setRevieweeWorkspaces(loadedReviewees);
+      setRevieweeWorkspaces(await apiFetch<RevieweeWorkspace[]>('/reviewees'));
     } else {
       setRevieweeWorkspaces([]);
     }
@@ -933,6 +291,8 @@ export function App() {
       if (!targetUserId && users.length > 0) setTargetUserId(users[0]!.id);
       if (!adminReviewerId && users.length > 0) setAdminReviewerId(users[0]!.id);
       if (!adminRevieweeId && users.length > 0) setAdminRevieweeId(users[0]!.id);
+    } else {
+      setAdminUsers([]);
     }
   }
 
@@ -961,7 +321,6 @@ export function App() {
       const oneTimeDate = draft.oneTimeAt ? new Date(draft.oneTimeAt) : new Date();
       return { kind: 'ONE_TIME', label, oneTimeAt: oneTimeDate.toISOString(), timezone } as const;
     }
-
     if (draft.kind === 'DAILY') {
       return {
         kind: 'DAILY',
@@ -970,18 +329,14 @@ export function App() {
         timezone,
       } as const;
     }
-
     if (draft.kind === 'WEEKLY') {
       return {
         kind: 'WEEKLY',
         label,
-        weekdays: draft.weekdays.filter(
-          (value) => Number.isInteger(value) && value >= 0 && value <= 6,
-        ),
+        weekdays: draft.weekdays.filter((value) => Number.isInteger(value) && value >= 0 && value <= 6),
         timezone,
       } as const;
     }
-
     if (draft.kind === 'INTERVAL_DAYS') {
       return {
         kind: 'INTERVAL_DAYS',
@@ -991,7 +346,6 @@ export function App() {
         timezone,
       } as const;
     }
-
     return {
       kind: 'CUSTOM_DATES',
       label,
@@ -1006,26 +360,19 @@ export function App() {
   function buildSchedule() {
     const schedules = draftSchedules.map(buildSingleSchedule);
     if (schedules.length === 1) return schedules[0]!;
-    return {
-      kind: 'MULTI' as const,
-      schedules,
-      timezone: prefTimezone || 'UTC',
-    };
+    return { kind: 'MULTI' as const, schedules, timezone: prefTimezone || 'UTC' };
   }
 
   async function runSetup() {
-    const result = await apiFetch<{ accessToken: string; refreshToken: string }>(
-      '/setup/first-admin',
-      {
-        method: 'POST',
-        body: JSON.stringify({
-          email: setupEmail,
-          name: setupEmail,
-          password: setupPassword,
-          setupToken: setupToken || undefined,
-        }),
-      },
-    );
+    const result = await apiFetch<{ accessToken: string; refreshToken: string }>('/setup/first-admin', {
+      method: 'POST',
+      body: JSON.stringify({
+        email: setupEmail,
+        name: setupEmail,
+        password: setupPassword,
+        setupToken: setupToken || undefined,
+      }),
+    });
     setToken(result.accessToken);
     setRefreshToken(result.refreshToken);
     await refreshMe();
@@ -1073,9 +420,7 @@ export function App() {
     setTitle((currentTitle) => {
       const trimmedTitle = currentTitle.trim();
       const currentDefault = getDefaultTitle(category);
-      if (trimmedTitle === '' || trimmedTitle === currentDefault) {
-        return getDefaultTitle(nextCategory);
-      }
+      if (trimmedTitle === '' || trimmedTitle === currentDefault) return getDefaultTitle(nextCategory);
       return currentTitle;
     });
   }
@@ -1083,10 +428,7 @@ export function App() {
   async function inviteReviewer() {
     await apiFetch('/reviewers/invite', {
       method: 'POST',
-      body: JSON.stringify({
-        email: inviteEmail,
-        ...(isAdmin ? { targetUserId } : {}),
-      }),
+      body: JSON.stringify({ email: inviteEmail, ...(isAdmin ? { targetUserId } : {}) }),
     });
     toast({ status: 'success', title: 'Invite sent' });
     setInviteEmail('');
@@ -1145,9 +487,7 @@ export function App() {
   }
 
   function updateDraftSchedule(index: number, mutator: (current: DraftSchedule) => DraftSchedule) {
-    setDraftSchedules((current) =>
-      current.map((entry, entryIndex) => (entryIndex === index ? mutator(entry) : entry)),
-    );
+    setDraftSchedules((current) => current.map((entry, entryIndex) => (entryIndex === index ? mutator(entry) : entry)));
   }
 
   function addSchedule() {
@@ -1155,25 +495,18 @@ export function App() {
   }
 
   function removeSchedule(index: number) {
-    setDraftSchedules((current) =>
-      current.length > 1 ? current.filter((_, entryIndex) => entryIndex !== index) : current,
-    );
+    setDraftSchedules((current) => (current.length > 1 ? current.filter((_, entryIndex) => entryIndex !== index) : current));
   }
 
   function updateDailyTime(scheduleIndex: number, timeIndex: number, value: string) {
     updateDraftSchedule(scheduleIndex, (schedule) => ({
       ...schedule,
-      dailyTimes: schedule.dailyTimes.map((entry, entryIndex) =>
-        entryIndex === timeIndex ? value : entry,
-      ),
+      dailyTimes: schedule.dailyTimes.map((entry, entryIndex) => (entryIndex === timeIndex ? value : entry)),
     }));
   }
 
   function addDailyTime(scheduleIndex: number) {
-    updateDraftSchedule(scheduleIndex, (schedule) => ({
-      ...schedule,
-      dailyTimes: [...schedule.dailyTimes, '12:00'],
-    }));
+    updateDraftSchedule(scheduleIndex, (schedule) => ({ ...schedule, dailyTimes: [...schedule.dailyTimes, '12:00'] }));
   }
 
   function removeDailyTime(scheduleIndex: number, timeIndex: number) {
@@ -1189,17 +522,12 @@ export function App() {
   function updateCustomDate(scheduleIndex: number, dateIndex: number, value: string) {
     updateDraftSchedule(scheduleIndex, (schedule) => ({
       ...schedule,
-      customDates: schedule.customDates.map((entry, entryIndex) =>
-        entryIndex === dateIndex ? value : entry,
-      ),
+      customDates: schedule.customDates.map((entry, entryIndex) => (entryIndex === dateIndex ? value : entry)),
     }));
   }
 
   function addCustomDate(scheduleIndex: number) {
-    updateDraftSchedule(scheduleIndex, (schedule) => ({
-      ...schedule,
-      customDates: [...schedule.customDates, ''],
-    }));
+    updateDraftSchedule(scheduleIndex, (schedule) => ({ ...schedule, customDates: [...schedule.customDates, ''] }));
   }
 
   function removeCustomDate(scheduleIndex: number, dateIndex: number) {
@@ -1212,1811 +540,146 @@ export function App() {
     }));
   }
 
-  function renderAuthShell() {
-    return (
-      <Grid templateColumns={{ base: '1fr', xl: '1.1fr 0.9fr' }} gap={6}>
-        <GridItem>
-          <Box
-            bgGradient={heroGradient}
-            borderRadius="3xl"
-            p={{ base: 6, md: 8 }}
-            border="1px solid"
-            borderColor={panelBorder}
-            boxShadow={statGlow}
-            overflow="hidden"
-            position="relative"
-          >
-            <Box
-              position="absolute"
-              top="-10"
-              right="-10"
-              w="180px"
-              h="180px"
-              borderRadius="full"
-              bg="whiteAlpha.200"
-            />
-            <Stack spacing={6} position="relative">
-              <HStack spacing={4}>
-                <Image src="/leaf.svg" alt="leaf logo" boxSize="46px" />
-                <Box>
-                  <Text fontSize="sm" textTransform="uppercase" letterSpacing="0.16em" color={subtleText}>
-                    leaf
-                  </Text>
-                  <Heading size="md" mt={2}>
-                    Sign in and keep moving.
-                  </Heading>
-                </Box>
-              </HStack>
-
-              <Box>
-                <Heading size="2xl" lineHeight="1.05" maxW="16ch">
-                  Clear routines, simple accountability, no extra noise.
-                </Heading>
-                <Text mt={4} maxW="34rem" color={mutedText}>
-                  The dashboard should answer what matters now, not explain itself.
-                </Text>
-              </Box>
-
-              <SimpleGrid columns={{ base: 1, md: 3 }} spacing={3}>
-                <Box bg="whiteAlpha.500" _dark={{ bg: 'whiteAlpha.90' }} borderRadius="2xl" p={4}>
-                  <Text
-                    fontSize="xs"
-                    textTransform="uppercase"
-                    letterSpacing="0.12em"
-                    color={subtleText}
-                  >
-                    Routines
-                  </Text>
-                  <Text mt={2} fontWeight="semibold">
-                    One-time, repeating, and custom schedules live in one system.
-                  </Text>
-                </Box>
-                <Box bg="whiteAlpha.500" _dark={{ bg: 'whiteAlpha.90' }} borderRadius="2xl" p={4}>
-                  <Text
-                    fontSize="xs"
-                    textTransform="uppercase"
-                    letterSpacing="0.12em"
-                    color={subtleText}
-                  >
-                    People
-                  </Text>
-                  <Text mt={2} fontWeight="semibold">
-                    Reviewers and digests stay tied to the routines they support.
-                  </Text>
-                </Box>
-                <Box bg="whiteAlpha.500" _dark={{ bg: 'whiteAlpha.90' }} borderRadius="2xl" p={4}>
-                  <Text
-                    fontSize="xs"
-                    textTransform="uppercase"
-                    letterSpacing="0.12em"
-                    color={subtleText}
-                  >
-                    Clarity
-                  </Text>
-                  <Text mt={2} fontWeight="semibold">
-                    The interface favors status and actions over description.
-                  </Text>
-                </Box>
-              </SimpleGrid>
-            </Stack>
-          </Box>
-        </GridItem>
-
-        <GridItem>
-          <Box
-            bg={panelBgStrong}
-            borderRadius="3xl"
-            p={{ base: 5, md: 6 }}
-            border="1px solid"
-            borderColor={panelBorder}
-            boxShadow={statGlow}
-          >
-            {needsSetup ? (
-              <Box
-                as="form"
-                onSubmit={(event: FormEvent<HTMLDivElement>) => {
-                  event.preventDefault();
-                  runSetup().catch((error) => toast({ status: 'error', title: String(error) }));
-                }}
-              >
-                <Stack spacing={4}>
-                <Badge alignSelf="start" colorScheme="orange" borderRadius="full" px={3} py={1}>
-                  First-run setup
-                </Badge>
-                <Heading size="lg">Create the first administrator</Heading>
-                <Text color={mutedText}>
-                  Create the first account and open the workspace.
-                </Text>
-                <FormControl>
-                  <FormLabel>Admin email</FormLabel>
-                  <Input
-                    bg={inputBg}
-                    value={setupEmail}
-                    onChange={(event) => setSetupEmail(event.target.value)}
-                  />
-                </FormControl>
-                <FormControl>
-                  <FormLabel>Password</FormLabel>
-                  <Input
-                    bg={inputBg}
-                    type="password"
-                    value={setupPassword}
-                    onChange={(event) => setSetupPassword(event.target.value)}
-                  />
-                </FormControl>
-                <FormControl>
-                  <FormLabel>Setup token (optional)</FormLabel>
-                  <Input
-                    bg={inputBg}
-                    value={setupToken}
-                    onChange={(event) => setSetupToken(event.target.value)}
-                  />
-                  <FormHelperText color={mutedText}>
-                    Only needed if your server requires a protected first-run token.
-                  </FormHelperText>
-                </FormControl>
-                <Button
-                  colorScheme="leaf"
-                  type="submit"
-                >
-                  Create First Admin
-                </Button>
-                </Stack>
-              </Box>
-            ) : (
-              <Box
-                as="form"
-                onSubmit={(event: FormEvent<HTMLDivElement>) => {
-                  event.preventDefault();
-                  login().catch((error) => toast({ status: 'error', title: String(error) }));
-                }}
-              >
-                <Stack spacing={4}>
-                <Badge alignSelf="start" colorScheme="green" borderRadius="full" px={3} py={1}>
-                  Sign in
-                </Badge>
-                <Heading size="lg">Enter your workspace</Heading>
-                <Text color={mutedText}>
-                  Use your email and password to continue.
-                </Text>
-                <FormControl>
-                  <FormLabel>Email</FormLabel>
-                  <Input
-                    bg={inputBg}
-                    value={email}
-                    onChange={(event) => setEmail(event.target.value)}
-                  />
-                </FormControl>
-                <FormControl>
-                  <FormLabel>Password</FormLabel>
-                  <Input
-                    bg={inputBg}
-                    type="password"
-                    value={password}
-                    onChange={(event) => setPassword(event.target.value)}
-                  />
-                </FormControl>
-                <Button
-                  colorScheme="leaf"
-                  type="submit"
-                >
-                  Sign in
-                </Button>
-                {oauthProviders.length > 0 && (
-                  <>
-                    <Divider />
-                    <Text color={mutedText}>Or continue with another sign-in method</Text>
-                    <Stack spacing={2}>
-                      {oauthProviders.map((provider) => (
-                        <Button
-                          key={provider}
-                          variant="outline"
-                          onClick={() => loginWithProvider(provider)}
-                        >
-                          Continue with {provider[0]!.toUpperCase() + provider.slice(1)}
-                        </Button>
-                      ))}
-                    </Stack>
-                  </>
-                )}
-                </Stack>
-              </Box>
-            )}
-          </Box>
-        </GridItem>
-      </Grid>
-    );
-  }
-
-  function renderDashboard() {
-    const nextAction =
-      items.length === 0
-        ? {
-            title: 'Create your first routine',
-            body: 'Start in Routines so My Items has something actionable to show.',
-            to: '/routines',
-            label: 'Add a routine',
-          }
-        : dueItems.length > 0
-          ? {
-              title: 'Handle what is due now',
-              body: `${dueItems.length} routine${dueItems.length === 1 ? '' : 's'} need attention on My Items.`,
-              to: '/my-items',
-              label: 'Open My Items',
-            }
-        : relationshipsCount === 0
-          ? {
-              title: 'Connect another person',
-              body: 'Add a reviewer or invite someone who should receive accountability updates.',
-              to: '/profile',
-              label: 'Open preferences',
-            }
-          : {
-              title: 'Review your digest timing',
-              body: `Your weekly digest is set for ${digestSummary}. Change it if that is not the right review moment.`,
-              to: '/profile',
-              label: 'Manage digest',
-            };
-
-    return (
-      <Stack spacing={5}>
-        <SimpleGrid columns={{ base: 1, md: 3 }} spacing={4}>
-          <Stat
-            bg={panelBgStrong}
-            borderRadius="2xl"
-            p={5}
-            border="1px solid"
-            borderColor={panelBorder}
-            boxShadow={statGlow}
-          >
-            <StatLabel color={subtleText}>Active tracked items</StatLabel>
-            <StatNumber>{items.length}</StatNumber>
-          </Stat>
-          <Stat
-            bg={panelBgStrong}
-            borderRadius="2xl"
-            p={5}
-            border="1px solid"
-            borderColor={panelBorder}
-            boxShadow={statGlow}
-          >
-            <StatLabel color={subtleText}>Scheduled touches this week</StatLabel>
-            <StatNumber>{projectedWeekChecks}</StatNumber>
-          </Stat>
-          <Stat
-            bg={panelBgStrong}
-            borderRadius="2xl"
-            p={5}
-            border="1px solid"
-            borderColor={panelBorder}
-            boxShadow={statGlow}
-          >
-            <StatLabel color={subtleText}>People connected</StatLabel>
-            <StatNumber>{relationshipsCount}</StatNumber>
-          </Stat>
-        </SimpleGrid>
-
-        <Grid templateColumns={{ base: '1fr', xl: '1.2fr 0.8fr' }} gap={5}>
-          <GridItem>
-            <Stack spacing={5}>
-              <Box
-                bgGradient={modeGradient}
-                borderRadius="3xl"
-                p={6}
-                border="1px solid"
-                borderColor={panelBorder}
-                boxShadow={statGlow}
-              >
-                <Text fontSize="xs" textTransform="uppercase" letterSpacing="0.16em" color={subtleText}>
-                  Focus
-                </Text>
-                <Heading size="lg" mt={2}>
-                  {nextAction.title}
-                </Heading>
-                <Text mt={3} maxW="32rem" color={mutedText}>
-                  {nextAction.body}
-                </Text>
-                <Button as={RouterLink} to={nextAction.to} mt={5} colorScheme="leaf" size="sm">
-                  {nextAction.label}
-                </Button>
-              </Box>
-
-              <Box
-                bg={panelBgStrong}
-                borderRadius="3xl"
-                p={6}
-                border="1px solid"
-                borderColor={panelBorder}
-                boxShadow={statGlow}
-              >
-                <Heading size="md" mb={4}>
-                  Active Routines
-                </Heading>
-                <Stack spacing={3}>
-                  {items.slice(0, 5).map((item) => (
-                    <Flex
-                      key={item.id}
-                      justify="space-between"
-                      align={{ base: 'start', md: 'center' }}
-                      direction={{ base: 'column', md: 'row' }}
-                      gap={3}
-                      bg={panelBg}
-                      borderRadius="2xl"
-                      px={4}
-                      py={4}
-                    >
-                      <Box>
-                        <Text fontWeight="semibold">{item.title}</Text>
-                        <Text color={mutedText} fontSize="sm">
-                          {summarizeSchedule(item)}
-                        </Text>
-                      </Box>
-                      <Badge colorScheme="orange" borderRadius="full" px={3} py={1}>
-                        {getCategoryLabel(item.category)}
-                      </Badge>
-                    </Flex>
-                  ))}
-                  {items.length === 0 && <Text color={mutedText}>No routines yet. Add one from Routines.</Text>}
-                </Stack>
-              </Box>
-            </Stack>
-          </GridItem>
-
-          <GridItem>
-            <Stack spacing={5}>
-              <Box
-                bg={panelBgStrong}
-                borderRadius="3xl"
-                p={6}
-                border="1px solid"
-                borderColor={panelBorder}
-                boxShadow={statGlow}
-              >
-                <Heading size="md" mb={4}>Routine Mix</Heading>
-                <Stack spacing={3}>
-                  {categoryBreakdown.map((entry) => (
-                    <Flex
-                      key={entry.label}
-                      justify="space-between"
-                      align="center"
-                      bg={panelBg}
-                      borderRadius="2xl"
-                      px={4}
-                      py={3}
-                    >
-                      <Text>{entry.label}</Text>
-                      <Badge colorScheme="green" borderRadius="full" px={3} py={1}>
-                        {entry.count}
-                      </Badge>
-                    </Flex>
-                  ))}
-                  {categoryBreakdown.length === 0 && <Text color={mutedText}>No routines yet. Add one from Routines.</Text>}
-                </Stack>
-              </Box>
-
-              <Box
-                bg={panelBgStrong}
-                borderRadius="3xl"
-                p={6}
-                border="1px solid"
-                borderColor={panelBorder}
-                boxShadow={statGlow}
-              >
-                <Heading size="md" mb={4}>People</Heading>
-                <Stack spacing={3}>
-                  <Flex justify="space-between" align="center" bg={panelBg} borderRadius="2xl" px={4} py={3}>
-                    <Text color={mutedText}>Reviewers</Text>
-                    <Text fontWeight="semibold">{user!.reviewers.length}</Text>
-                  </Flex>
-                  <Flex justify="space-between" align="center" bg={panelBg} borderRadius="2xl" px={4} py={3}>
-                    <Text color={mutedText}>People you review</Text>
-                    <Text fontWeight="semibold">{user!.reviewTargets.length}</Text>
-                  </Flex>
-                  <Text color={mutedText} fontSize="sm">
-                    Manage invites and account relationships from Preferences.
-                  </Text>
-                </Stack>
-              </Box>
-            </Stack>
-          </GridItem>
-        </Grid>
-
-        <Grid templateColumns={{ base: '1fr', md: '1fr 1fr' }} gap={5}>
-          <Box
-            bg={panelBgStrong}
-            borderRadius="3xl"
-            p={6}
-            border="1px solid"
-            borderColor={panelBorder}
-            boxShadow={statGlow}
-          >
-            <Heading size="md" mb={4}>
-              People You Review
-            </Heading>
-            <Stack spacing={3}>
-              {user!.reviewTargets.slice(0, 4).map((entry) => (
-                <Flex
-                  key={entry.reviewee.id}
-                  justify="space-between"
-                  align="center"
-                  bg={panelBg}
-                  borderRadius="2xl"
-                  px={4}
-                  py={3}
-                >
-                  <Text>{entry.reviewee.name}</Text>
-                  <Badge colorScheme="green" borderRadius="full" px={3} py={1}>
-                    Connected
-                  </Badge>
-                </Flex>
-              ))}
-              {user!.reviewTargets.length === 0 && (
-                <Text color={mutedText}>No review assignments yet.</Text>
-              )}
-            </Stack>
-          </Box>
-
-          <Box
-            bg={panelBgStrong}
-            borderRadius="3xl"
-            p={6}
-            border="1px solid"
-            borderColor={panelBorder}
-            boxShadow={statGlow}
-          >
-            <Heading size="md" mb={4}>
-              Reviewers
-            </Heading>
-            <Stack spacing={3}>
-              {user!.reviewers.slice(0, 4).map((entry) => (
-                <Flex
-                  key={entry.reviewer.id}
-                  justify="space-between"
-                  align="center"
-                  bg={panelBg}
-                  borderRadius="2xl"
-                  px={4}
-                  py={3}
-                >
-                  <Text>{entry.reviewer.name}</Text>
-                  <Badge colorScheme="orange" borderRadius="full" px={3} py={1}>
-                    Active
-                  </Badge>
-                </Flex>
-              ))}
-              {user!.reviewers.length === 0 && (
-                <Text color={mutedText}>No reviewers connected yet.</Text>
-              )}
-            </Stack>
-          </Box>
-        </Grid>
-      </Stack>
-    );
-  }
-
-  function renderProfile() {
-    return (
-      <Grid templateColumns={{ base: '1fr', xl: '1fr 1fr' }} gap={5}>
-        <GridItem>
-          <Stack spacing={5}>
-            <Box
-              bg={panelBgStrong}
-              borderRadius="3xl"
-              p={6}
-              border="1px solid"
-              borderColor={panelBorder}
-              boxShadow={statGlow}
-            >
-              <Heading size="md" mb={4}>
-                Profile
-              </Heading>
-              <Stack spacing={4}>
-                <HStack spacing={4} align="center">
-                  <Avatar size="xl" name={profileName || user?.email} src={profileAvatarUrl ?? undefined} />
-                  <Stack spacing={2}>
-                    <Button as="label" variant="outline" cursor="pointer">
-                      Upload photo
-                      <Input
-                        display="none"
-                        type="file"
-                        accept="image/png,image/jpeg,image/webp,image/gif"
-                        onChange={(event) => {
-                          onAvatarSelected(event.target.files?.[0] ?? null).catch((error) =>
-                            toast({ status: 'error', title: String(error) }),
-                          );
-                          event.target.value = '';
-                        }}
-                      />
-                    </Button>
-                    {profileAvatarUrl && (
-                      <Button variant="ghost" size="sm" onClick={() => setProfileAvatarUrl(null)}>
-                        Remove photo
-                      </Button>
-                    )}
-                  </Stack>
-                </HStack>
-                <FormControl>
-                  <FormLabel>Name</FormLabel>
-                  <Input
-                    bg={inputBg}
-                    value={profileName}
-                    onChange={(event) => setProfileName(event.target.value)}
-                  />
-                </FormControl>
-                <FormControl>
-                  <FormLabel>Email</FormLabel>
-                  <Input bg={inputBg} value={user?.email ?? ''} isReadOnly />
-                </FormControl>
-              </Stack>
-            </Box>
-
-            <Box
-              bg={panelBgStrong}
-              borderRadius="3xl"
-              p={6}
-              border="1px solid"
-              borderColor={panelBorder}
-              boxShadow={statGlow}
-            >
-              <Heading size="md" mb={4}>
-                Digest
-              </Heading>
-              <Stack spacing={4}>
-                <FormControl>
-                  <FormLabel>Timezone</FormLabel>
-                  <Input
-                    bg={inputBg}
-                    value={prefTimezone}
-                    onChange={(event) => setPrefTimezone(event.target.value)}
-                  />
-                  <FormHelperText color={mutedText}>
-                    Use an IANA timezone such as `America/Los_Angeles`.
-                  </FormHelperText>
-                </FormControl>
-                <SimpleGrid columns={{ base: 1, md: 2 }} spacing={4}>
-                  <FormControl>
-                    <FormLabel>Day</FormLabel>
-                    <Select bg={inputBg} value={prefDay} onChange={(event) => setPrefDay(event.target.value)}>
-                      {weekdayOptions.map((option) => (
-                        <option key={option.value} value={option.value}>
-                          {option.label}
-                        </option>
-                      ))}
-                    </Select>
-                  </FormControl>
-                  <FormControl>
-                    <FormLabel>Time</FormLabel>
-                    <Select bg={inputBg} value={prefHour} onChange={(event) => setPrefHour(event.target.value)}>
-                      {Array.from({ length: 24 }, (_, hour) => hour).map((hour) => (
-                        <option key={hour} value={hour}>
-                          {hour.toString().padStart(2, '0')}:00
-                        </option>
-                      ))}
-                    </Select>
-                  </FormControl>
-                </SimpleGrid>
-                <Button
-                  colorScheme="leaf"
-                  alignSelf="start"
-                  onClick={() =>
-                    updatePreferences().catch((error) =>
-                      toast({ status: 'error', title: String(error) }),
-                    )
-                  }
-                >
-                  Save Preferences
-                </Button>
-              </Stack>
-            </Box>
-          </Stack>
-        </GridItem>
-
-        <GridItem>
-          <Stack spacing={5}>
-            <Box
-              bg={panelBgStrong}
-              borderRadius="3xl"
-              p={6}
-              border="1px solid"
-              borderColor={panelBorder}
-              boxShadow={statGlow}
-            >
-              <Heading size="md" mb={3}>
-                Invite
-              </Heading>
-              <Stack spacing={4}>
-                <FormControl>
-                  <FormLabel>Email</FormLabel>
-                  <Input
-                    bg={inputBg}
-                    value={inviteEmail}
-                    onChange={(event) => setInviteEmail(event.target.value)}
-                  />
-                </FormControl>
-                {isAdmin && adminUsers.length > 0 && (
-                  <FormControl>
-                    <FormLabel>Send invite for</FormLabel>
-                    <Select
-                      bg={inputBg}
-                      value={targetUserId}
-                      onChange={(event) => setTargetUserId(event.target.value)}
-                    >
-                      {adminUsers.map((entry) => (
-                        <option key={entry.id} value={entry.id}>
-                          {entry.name} ({entry.email})
-                        </option>
-                      ))}
-                    </Select>
-                  </FormControl>
-                )}
-                <Button
-                  colorScheme="leaf"
-                  alignSelf="start"
-                  onClick={() =>
-                    inviteReviewer().catch((error) =>
-                      toast({ status: 'error', title: String(error) }),
-                    )
-                  }
-                >
-                  Send Invite
-                </Button>
-              </Stack>
-            </Box>
-
-            <Box
-              bg={panelBgStrong}
-              borderRadius="3xl"
-              p={6}
-              border="1px solid"
-              borderColor={panelBorder}
-              boxShadow={statGlow}
-            >
-              <Heading size="md" mb={3}>
-                Relationships
-              </Heading>
-              <SimpleGrid columns={2} spacing={4}>
-                <Stat>
-                  <StatLabel color={subtleText}>Reviewing you</StatLabel>
-                  <StatNumber>{user!.reviewers.length}</StatNumber>
-                </Stat>
-                <Stat>
-                  <StatLabel color={subtleText}>You review</StatLabel>
-                  <StatNumber>{user!.reviewTargets.length}</StatNumber>
-                </Stat>
-              </SimpleGrid>
-            </Box>
-          </Stack>
-        </GridItem>
-      </Grid>
-    );
-  }
-
-  function renderMyItems() {
-    const primaryItems = dueItems.length > 0 ? dueItems : actionableItems.slice(0, 3);
-    const secondaryItems = upcomingItems.slice(0, 4);
-
-    return (
-      <Grid templateColumns={{ base: '1fr', xl: '1.08fr 0.92fr' }} gap={5}>
-        <GridItem>
-          <Stack spacing={5}>
-            <Box
-              bgGradient={modeGradient}
-              borderRadius="3xl"
-              p={6}
-              border="1px solid"
-              borderColor={panelBorder}
-              boxShadow={statGlow}
-            >
-              <Text fontSize="xs" textTransform="uppercase" letterSpacing="0.16em" color={subtleText}>
-                Action Queue
-              </Text>
-              <Heading size="lg" mt={2}>
-                {dueItems.length > 0 ? 'Handle what is due now' : 'Nothing urgent is due right now'}
-              </Heading>
-              <Text mt={3} maxW="34rem" color={mutedText}>
-                {items.length === 0
-                  ? 'Create routines first, then return here to work through what needs attention.'
-                  : dueItems.length > 0
-                    ? `${dueItems.length} routine${dueItems.length === 1 ? '' : 's'} need attention today.`
-                    : 'Use this page to work through today, then glance ahead before the next check-in.'}
-              </Text>
-              <HStack mt={5} spacing={3} flexWrap="wrap">
-                <Button as={RouterLink} to="/routines" colorScheme="leaf" size="sm">
-                  Manage routines
-                </Button>
-                <Button as={RouterLink} to="/profile" variant="outline" size="sm">
-                  Open preferences
-                </Button>
-              </HStack>
-            </Box>
-
-            <Box
-              bg={panelBgStrong}
-              borderRadius="3xl"
-              p={6}
-              border="1px solid"
-              borderColor={panelBorder}
-              boxShadow={statGlow}
-            >
-              <HStack justify="space-between" align="center" mb={4}>
-                <Heading size="md">{dueItems.length > 0 ? 'Needs attention now' : 'What is next'}</Heading>
-                <Badge colorScheme={dueItems.length > 0 ? 'orange' : 'green'} borderRadius="full" px={3} py={1}>
-                  {primaryItems.length}
-                </Badge>
-              </HStack>
-              <Stack spacing={3}>
-                {primaryItems.map(({ item, action }) => (
-                  <Box
-                    key={item.id}
-                    border="1px solid"
-                    borderColor={panelBorder}
-                    borderRadius="2xl"
-                    p={4}
-                    bg={panelBg}
-                  >
-                    <Flex justify="space-between" align={{ base: 'start', md: 'center' }} gap={3} direction={{ base: 'column', md: 'row' }}>
-                      <Box>
-                        <HStack spacing={2} mb={2} flexWrap="wrap">
-                          <Badge colorScheme={action.bucket === 'due' ? 'orange' : 'green'} borderRadius="full" px={3} py={1}>
-                            {action.status}
-                          </Badge>
-                          <Badge variant="subtle" colorScheme="green" borderRadius="full" px={3} py={1}>
-                            {getCategoryLabel(item.category)}
-                          </Badge>
-                        </HStack>
-                        <Text fontWeight="semibold">{item.title}</Text>
-                        <Text color={mutedText} fontSize="sm" mt={1}>
-                          {action.detail}
-                        </Text>
-                        <Text color={subtleText} fontSize="sm" mt={2}>
-                          {summarizeSchedule(item)}
-                        </Text>
-                      </Box>
-                      <Button as={RouterLink} to="/routines" size="sm" variant="outline">
-                        Open routine
-                      </Button>
-                    </Flex>
-                  </Box>
-                ))}
-                {items.length === 0 && (
-                  <Box bg={panelBg} borderRadius="2xl" p={5}>
-                    <Text fontWeight="semibold">No items yet</Text>
-                    <Text color={mutedText} mt={1}>
-                      Create your first routine in Routines to build this action list.
-                    </Text>
-                  </Box>
-                )}
-              </Stack>
-            </Box>
-          </Stack>
-        </GridItem>
-
-        <GridItem>
-          <Stack spacing={5}>
-            <Box
-              bg={panelBgStrong}
-              borderRadius="3xl"
-              p={6}
-              border="1px solid"
-              borderColor={panelBorder}
-              boxShadow={statGlow}
-            >
-              <Heading size="md" mb={4}>
-                Coming up
-              </Heading>
-              <Stack spacing={3}>
-                {secondaryItems.map(({ item, action }) => (
-                  <Box key={item.id} bg={panelBg} borderRadius="2xl" p={4}>
-                    <HStack justify="space-between" align="start">
-                      <Box>
-                        <Text fontWeight="semibold">{item.title}</Text>
-                        <Text color={mutedText} fontSize="sm" mt={1}>
-                          {action.detail}
-                        </Text>
-                      </Box>
-                      <Badge colorScheme="green" borderRadius="full" px={3} py={1}>
-                        {action.status}
-                      </Badge>
-                    </HStack>
-                  </Box>
-                ))}
-                {secondaryItems.length === 0 && items.length > 0 && (
-                  <Text color={mutedText}>Nothing upcoming is scheduled beyond the routines already due.</Text>
-                )}
-                {items.length === 0 && <Text color={mutedText}>No upcoming work yet.</Text>}
-              </Stack>
-            </Box>
-
-            <Box
-              bg={panelBgStrong}
-              borderRadius="3xl"
-              p={6}
-              border="1px solid"
-              borderColor={panelBorder}
-              boxShadow={statGlow}
-            >
-              <Heading size="md" mb={4}>
-                Stable routines
-              </Heading>
-              <Stack spacing={3}>
-                {laterItems.slice(0, 4).map(({ item, action }) => (
-                  <Flex key={item.id} justify="space-between" align="center" bg={panelBg} borderRadius="2xl" px={4} py={3}>
-                    <Box>
-                      <Text fontWeight="semibold">{item.title}</Text>
-                      <Text color={mutedText} fontSize="sm">
-                        {action.detail}
-                      </Text>
-                    </Box>
-                    <Badge borderRadius="full" px={3} py={1}>
-                      {action.status}
-                    </Badge>
-                  </Flex>
-                ))}
-                {laterItems.length === 0 && <Text color={mutedText}>All configured routines are already represented above.</Text>}
-              </Stack>
-            </Box>
-          </Stack>
-        </GridItem>
-      </Grid>
-    );
-  }
-
-  function renderReviewees() {
-    if (!canReviewOthers) {
-      return (
-        <Box
-          bg={panelBgStrong}
-          borderRadius="3xl"
-          p={6}
-          border="1px solid"
-          borderColor={panelBorder}
-          boxShadow={statGlow}
-        >
-          <Heading size="md">No reviewees yet</Heading>
-          <Text mt={3} color={mutedText} maxW="38rem">
-            This workspace appears when someone is connected to you as a reviewee. Use Preferences to
-            send an invite or set up the relationship first.
-          </Text>
-          <Button as={RouterLink} to="/profile" mt={5} colorScheme="leaf" size="sm">
-            Open preferences
-          </Button>
-        </Box>
-      );
-    }
-
-    const firstAttention = revieweePortfolios[0] ?? null;
-
-    return (
-      <Stack spacing={5}>
-        <Grid templateColumns={{ base: '1fr', xl: '1.08fr 0.92fr' }} gap={5}>
-          <GridItem>
-            <Box
-              bgGradient={modeGradient}
-              borderRadius="3xl"
-              p={6}
-              border="1px solid"
-              borderColor={panelBorder}
-              boxShadow={statGlow}
-            >
-              <Text fontSize="xs" textTransform="uppercase" letterSpacing="0.16em" color={subtleText}>
-                Guide Focus
-              </Text>
-              <Heading size="lg" mt={2}>
-                {firstAttention
-                  ? `Start with ${firstAttention.reviewee.name}`
-                  : 'Reviewees will appear here as activity starts to flow'}
-              </Heading>
-              <Text mt={3} maxW="38rem" color={mutedText}>
-                {firstAttention?.nextUrgent
-                  ? `${firstAttention.reviewee.name} has the highest urgency right now: ${firstAttention.nextUrgent.action.detail}`
-                  : 'You can still review relationship visibility here before there is enough routine activity to rank people by urgency.'}
-              </Text>
-              <HStack mt={5} spacing={3} flexWrap="wrap">
-                <Badge colorScheme="orange" borderRadius="full" px={3} py={1}>
-                  Ordered by urgency first
-                </Badge>
-                <Badge colorScheme="green" borderRadius="full" px={3} py={1}>
-                  Passive guides stay observation-only
-                </Badge>
-              </HStack>
-            </Box>
-          </GridItem>
-
-          <GridItem>
-            <SimpleGrid columns={{ base: 1, md: 2, xl: 1 }} spacing={4}>
-              <Stat
-                bg={panelBgStrong}
-                borderRadius="2xl"
-                p={5}
-                border="1px solid"
-                borderColor={panelBorder}
-                boxShadow={statGlow}
-              >
-                <StatLabel color={subtleText}>People you guide</StatLabel>
-                <StatNumber>{revieweePortfolios.length}</StatNumber>
-              </Stat>
-              <Stat
-                bg={panelBgStrong}
-                borderRadius="2xl"
-                p={5}
-                border="1px solid"
-                borderColor={panelBorder}
-                boxShadow={statGlow}
-              >
-                <StatLabel color={subtleText}>Overdue signals</StatLabel>
-                <StatNumber>{revieweePortfolios.reduce((total, entry) => total + entry.overdue.length, 0)}</StatNumber>
-              </Stat>
-              <Stat
-                bg={panelBgStrong}
-                borderRadius="2xl"
-                p={5}
-                border="1px solid"
-                borderColor={panelBorder}
-                boxShadow={statGlow}
-              >
-                <StatLabel color={subtleText}>Recent completions</StatLabel>
-                <StatNumber>{revieweePortfolios.reduce((total, entry) => total + entry.recentActivity.length, 0)}</StatNumber>
-              </Stat>
-            </SimpleGrid>
-          </GridItem>
-        </Grid>
-
-        <Stack spacing={4}>
-          {revieweePortfolios.map((workspace, index) => (
-            <Box
-              key={workspace.reviewee.id}
-              bg={panelBgStrong}
-              borderRadius="3xl"
-              p={6}
-              border="1px solid"
-              borderColor={panelBorder}
-              boxShadow={statGlow}
-            >
-              <Flex
-                justify="space-between"
-                align={{ base: 'start', lg: 'center' }}
-                direction={{ base: 'column', lg: 'row' }}
-                gap={4}
-                mb={5}
-              >
-                <Box>
-                  <HStack spacing={3} flexWrap="wrap">
-                    <Heading size="md">{workspace.reviewee.name}</Heading>
-                    {index === 0 && (
-                      <Badge colorScheme="orange" borderRadius="full" px={3} py={1}>
-                        Needs attention first
-                      </Badge>
-                    )}
-                    <Badge
-                      colorScheme={workspace.relationship.mode === 'active' ? 'green' : 'gray'}
-                      borderRadius="full"
-                      px={3}
-                      py={1}
-                    >
-                      {workspace.relationship.mode === 'active' ? 'Active guide' : 'Passive guide'}
-                    </Badge>
-                  </HStack>
-                  <Text color={mutedText} mt={2}>
-                    {workspace.reviewee.email}
-                  </Text>
-                  <Text color={mutedText} fontSize="sm" mt={1}>
-                    Visibility: {workspace.relationship.historyWindow}. Hidden items stay private and are not shown here.
-                  </Text>
-                </Box>
-                {workspace.relationship.canActOnItems || workspace.relationship.canManageRoutines ? (
-                  <HStack spacing={3}>
-                    {workspace.relationship.canActOnItems && (
-                      <Button size="sm" colorScheme="leaf">
-                        Add note
-                      </Button>
-                    )}
-                    {workspace.relationship.canManageRoutines && (
-                      <Button size="sm" variant="outline">
-                        Manage routines
-                      </Button>
-                    )}
-                  </HStack>
-                ) : (
-                  <Badge borderRadius="full" px={3} py={1}>
-                    Observation only
-                  </Badge>
-                )}
-              </Flex>
-
-              <SimpleGrid columns={{ base: 2, lg: 4 }} spacing={3}>
-                <Box bg={panelBg} borderRadius="2xl" p={4}>
-                  <Text fontSize="sm" color={mutedText}>
-                    Overdue
-                  </Text>
-                  <Text fontSize="2xl" fontWeight="bold">
-                    {workspace.overdue.length}
-                  </Text>
-                  <Text fontSize="sm" color={subtleText}>
-                    {workspace.overdue[0]?.item.title ?? 'No overdue items visible'}
-                  </Text>
-                </Box>
-                <Box bg={panelBg} borderRadius="2xl" p={4}>
-                  <Text fontSize="sm" color={mutedText}>
-                    Missed
-                  </Text>
-                  <Text fontSize="2xl" fontWeight="bold">
-                    {workspace.missedCount}
-                  </Text>
-                  <Text fontSize="sm" color={subtleText}>
-                    Miss thresholds are not configured yet
-                  </Text>
-                </Box>
-                <Box bg={panelBg} borderRadius="2xl" p={4}>
-                  <Text fontSize="sm" color={mutedText}>
-                    Upcoming
-                  </Text>
-                  <Text fontSize="2xl" fontWeight="bold">
-                    {workspace.upcoming.length}
-                  </Text>
-                  <Text fontSize="sm" color={subtleText}>
-                    {workspace.upcoming[0]?.action.detail ?? 'No upcoming items shared yet'}
-                  </Text>
-                </Box>
-                <Box bg={panelBg} borderRadius="2xl" p={4}>
-                  <Text fontSize="sm" color={mutedText}>
-                    Recent activity
-                  </Text>
-                  <Text fontSize="2xl" fontWeight="bold">
-                    {workspace.recentActivity.length}
-                  </Text>
-                  <Text fontSize="sm" color={subtleText}>
-                    {workspace.recentActivity[0]
-                      ? `${workspace.recentActivity[0].itemTitle} on ${new Date(workspace.recentActivity[0].occurredAt).toLocaleDateString()}`
-                      : 'No recent completions visible yet'}
-                  </Text>
-                </Box>
-              </SimpleGrid>
-
-              <Grid templateColumns={{ base: '1fr', xl: '1fr 1fr' }} gap={4} mt={5}>
-                <Box bg={panelBg} borderRadius="2xl" p={4}>
-                  <Heading size="sm" mb={3}>
-                    Urgent and upcoming
-                  </Heading>
-                  <Stack spacing={3}>
-                    {workspace.actionable.slice(0, 4).map(({ item, action }) => (
-                      <Box key={item.id} borderRadius="xl" border="1px solid" borderColor={panelBorder} p={3}>
-                        <HStack spacing={2} flexWrap="wrap" mb={2}>
-                          <Badge colorScheme={action.status === 'Overdue' ? 'red' : action.bucket === 'due' ? 'orange' : 'green'} borderRadius="full" px={3} py={1}>
-                            {action.status}
-                          </Badge>
-                          <Badge variant="subtle" borderRadius="full" px={3} py={1}>
-                            {getCategoryLabel(item.category)}
-                          </Badge>
-                        </HStack>
-                        <Text fontWeight="semibold">{item.title}</Text>
-                        <Text fontSize="sm" color={mutedText} mt={1}>
-                          {action.detail}
-                        </Text>
-                      </Box>
-                    ))}
-                    {workspace.actionable.length === 0 && (
-                      <Text color={mutedText}>
-                        No routines are visible yet. Ask this member to create a routine or wait for the first shared item.
-                      </Text>
-                    )}
-                  </Stack>
-                </Box>
-
-                <Box bg={panelBg} borderRadius="2xl" p={4}>
-                  <Heading size="sm" mb={3}>
-                    Recent context
-                  </Heading>
-                  <Stack spacing={3}>
-                    {workspace.recentActivity.map((entry) => (
-                      <Box key={entry.id} borderRadius="xl" border="1px solid" borderColor={panelBorder} p={3}>
-                        <Text fontWeight="semibold">{entry.itemTitle}</Text>
-                        <Text fontSize="sm" color={mutedText} mt={1}>
-                          Completed {new Date(entry.occurredAt).toLocaleString()}
-                        </Text>
-                        <Text fontSize="sm" color={subtleText} mt={1}>
-                          {entry.note?.trim() ? entry.note : 'No note was added.'}
-                        </Text>
-                      </Box>
-                    ))}
-                    {workspace.recentActivity.length === 0 && (
-                      <Text color={mutedText}>
-                        No recent completions or notes are visible yet. Use this space to monitor when activity starts to pick up.
-                      </Text>
-                    )}
-                  </Stack>
-                </Box>
-              </Grid>
-            </Box>
-          ))}
-        </Stack>
-      </Stack>
-    );
-  }
-
-  function renderRoutines() {
-    return (
-      <Grid templateColumns={{ base: '1fr', xl: '1.08fr 0.92fr' }} gap={5}>
-        <GridItem>
-          <Box
-            bg={panelBgStrong}
-            borderRadius="3xl"
-            p={6}
-            border="1px solid"
-            borderColor={panelBorder}
-            boxShadow={statGlow}
-          >
-            <Heading size="md" mb={3}>
-              Routine Builder
-            </Heading>
-            <Stack spacing={4}>
-              <Box bg={sectionBg} borderRadius="2xl" p={4} border="1px solid" borderColor={panelBorder}>
-                <Text fontWeight="semibold" mb={1}>
-                  1. Name the routine
-                </Text>
-                <Stack spacing={4}>
-                  <FormControl>
-                    <FormLabel>Routine name</FormLabel>
-                    <Input
-                      bg={inputBg}
-                      placeholder={getDefaultTitle(category)}
-                      value={title}
-                      onChange={(event) => setTitle(event.target.value)}
-                    />
-                  </FormControl>
-                  <FormControl>
-                    <FormLabel>Type of routine</FormLabel>
-                    <RadioGroup value={category} onChange={onCategoryChange}>
-                      <SimpleGrid columns={{ base: 1, md: 2 }} spacing={3}>
-                        {categoryOptions.map((option) => (
-                          <Box
-                            key={option.value}
-                            as="label"
-                            bg={panelBg}
-                            border="1px solid"
-                            borderColor={category === option.value ? 'leaf.500' : panelBorder}
-                            borderRadius="xl"
-                            px={4}
-                            py={3}
-                            cursor="pointer"
-                          >
-                            <Radio value={option.value} colorScheme="leaf">
-                              {option.label}
-                            </Radio>
-                          </Box>
-                        ))}
-                      </SimpleGrid>
-                    </RadioGroup>
-                  </FormControl>
-                </Stack>
-              </Box>
-
-              <Box
-                bg={sectionBg}
-                borderRadius="2xl"
-                p={4}
-                border="1px solid"
-                borderColor={panelBorder}
-              >
-                <HStack justify="space-between" align="center" mb={3}>
-                  <Box>
-                    <Text fontWeight="semibold">2. Set the cadence</Text>
-                  </Box>
-                  <Button size="sm" variant="outline" onClick={addSchedule}>
-                    Add another schedule
-                  </Button>
-                </HStack>
-
-                <Stack spacing={4}>
-                  {draftSchedules.map((draft, scheduleIndex) => (
-                    <Box
-                      key={`schedule-${scheduleIndex}`}
-                      border="1px solid"
-                      borderColor={panelBorder}
-                      borderRadius="2xl"
-                      p={4}
-                    >
-                      <Stack spacing={3}>
-                        <HStack justify="space-between" align="center">
-                          <Badge
-                            colorScheme={scheduleIndex % 2 === 0 ? 'green' : 'orange'}
-                            borderRadius="full"
-                            px={3}
-                            py={1}
-                          >
-                            Schedule {scheduleIndex + 1}
-                          </Badge>
-                          <Button
-                            size="xs"
-                            variant="ghost"
-                            onClick={() => removeSchedule(scheduleIndex)}
-                            isDisabled={draftSchedules.length === 1}
-                          >
-                            Remove
-                          </Button>
-                        </HStack>
-                        <FormControl>
-                          <FormLabel>Schedule label (optional)</FormLabel>
-                          <Input
-                            bg={inputBg}
-                            placeholder="Morning, Evening, School Days..."
-                            value={draft.label}
-                            onChange={(event) =>
-                              updateDraftSchedule(scheduleIndex, (current) => ({
-                                ...current,
-                                label: event.target.value,
-                              }))
-                            }
-                          />
-                        </FormControl>
-                        <FormControl>
-                          <FormLabel>Cadence</FormLabel>
-                          <RadioGroup
-                            value={draft.kind}
-                            onChange={(event) =>
-                              updateDraftSchedule(scheduleIndex, (current) => ({
-                                ...current,
-                                kind: event as SingleScheduleKind,
-                              }))
-                            }
-                          >
-                            <SimpleGrid columns={{ base: 1, md: 2 }} spacing={3}>
-                              {scheduleKindOptions.map((option) => (
-                                <Box
-                                  key={option.value}
-                                  as="label"
-                                  bg={panelBg}
-                                  border="1px solid"
-                                  borderColor={draft.kind === option.value ? 'leaf.500' : panelBorder}
-                                  borderRadius="xl"
-                                  px={4}
-                                  py={3}
-                                  cursor="pointer"
-                                >
-                                  <Stack spacing={1}>
-                                    <Radio value={option.value} colorScheme="leaf">
-                                      {option.label}
-                                    </Radio>
-                                    <Text color={mutedText} fontSize="sm" pl={6}>
-                                      {option.help}
-                                    </Text>
-                                  </Stack>
-                                </Box>
-                              ))}
-                            </SimpleGrid>
-                          </RadioGroup>
-                        </FormControl>
-
-                        {draft.kind === 'ONE_TIME' && (
-                          <FormControl>
-                            <FormLabel>When should it happen?</FormLabel>
-                            <Input
-                              bg={inputBg}
-                              type="datetime-local"
-                              value={draft.oneTimeAt}
-                              onChange={(event) =>
-                                updateDraftSchedule(scheduleIndex, (current) => ({
-                                  ...current,
-                                  oneTimeAt: event.target.value,
-                                }))
-                              }
-                            />
-                          </FormControl>
-                        )}
-
-                        {draft.kind === 'DAILY' && (
-                          <FormControl>
-                            <FormLabel>Times of day</FormLabel>
-                            <Stack spacing={2}>
-                              {draft.dailyTimes.map((time, timeIndex) => (
-                                <HStack key={`daily-${scheduleIndex}-${timeIndex}`}>
-                                  <Input
-                                    bg={inputBg}
-                                    type="time"
-                                    value={time}
-                                    onChange={(event) =>
-                                      updateDailyTime(scheduleIndex, timeIndex, event.target.value)
-                                    }
-                                  />
-                                  <Button
-                                    size="sm"
-                                    variant="ghost"
-                                    onClick={() => removeDailyTime(scheduleIndex, timeIndex)}
-                                    isDisabled={draft.dailyTimes.length === 1}
-                                  >
-                                    Remove
-                                  </Button>
-                                </HStack>
-                              ))}
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                alignSelf="start"
-                                onClick={() => addDailyTime(scheduleIndex)}
-                              >
-                                Add time
-                              </Button>
-                            </Stack>
-                          </FormControl>
-                        )}
-
-                        {draft.kind === 'WEEKLY' && (
-                          <FormControl>
-                            <FormLabel>Days of the week</FormLabel>
-                            <CheckboxGroup
-                              value={draft.weekdays.map(String)}
-                              onChange={(values) =>
-                                updateDraftSchedule(scheduleIndex, (current) => ({
-                                  ...current,
-                                  weekdays: values.map((value) => Number(value)),
-                                }))
-                              }
-                            >
-                              <SimpleGrid columns={{ base: 3, md: 4 }} spacing={2}>
-                                {weekdayOptions.map((option) => (
-                                  <Checkbox key={option.value} value={String(option.value)}>
-                                    {option.label}
-                                  </Checkbox>
-                                ))}
-                              </SimpleGrid>
-                            </CheckboxGroup>
-                          </FormControl>
-                        )}
-
-                        {draft.kind === 'INTERVAL_DAYS' && (
-                          <>
-                            <FormControl>
-                              <FormLabel>Repeat every</FormLabel>
-                              <Input
-                                bg={inputBg}
-                                type="number"
-                                min={1}
-                                value={draft.intervalDays}
-                                onChange={(event) =>
-                                  updateDraftSchedule(scheduleIndex, (current) => ({
-                                    ...current,
-                                    intervalDays: event.target.value,
-                                  }))
-                                }
-                              />
-                              <FormHelperText color={mutedText}>days</FormHelperText>
-                            </FormControl>
-                            <FormControl>
-                              <FormLabel>Start counting from</FormLabel>
-                              <Input
-                                bg={inputBg}
-                                type="datetime-local"
-                                value={draft.intervalAnchor}
-                                onChange={(event) =>
-                                  updateDraftSchedule(scheduleIndex, (current) => ({
-                                    ...current,
-                                    intervalAnchor: event.target.value,
-                                  }))
-                                }
-                              />
-                            </FormControl>
-                          </>
-                        )}
-
-                        {draft.kind === 'CUSTOM_DATES' && (
-                          <FormControl>
-                            <FormLabel>Chosen dates</FormLabel>
-                            <Stack spacing={2}>
-                              <Box
-                                className="leaf-calendar"
-                                border="1px solid"
-                                borderColor={panelBorder}
-                                borderRadius="xl"
-                                p={2}
-                                bg={panelBg}
-                              >
-                                <DayPicker
-                                  mode="multiple"
-                                  selected={draft.customDates
-                                    .map((entry) => new Date(entry))
-                                    .filter((entry) => !Number.isNaN(entry.valueOf()))}
-                                  onSelect={(selectedDates) => {
-                                    const nextDates = selectedDates?.map((entry) => {
-                                      const withTime = new Date(entry);
-                                      withTime.setHours(9, 0, 0, 0);
-                                      return toInputDateTime(withTime);
-                                    }) ?? [''];
-                                    updateDraftSchedule(scheduleIndex, (current) => ({
-                                      ...current,
-                                      customDates: nextDates.length > 0 ? nextDates : [''],
-                                    }));
-                                  }}
-                                />
-                              </Box>
-                              {draft.customDates.map((dateValue, dateIndex) => (
-                                <HStack key={`custom-${scheduleIndex}-${dateIndex}`}>
-                                  <Input
-                                    bg={inputBg}
-                                    type="datetime-local"
-                                    value={dateValue}
-                                    onChange={(event) =>
-                                      updateCustomDate(scheduleIndex, dateIndex, event.target.value)
-                                    }
-                                  />
-                                  <Button
-                                    size="sm"
-                                    variant="ghost"
-                                    onClick={() => removeCustomDate(scheduleIndex, dateIndex)}
-                                    isDisabled={draft.customDates.length === 1}
-                                  >
-                                    Remove
-                                  </Button>
-                                </HStack>
-                              ))}
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                alignSelf="start"
-                                onClick={() => addCustomDate(scheduleIndex)}
-                              >
-                                Add date
-                              </Button>
-                            </Stack>
-                          </FormControl>
-                        )}
-                      </Stack>
-                    </Box>
-                  ))}
-                </Stack>
-              </Box>
-
-              <Box bg={sectionBg} borderRadius="2xl" p={4} border="1px solid" borderColor={panelBorder}>
-                <Text fontWeight="semibold" mb={1}>
-                  3. Choose reminder behavior
-                </Text>
-                <SimpleGrid columns={{ base: 1, md: 3 }} spacing={4}>
-                  <FormControl
-                    display="flex"
-                    alignItems="center"
-                    justifyContent="space-between"
-                    bg={panelBg}
-                    borderRadius="2xl"
-                    px={4}
-                    py={3}
-                  >
-                    <FormLabel mb={0}>Desktop reminders</FormLabel>
-                    <Switch
-                      isChecked={notificationEnabled}
-                      onChange={(event) => setNotificationEnabled(event.target.checked)}
-                    />
-                  </FormControl>
-                  <FormControl
-                    display="flex"
-                    alignItems="center"
-                    justifyContent="space-between"
-                    bg={panelBg}
-                    borderRadius="2xl"
-                    px={4}
-                    py={3}
-                  >
-                    <FormLabel mb={0}>Repeat until handled</FormLabel>
-                    <Switch
-                      isChecked={hardToDismiss}
-                      onChange={(event) => setHardToDismiss(event.target.checked)}
-                    />
-                  </FormControl>
-                  <FormControl bg={panelBg} borderRadius="2xl" px={4} py={3}>
-                    <FormLabel>Repeat every</FormLabel>
-                    <Input
-                      bg={inputBg}
-                      type="number"
-                      min={1}
-                      value={repeatMinutes}
-                      onChange={(event) => setRepeatMinutes(event.target.value)}
-                    />
-                    <FormHelperText color={mutedText}>minutes</FormHelperText>
-                  </FormControl>
-                </SimpleGrid>
-              </Box>
-
-              <Box bg={modeGradient} borderRadius="2xl" p={4} border="1px solid" borderColor={panelBorder}>
-                <Text fontSize="sm" color={mutedText}>Preview</Text>
-                <Heading size="sm" mt={2}>
-                  {title || 'Untitled routine'}
-                </Heading>
-                <Text mt={1} color={mutedText}>
-                  {getCategoryLabel(category)}
-                </Text>
-                <Text mt={3} fontSize="sm" color={mutedText}>
-                  {draftSchedules.length === 1
-                    ? scheduleKindOptions.find((option) => option.value === draftSchedules[0]?.kind)
-                        ?.label ?? 'Cadence not set'
-                    : `${draftSchedules.length} schedules combined`}
-                </Text>
-              </Box>
-
-              <Button
-                colorScheme="leaf"
-                onClick={() =>
-                  addItem().catch((error) => toast({ status: 'error', title: String(error) }))
-                }
-              >
-                Save routine
-              </Button>
-            </Stack>
-          </Box>
-        </GridItem>
-
-        <GridItem>
-          <Box
-            bg={panelBgStrong}
-            borderRadius="3xl"
-            p={6}
-            border="1px solid"
-            borderColor={panelBorder}
-            boxShadow={statGlow}
-            h="100%"
-          >
-            <Heading size="md" mb={3}>
-              Existing routines
-            </Heading>
-            <Stack spacing={3}>
-              {items.map((item) => (
-                <Box
-                  key={item.id}
-                  border="1px solid"
-                  borderColor={panelBorder}
-                  borderRadius="2xl"
-                  p={4}
-                  bg={panelBg}
-                >
-                  <HStack justify="space-between" align="start">
-                    <Box>
-                      <Text fontWeight="semibold">{item.title}</Text>
-                      <Text color={mutedText} fontSize="sm">
-                        {summarizeSchedule(item)}
-                      </Text>
-                    </Box>
-                    <Badge colorScheme="orange" borderRadius="full" px={3} py={1}>
-                      {getCategoryLabel(item.category)}
-                    </Badge>
-                  </HStack>
-                </Box>
-              ))}
-              {items.length === 0 && <Text color={mutedText}>No routines configured yet.</Text>}
-            </Stack>
-          </Box>
-        </GridItem>
-      </Grid>
-    );
-  }
-
-  function renderAdmin() {
-    if (!isAdmin) {
-      return (
-        <Alert
-          status="warning"
-          borderRadius="2xl"
-          bg={panelBgStrong}
-          border="1px solid"
-          borderColor={panelBorder}
-        >
-          <AlertIcon />
-          Admin role required.
-        </Alert>
-      );
-    }
-
-    return (
-      <Stack spacing={5}>
-        <Box
-          bgGradient={modeGradient}
-          borderRadius="3xl"
-          p={6}
-          border="1px solid"
-          borderColor={panelBorder}
-          boxShadow={statGlow}
-        >
-          <HStack
-            justify="space-between"
-            align={{ base: 'start', md: 'center' }}
-            flexWrap="wrap"
-            spacing={4}
-          >
-            <Box>
-              <Badge colorScheme="orange" borderRadius="full" px={3} py={1}>
-                Admin
-              </Badge>
-              <Heading size="lg" mt={3}>
-                Workspace administration
-              </Heading>
-              <Text mt={2} color={mutedText} maxW="42rem">
-                User management and reviewer assignments for the whole workspace.
-              </Text>
-            </Box>
-            <Box
-              bg="whiteAlpha.420"
-              _dark={{ bg: 'whiteAlpha.120' }}
-              borderRadius="2xl"
-              px={4}
-              py={3}
-            >
-              <Text fontSize="sm" color={mutedText}>
-                Active users
-              </Text>
-              <Text fontWeight="bold" fontSize="2xl">
-                {adminUsers.length}
-              </Text>
-            </Box>
-          </HStack>
-        </Box>
-
-        <Grid templateColumns={{ base: '1fr', xl: '1.05fr 0.95fr' }} gap={5}>
-          <GridItem>
-            <Box
-              bg={panelBgStrong}
-              borderRadius="3xl"
-              p={6}
-              border="1px solid"
-              borderColor={panelBorder}
-              boxShadow={statGlow}
-            >
-              <Heading size="md" mb={3}>
-                Users
-              </Heading>
-              <Stack spacing={3}>
-                {adminUsers.map((entry) => (
-                  <Flex
-                    key={entry.id}
-                    justify="space-between"
-                    align="center"
-                    bg={panelBg}
-                    borderRadius="2xl"
-                    px={4}
-                    py={4}
-                  >
-                    <Box>
-                      <Text fontWeight="semibold">{entry.name}</Text>
-                      <Text fontSize="sm" color={mutedText}>
-                        {entry.email}
-                      </Text>
-                    </Box>
-                    <Badge colorScheme="orange" borderRadius="full" px={3} py={1}>
-                      {entry.roles.map((role) => role.role).join(', ')}
-                    </Badge>
-                  </Flex>
-                ))}
-              </Stack>
-            </Box>
-          </GridItem>
-
-          <GridItem>
-            <Box
-              bg={panelBgStrong}
-              borderRadius="3xl"
-              p={6}
-              border="1px solid"
-              borderColor={panelBorder}
-              boxShadow={statGlow}
-            >
-              <Heading size="md" mb={3}>
-                Reviewer Mapping
-              </Heading>
-              <Stack spacing={4}>
-                <FormControl>
-                  <FormLabel>Reviewer</FormLabel>
-                  <Select
-                    value={adminReviewerId}
-                    onChange={(event) => setAdminReviewerId(event.target.value)}
-                  >
-                    {adminUsers.map((entry) => (
-                      <option key={entry.id} value={entry.id}>
-                        {entry.name} ({entry.email})
-                      </option>
-                    ))}
-                  </Select>
-                </FormControl>
-                <FormControl>
-                  <FormLabel>Reviewee</FormLabel>
-                  <Select
-                    value={adminRevieweeId}
-                    onChange={(event) => setAdminRevieweeId(event.target.value)}
-                  >
-                    {adminUsers.map((entry) => (
-                      <option key={entry.id} value={entry.id}>
-                        {entry.name} ({entry.email})
-                      </option>
-                    ))}
-                  </Select>
-                </FormControl>
-                <Button
-                  colorScheme="orange"
-                  onClick={() =>
-                    adminAssignReviewer().catch((error) =>
-                      toast({ status: 'error', title: String(error) }),
-                    )
-                  }
-                >
-                  Save Mapping
-                </Button>
-              </Stack>
-            </Box>
-          </GridItem>
-        </Grid>
-      </Stack>
-    );
-  }
-
   function renderPage() {
-    if (currentPage === 'profile') return renderProfile();
-    if (currentPage === 'my-items') return renderMyItems();
-    if (currentPage === 'reviewees') return renderReviewees();
-    if (currentPage === 'routines') return renderRoutines();
-    if (currentPage === 'admin') return renderAdmin();
-    return renderDashboard();
-  }
+    if (!user) return null;
 
-  function renderSidebarNav() {
-    if (accountMode) {
+    if (currentPage === 'profile') {
       return (
-        <Stack spacing={4}>
-          <Button
-            as={RouterLink}
-            to="/dashboard"
-            justifyContent="flex-start"
-            variant="ghost"
-            borderRadius="2xl"
-            px={4}
-            py={3}
-          >
-            Back to app
-          </Button>
-          <Text
-            fontSize="xs"
-            textTransform="uppercase"
-            letterSpacing="0.16em"
-            color={subtleText}
-            px={2}
-          >
-            Account
-          </Text>
-          <Stack spacing={2}>
-            {accountNavItems
-              .filter((item) => !item.adminOnly || isAdmin)
-              .map((item) => (
-                <NavButton
-                  key={item.key}
-                  label={item.label}
-                  to={item.path}
-                  active={currentPage === item.key}
-                  accent={accent}
-                />
-              ))}
-          </Stack>
-        </Stack>
+        <ProfilePage
+          user={user}
+          profileName={profileName}
+          setProfileName={setProfileName}
+          profileAvatarUrl={profileAvatarUrl}
+          setProfileAvatarUrl={setProfileAvatarUrl}
+          inputBg={inputBg}
+          panelBgStrong={panelBgStrong}
+          panelBorder={panelBorder}
+          statGlow={statGlow}
+          prefTimezone={prefTimezone}
+          setPrefTimezone={setPrefTimezone}
+          prefDay={prefDay}
+          setPrefDay={setPrefDay}
+          prefHour={prefHour}
+          setPrefHour={setPrefHour}
+          mutedText={mutedText}
+          inviteEmail={inviteEmail}
+          setInviteEmail={setInviteEmail}
+          isAdmin={isAdmin}
+          adminUsers={adminUsers}
+          targetUserId={targetUserId}
+          setTargetUserId={setTargetUserId}
+          onUpdatePreferences={updatePreferences}
+          onInviteReviewer={inviteReviewer}
+          onAvatarSelected={onAvatarSelected}
+        />
+      );
+    }
+    if (currentPage === 'my-items') {
+      return (
+        <MyItemsPage
+          items={items}
+          dueItems={dueItems}
+          actionableItems={actionableItems}
+          upcomingItems={upcomingItems}
+          laterItems={laterItems}
+          modeGradient={modeGradient}
+          panelBgStrong={panelBgStrong}
+          panelBorder={panelBorder}
+          statGlow={statGlow}
+          subtleText={subtleText}
+          mutedText={mutedText}
+          panelBg={panelBg}
+        />
+      );
+    }
+    if (currentPage === 'reviewees') {
+      return (
+        <RevieweesPage
+          canReviewOthers={canReviewOthers}
+          revieweePortfolios={revieweePortfolios}
+          modeGradient={modeGradient}
+          panelBgStrong={panelBgStrong}
+          panelBorder={panelBorder}
+          statGlow={statGlow}
+          subtleText={subtleText}
+          mutedText={mutedText}
+          panelBg={panelBg}
+        />
+      );
+    }
+    if (currentPage === 'routines') {
+      return (
+        <RoutinesPage
+          panelBgStrong={panelBgStrong}
+          panelBorder={panelBorder}
+          statGlow={statGlow}
+          sectionBg={sectionBg}
+          inputBg={inputBg}
+          panelBg={panelBg}
+          mutedText={mutedText}
+          modeGradient={modeGradient}
+          title={title}
+          setTitle={setTitle}
+          category={category}
+          onCategoryChange={onCategoryChange}
+          draftSchedules={draftSchedules}
+          updateDraftSchedule={updateDraftSchedule}
+          addSchedule={addSchedule}
+          removeSchedule={removeSchedule}
+          updateDailyTime={updateDailyTime}
+          addDailyTime={addDailyTime}
+          removeDailyTime={removeDailyTime}
+          updateCustomDate={updateCustomDate}
+          addCustomDate={addCustomDate}
+          removeCustomDate={removeCustomDate}
+          notificationEnabled={notificationEnabled}
+          setNotificationEnabled={setNotificationEnabled}
+          hardToDismiss={hardToDismiss}
+          setHardToDismiss={setHardToDismiss}
+          repeatMinutes={repeatMinutes}
+          setRepeatMinutes={setRepeatMinutes}
+          onAddItem={addItem}
+          items={items}
+        />
+      );
+    }
+    if (currentPage === 'admin') {
+      return (
+        <AdminPage
+          isAdmin={isAdmin}
+          adminUsers={adminUsers}
+          adminReviewerId={adminReviewerId}
+          adminRevieweeId={adminRevieweeId}
+          setAdminReviewerId={setAdminReviewerId}
+          setAdminRevieweeId={setAdminRevieweeId}
+          onSaveMapping={adminAssignReviewer}
+          modeGradient={modeGradient}
+          panelBgStrong={panelBgStrong}
+          panelBorder={panelBorder}
+          statGlow={statGlow}
+          mutedText={mutedText}
+          panelBg={panelBg}
+        />
       );
     }
 
     return (
-      <Stack spacing={4}>
-        <Text
-          fontSize="xs"
-          textTransform="uppercase"
-          letterSpacing="0.16em"
-          color={subtleText}
-          px={2}
-        >
-          Navigation
-        </Text>
-
-        <Stack spacing={2}>
-          {appNavItems
-            .concat(canReviewOthers ? [{ key: 'reviewees' as const, path: '/reviewees', label: 'Reviewees' }] : [])
-            .map((item) => (
-            <NavButton
-              key={item.key}
-              label={item.label}
-              to={item.path}
-              active={currentPage === item.key}
-              accent={accent}
-            />
-            ))}
-        </Stack>
-      </Stack>
+      <DashboardPage
+        items={items}
+        projectedWeekChecks={projectedWeekChecks}
+        relationshipsCount={relationshipsCount}
+        digestSummary={digestSummary}
+        categoryBreakdown={categoryBreakdown}
+        user={user}
+        dueItemsCount={dueItems.length}
+        panelBgStrong={panelBgStrong}
+        panelBorder={panelBorder}
+        statGlow={statGlow}
+        subtleText={subtleText}
+        mutedText={mutedText}
+        panelBg={panelBg}
+        modeGradient={modeGradient}
+      />
     );
   }
 
@@ -3040,13 +703,7 @@ export function App() {
             py={{ base: 4, md: 5 }}
             boxShadow={statGlow}
           >
-            <HStack
-              spacing={3}
-              as={RouterLink}
-              to="/dashboard"
-              alignSelf="stretch"
-              _hover={{ textDecoration: 'none' }}
-            >
+            <HStack spacing={3} as={RouterLink} to="/dashboard" alignSelf="stretch" _hover={{ textDecoration: 'none' }}>
               <Image src="/leaf.svg" alt="leaf logo" boxSize="36px" flexShrink={0} />
               <HStack spacing={3}>
                 <Heading size="sm" color={brandTextColor} letterSpacing="-0.02em">
@@ -3062,148 +719,66 @@ export function App() {
 
             <HStack spacing={3}>
               {loggedIn && user && (
-                <Menu placement="bottom-end" autoSelect={false}>
-                  <MenuButton
-                    as={IconButton}
-                    aria-label="Open account menu"
-                    variant="ghost"
-                    borderRadius="full"
-                    bg={accountButtonBg}
-                    border="1px solid"
-                    borderColor={accountButtonBorder}
-                    boxShadow="0 10px 24px rgba(0, 0, 0, 0.06)"
-                    _hover={{ bg: accountButtonBg, borderColor: accountButtonBorder }}
-                    _active={{ bg: accountButtonBg }}
-                    icon={
-                      <Avatar
-                        size="sm"
-                        name={user.name || user.email}
-                        src={user.avatarUrl ?? undefined}
-                        icon={<UserGlyph />}
-                        bg={accountButtonBg}
-                        color={accountIconColor}
-                      />
-                    }
-                  />
-                  <Portal>
-                    <MenuList
-                      data-testid="account-menu"
-                      borderRadius="2xl"
-                      p={2}
-                      bg={accountMenuBg}
-                      border="1px solid"
-                      borderColor={accountMenuBorder}
-                      zIndex={2000}
-                      boxShadow="0 24px 64px rgba(0, 0, 0, 0.16)"
-                      style={
-                        {
-                          '--account-menu-hover-bg': accountMenuHoverBg,
-                        } as CSSProperties
-                      }
-                    >
-                      <Box px={3} py={2}>
-                        <Text fontWeight="semibold">{user.name || user.email}</Text>
-                        <Text fontSize="sm" color={mutedText}>
-                          {user.email}
-                        </Text>
-                      </Box>
-                    <MenuDivider borderColor={accountMenuDivider} />
-                    <MenuItem
-                      data-testid="account-menu-item-preferences"
-                      as={RouterLink}
-                      to="/profile"
-                      borderRadius="xl"
-                      bg="transparent"
-                      color="inherit"
-                      _hover={{ bg: 'var(--account-menu-hover-bg)' }}
-                      _focus={{ bg: 'var(--account-menu-hover-bg)' }}
-                      _active={{ bg: 'var(--account-menu-hover-bg)' }}
-                    >
-                      Manage Preferences
-                    </MenuItem>
-                    {isAdmin && (
-                      <MenuItem
-                        as={RouterLink}
-                        to="/admin"
-                        borderRadius="xl"
-                        bg="transparent"
-                        color="inherit"
-                        _hover={{ bg: 'var(--account-menu-hover-bg)' }}
-                        _focus={{ bg: 'var(--account-menu-hover-bg)' }}
-                        _active={{ bg: 'var(--account-menu-hover-bg)' }}
-                      >
-                        Admin
-                      </MenuItem>
-                    )}
-                    <MenuItem
-                      icon={colorMode === 'light' ? <MoonIcon /> : <SunIcon />}
-                      onClick={toggleColorMode}
-                      borderRadius="xl"
-                      bg="transparent"
-                      color="inherit"
-                      _hover={{ bg: 'var(--account-menu-hover-bg)' }}
-                      _focus={{ bg: 'var(--account-menu-hover-bg)' }}
-                      _active={{ bg: 'var(--account-menu-hover-bg)' }}
-                    >
-                      {colorMode === 'light' ? 'Dark mode' : 'Light mode'}
-                    </MenuItem>
-                    <MenuDivider borderColor={accountMenuDivider} />
-                    <MenuItem
-                      onClick={signOut}
-                      borderRadius="xl"
-                      bg="transparent"
-                      color="inherit"
-                      _hover={{ bg: 'var(--account-menu-hover-bg)' }}
-                      _focus={{ bg: 'var(--account-menu-hover-bg)' }}
-                      _active={{ bg: 'var(--account-menu-hover-bg)' }}
-                    >
-                      Sign out
-                    </MenuItem>
-                    </MenuList>
-                  </Portal>
-                </Menu>
+                <AccountMenu
+                  userName={user.name}
+                  userEmail={user.email}
+                  avatarUrl={user.avatarUrl}
+                  accountButtonBg={accountButtonBg}
+                  accountButtonBorder={accountButtonBorder}
+                  accountIconColor={accountIconColor}
+                  accountMenuBg={accountMenuBg}
+                  accountMenuBorder={accountMenuBorder}
+                  accountMenuHoverBg={accountMenuHoverBg}
+                  accountMenuDivider={accountMenuDivider}
+                  isAdmin={isAdmin}
+                  colorMode={colorMode}
+                  onToggleColorMode={toggleColorMode}
+                  onSignOut={signOut}
+                  userGlyph={<UserGlyph />}
+                />
               )}
             </HStack>
           </Flex>
 
           {!loggedIn ? (
-            renderAuthShell()
+            <AuthPage
+              needsSetup={needsSetup}
+              heroGradient={heroGradient}
+              panelBorder={panelBorder}
+              statGlow={statGlow}
+              subtleText={subtleText}
+              mutedText={mutedText}
+              panelBgStrong={panelBgStrong}
+              inputBg={inputBg}
+              setupEmail={setupEmail}
+              setSetupEmail={setSetupEmail}
+              setupPassword={setupPassword}
+              setSetupPassword={setSetupPassword}
+              setupToken={setupToken}
+              setSetupToken={setSetupToken}
+              email={email}
+              setEmail={setEmail}
+              password={password}
+              setPassword={setPassword}
+              oauthProviders={oauthProviders}
+              onRunSetup={runSetup}
+              onLogin={login}
+              onLoginWithProvider={loginWithProvider}
+            />
           ) : !user ? (
-            <Box
-              bg={panelBgStrong}
-              borderRadius="3xl"
-              p={6}
-              boxShadow={statGlow}
-              border="1px solid"
-              borderColor={panelBorder}
-            >
-              <Heading size="md" mb={2}>
-                Session needs attention
-              </Heading>
-              <Text color={mutedText} mb={4}>
-                We could not load your account data. This can happen with an expired token,
-                incorrect API URL, or a temporary connection issue.
-              </Text>
-              {sessionLoadError && (
-                <Text fontSize="sm" color="red.400" mb={4}>
-                  {sessionLoadError}
-                </Text>
-              )}
-              <HStack>
-                <Button
-                  onClick={() =>
-                    refreshMe()
-                      .then(() => setSessionLoadError(null))
-                      .catch((error) => setSessionLoadError(String(error)))
-                  }
-                >
-                  Retry
-                </Button>
-                <Button variant="outline" onClick={signOut}>
-                  Sign out
-                </Button>
-              </HStack>
-            </Box>
+            <SessionErrorPanel
+              panelBgStrong={panelBgStrong}
+              statGlow={statGlow}
+              panelBorder={panelBorder}
+              mutedText={mutedText}
+              sessionLoadError={sessionLoadError}
+              onRetry={() =>
+                refreshMe()
+                  .then(() => setSessionLoadError(null))
+                  .catch((error) => setSessionLoadError(String(error)))
+              }
+              onSignOut={signOut}
+            />
           ) : (
             <Grid templateColumns={{ base: '1fr', lg: '300px minmax(0, 1fr)' }} gap={5}>
               <GridItem>
@@ -3218,13 +793,30 @@ export function App() {
                   top={{ lg: 6 }}
                   boxShadow={statGlow}
                 >
-                  {renderSidebarNav()}
+                  <SidebarNav
+                    accountMode={accountMode}
+                    subtleText={subtleText}
+                    isAdmin={isAdmin}
+                    currentPage={currentPage}
+                    accent={accent}
+                    canReviewOthers={canReviewOthers}
+                  />
                 </Box>
               </GridItem>
 
               <GridItem>
                 <Stack spacing={5}>
-                  {renderPageIntro()}
+                  <PageIntro
+                    eyebrow={pageEyebrow}
+                    title={pageTitle}
+                    summary={pageSummary}
+                    subtleText={subtleText}
+                    mutedText={mutedText}
+                    currentPage={currentPage}
+                    panelBgStrong={panelBgStrong}
+                    panelBorder={panelBorder}
+                    digestSummary={digestSummary}
+                  />
                   {renderPage()}
                 </Stack>
               </GridItem>

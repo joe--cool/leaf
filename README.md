@@ -21,6 +21,17 @@ API-first multi-user leaf app for homework, meds/supplements, exercise, and recu
 - `packages/shared` - shared API schemas and types
 - `docs` - design docs and ADRs
 
+### Current code organization
+
+- `apps/api/src/routes.ts` is now a thin composition layer; route domains live under `apps/api/src/routes/`
+- `apps/api/src/routes/setupAuth.ts` owns setup, login, refresh, logout, and OAuth flows
+- `apps/api/src/routes/userItems.ts` owns `/me`, `/reviewees`, items, and preference updates
+- `apps/api/src/routes/reviewerAdmin.ts` owns reviewer invitations plus admin relationship/user management
+- `apps/web/src/App.tsx` is now the application shell/orchestrator only
+- `apps/web/src/pages/` contains page-level modules such as dashboard, profile, reviewees, routines, and admin
+- `apps/web/src/components/` contains reusable shell/navigation/account UI pieces
+- shared view models and schedule logic live in `apps/web/src/appTypes.ts`, `apps/web/src/appConstants.ts`, and `apps/web/src/scheduleUtils.ts`
+
 ## Quickstart (Docker)
 
 Start the full stack:
