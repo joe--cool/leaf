@@ -8,6 +8,14 @@ Primary references:
 - `docs/USER_JOURNEYS.md`
 - `apps/web/src/App.tsx`
 
+Item format:
+
+- Record each new backlog item as a short titled section with:
+- one problem statement that ties the gap back to the docs and current implementation
+- a `Deliver:` list describing the intended scope of the increment
+- a `Review before closing:` list describing the minimum acceptance review
+- Size items at the user-journey or surface level: large enough to demo and verify in one pass, but not broken into tiny component tasks.
+
 ## Working rules
 
 - Implement one item at a time.
@@ -36,6 +44,170 @@ Main UX gaps:
 - Each item above is intentionally atomic at the surface level, not at the component level.
 - This makes each task large enough to produce a visible UX improvement but small enough to validate in one pass.
 - Recommended execution order is the same as the section order in this document.
+
+## Open Items
+
+### Replace first-run setup with a real onboarding and invitation journey
+
+The docs describe onboarding as relationship-aware and consent-driven, but the current product still starts from an admin bootstrap form and a token-based invite flow that never becomes a real guided journey.
+
+Deliver:
+
+- Turn first-run into a short workspace setup flow that explains the product model, demo mode, and the next actions after account creation.
+- Add a real invite acceptance journey so a new person can understand who invited them, what template/role is being proposed, and what visibility or powers they are agreeing to before joining.
+- Make the first successful login land users in the right next step for their role: create first item, invite a guide, or review a member relationship.
+
+Review before closing:
+
+- A brand new workspace can be created and exercised end to end without needing to understand internal admin concepts.
+- An invited user can see relationship context before accepting and can complete the join flow without manual token handling.
+- The seeded demo workspace still shows the new onboarding states clearly.
+
+### Ship a unified item creation flow with templates, one-time items, and better defaults
+
+The docs call for one creation flow for recurring and one-time work, with life-area-first templates. The current `Routines` page is still a builder-heavy configuration form and does not support the intended onboarding path.
+
+Deliver:
+
+- Introduce a unified create flow that starts with a template or scratch path, then branches into recurring or one-time scheduling without leaving the flow.
+- Add life-area-first starter templates that map to the documented examples and populate sensible titles, categories, cadence, and reminder defaults.
+- Keep advanced schedule editing available, but move it behind progressive disclosure so the common path feels lightweight.
+
+Review before closing:
+
+- A new member can create a useful first tracked item in a few steps without understanding schedule internals.
+- One-time work is created through the same flow as recurring work.
+- The final item state is still fully editable after creation from the `Routines` surface.
+
+### Make `My Items` a true occurrence-first action workspace
+
+The current member page identifies urgency, but it still routes users back to `Routines` and does not let them actually work the queue from the action surface described in the docs.
+
+Deliver:
+
+- Add real occurrence cards for `Now`, `This Week`, and upcoming one-time work with inline complete, skip, and add-note actions.
+- Make occurrence notes editable and visible from the action surface without forcing routine-level navigation.
+- Separate routine management from occurrence action so members can stay in momentum mode unless they intentionally switch to configuration.
+
+Review before closing:
+
+- A user can handle their due work entirely from `My Items`.
+- Skip and note behavior are visible in the UI and reflected consistently in status, summaries, and history.
+- The action surface works with seeded overdue, due-today, and upcoming demo data.
+
+### Turn the guide workspace into a real member review flow instead of summary cards
+
+`Members` now has the right top-level direction, but it is still mostly a dashboard card stack. The docs call for a guide-specific oversight experience with member-level drill-in, attribution, and support workflows.
+
+Deliver:
+
+- Add a member detail flow from the `Members` workspace with urgency-first occurrence review, recent notes, and accountability context for one person.
+- Expose only the controls the current guide is allowed to use, including support actions when permitted and observation-only states when not.
+- Make guide actions visibly attributed in the member context and in the audit/history surfaces.
+
+Review before closing:
+
+- Guides can move from portfolio view to a focused single-member view without losing urgency context.
+- Passive guides never see operational controls.
+- Active-guide actions are demoable end to end and visibly attributed afterward.
+
+### Replace the relationship page with editable permissions, visibility, and history controls
+
+`Profile & Relationships` explains the model better than before, but most of the important settings are still descriptive rather than actionable. The docs call for explicit, editable guide-by-guide control.
+
+Deliver:
+
+- Add relationship editing for mode, permission groups, history window, and hidden-item visibility boundaries after a relationship is active.
+- Let members inspect guide-by-guide what each person can see, do, and receive, including future-only versus full-history access.
+- Clarify parent-specific rules and special visibility behavior without collapsing all relationships into a parent model.
+
+Review before closing:
+
+- A member can change a guide relationship after creation without admin intervention.
+- The product clearly distinguishes template defaults from the current saved relationship state.
+- Visibility limits remain explicit to both sides after edits.
+
+### Build real notifications, escalations, and digest settings across the product
+
+The current mailbox is a useful mock of the desired shape, but notifications, desktop alerts, and digest behavior are still synthesized in the client rather than configured and delivered as real product systems.
+
+Deliver:
+
+- Add persisted in-app notifications with read state, timestamps, and relationship-aware source events.
+- Introduce relationship-level and item-level escalation settings that affect status, guide alerts, and review context.
+- Expand notification preferences so members and guides can configure channels and cadence in the way described by the docs, while still seeing shared accountability implications.
+
+Review before closing:
+
+- Inbox state survives refresh and matches backend data.
+- An escalation changes both guide visibility and the related item/member context.
+- Notification settings are understandable from both member and guide perspectives.
+
+### Turn retrospectives into a real capture and review workflow
+
+The retrospective page currently presents generated summaries, but the docs describe retrospectives as a first-class reflection system with cadence, shared discussion, and visibility rules.
+
+Deliver:
+
+- Add scheduled and manual retrospective creation with clear time windows, audience, and prompts.
+- Allow members and permitted guides to contribute retrospective notes in the same artifact instead of only viewing generated rollups.
+- Make retrospective visibility consistent with relationship history rules and parent exceptions.
+
+Review before closing:
+
+- A retrospective can be created, revisited, and understood as a distinct artifact rather than a derived card.
+- Relationship visibility rules affect which retrospectives appear.
+- The demo workspace contains enough seeded history to exercise the workflow.
+
+## Senior Engineer Review Items
+
+### Replace simulated accountability read models with real occurrence and event primitives
+
+Large parts of the UX currently depend on derived client-side summaries and reconstructed history from item/completion tables. That blocks the documented behavior for skipped states, missed states, attribution, real notifications, escalations, and auditability.
+
+Deliver:
+
+- Introduce a first-class occurrence/event model that can represent complete, skipped, missed, note-added, guide-action, escalation, and visibility-relevant changes.
+- Persist attribution and timestamps in backend-owned records instead of reconstructing them opportunistically in the frontend.
+- Update read models for dashboard, `My Items`, `Members`, audit log, notifications, and retrospectives to consume those primitives.
+
+Review before closing:
+
+- The backend can answer occurrence-first questions without relying on client inference.
+- Audit, notification, and retrospective data come from durable event records.
+- Existing seeded data and tests are updated to use the new model.
+
+### Align the domain model and API surface with the documented member/guide product model
+
+The codebase still leaks the older reviewer/reviewee framing in schema names, route structure, and normalization helpers, while several documented permission and visibility concepts are not truly modeled server-side.
+
+Deliver:
+
+- Rename or encapsulate reviewer/reviewee internals behind member/guide domain APIs so the product language and code structure stop drifting apart.
+- Model the documented permission groups, history windows, relationship templates, and parent-specific rules explicitly in shared contracts.
+- Remove frontend-only permission assumptions by making the API authoritative for relationship capabilities and visibility boundaries.
+
+Review before closing:
+
+- Shared types and API payloads read in member/guide terms.
+- Relationship capabilities used by the UI are validated and enforced server-side.
+- Migration or compatibility steps are documented where naming cannot change immediately.
+
+### Break the monolithic app shell into route-owned data and journey tests
+
+`apps/web/src/App.tsx` still owns too much fetching, derivation, and page orchestration. That makes journey work slower to land, harder to test, and easy to regress as the product grows.
+
+Deliver:
+
+- Move page-specific loading and view-model derivation out of `App.tsx` and into route/page modules or dedicated hooks/services.
+- Add integration coverage for the main user journeys: onboarding, item creation, member actioning, guide review, relationship editing, notifications, and retrospectives.
+- Tighten API tests around authorization, visibility boundaries, and attributed actions so the UX can trust backend behavior.
+
+Review before closing:
+
+- `App.tsx` is primarily shell and routing logic rather than the main product controller.
+- New page behavior can be tested without booting the entire application state machine.
+- The highest-risk permission and visibility journeys have backend and frontend coverage.
 
 ## UX Review Notes
 
