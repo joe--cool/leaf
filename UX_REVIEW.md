@@ -127,21 +127,38 @@ Review before closing:
 - An escalation changes both guide visibility and the related item/member context.
 - Notification settings are understandable from both member and guide perspectives.
 
-### Turn retrospectives into a real capture and review workflow
+### Make `Looking Back` cadence settings drive real scheduled reflection timing
 
-The retrospective page currently presents generated summaries, but the docs describe retrospectives as a first-class reflection system with cadence, shared discussion, and visibility rules.
+`Profile & Relationships` now lets members choose reflection cadence plus a weekly day or monthly day, but the current scheduling logic still behaves like a rolling 1-day, 7-day, or 30-day window. That creates a product mismatch: the UI suggests "same day each week" scheduling, while the code currently only honors the broad cadence type. This should be resolved before more `Looking Back` behavior builds on top of the current approximation.
 
 Deliver:
 
-- Add scheduled and manual retrospective creation with clear time windows, audience, and prompts.
-- Allow members and permitted guides to contribute retrospective notes in the same artifact instead of only viewing generated rollups.
-- Make retrospective visibility consistent with relationship history rules and parent exceptions.
+- Use saved cadence settings to determine when a scheduled reflection is due, including same-day-each-week behavior and month-day behavior where supported.
+- Align scheduled reflection date windows and due-state messaging with the configured cadence boundary instead of rolling 7-day or 30-day windows.
+- Decide and document how timezone should affect scheduled reflection boundaries so profile settings, due states, and created reflection windows stay consistent.
 
 Review before closing:
 
-- A retrospective can be created, revisited, and understood as a distinct artifact rather than a derived card.
-- Relationship visibility rules affect which retrospectives appear.
-- The demo workspace contains enough seeded history to exercise the workflow.
+- A user who picks a weekly day gets the same day each week in both due-state logic and suggested scheduled reflection windows.
+- Monthly scheduling behavior is explicit and consistent with the saved day-of-month rules.
+- The resulting behavior is documented clearly enough that users and future implementers do not infer rolling-window logic from the UI.
+
+### Analyze what it would take to enforce "no empty reflection artifact" creation
+
+The docs still say a reflection artifact should not exist unless someone actually writes content, but the current `Looking Back` create flow auto-seeds a default summary and creates the artifact anyway. Before changing that behavior, we need a decision-oriented analysis of the product, API, demo-data, and migration impact so you can decide whether to bring the implementation into conformance now, defer it, or intentionally revise the rule.
+
+Deliver:
+
+- Trace the current create flow for scheduled and manual reflections across web, API, shared contracts, and seeded demo data.
+- Identify the minimum product and technical changes required to enforce the no-empty-artifact rule, including whether creation should be blocked until authored content exists or whether draft/uncommitted reflection state is needed.
+- Present the decision points and tradeoffs clearly enough to choose between implementation change, scoped deferral, or doc-rule revision.
+- Recommend where this work belongs in the backlog relative to the remaining `Looking Back`, action-surface, and occurrence-model items.
+
+Review before closing:
+
+- The analysis names the specific files, routes, and user journeys that would need to change.
+- The recommendation states whether this should be a near-term UX item or should wait for the occurrence/event-model work.
+- The outcome is concrete enough that you can make a product decision without re-discovering the problem.
 
 ## Senior Engineer Review Items
 
@@ -196,7 +213,9 @@ Review before closing:
 ## UX Review Notes
 
 - 2026-03-14: Replaced the admin-flavored first-run form with workspace setup, added tokenless invite acceptance at `/join/:token` with visible relationship consent details, and routed newly authenticated users through a role-aware welcome step that points them to item creation, guide invitation, or member review while keeping demo mode visibly useful.
-- 2026-03-14: Added account-level `Retrospectives` and `Audit Log` surfaces with dedicated navigation, reflective accountability windows for self and guided members, and attributed history for account, relationship, invite, routine, and completion events without collapsing those views into admin tooling.
+- 2026-03-14: Added account-level `Looking Back` and `Audit Log` surfaces with dedicated navigation, reflective accountability windows for self and guided members, and attributed history for account, relationship, invite, routine, and completion events without collapsing those views into admin tooling.
+- 2026-03-14: Replaced generated retrospective rollups with durable looking-back artifacts, added scheduled/manual creation, an editable period summary plus separate reflective notes, enforced history-window-based guide visibility for older reflections, and extended demo mode with seeded reflections that exercise the workflow immediately.
+- 2026-03-14: Moved scheduled reflection cadence into `Profile & Relationships`, added onboarding guidance that points new users back to Profile for cadence setup, and kept `Looking Back` focused on capturing and reviewing reflections rather than configuring them.
 - 2026-03-14: Added shared accountability status, percentage, and trend summaries across `Overview`, `My Items`, and `Members`, while making guide-visible privacy limits explicit without exposing hidden-item details or counts.
 - 2026-03-13: Reworked `Overview` into a role-aware dashboard centered on `Member Actions`, `Guide Attention`, and `Next Review`, with urgent summaries and recent shared completions ahead of background metrics.
 - 2026-03-13: Added a dedicated `Members` workspace with guide-only navigation, urgency-ordered member cards, recent activity context, and observation-only states for passive relationships.
