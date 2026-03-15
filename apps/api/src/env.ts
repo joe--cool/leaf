@@ -8,12 +8,22 @@ const booleanFromString = z
   .default('false')
   .transform((value) => value.toLowerCase() === 'true');
 
+const optionalStringWithDefault = (fallback: string) =>
+  z.preprocess(
+    (value) => {
+      if (typeof value !== 'string') return value;
+      const trimmed = value.trim();
+      return trimmed.length === 0 ? undefined : trimmed;
+    },
+    z.string().default(fallback),
+  );
+
 const envSchema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
   PORT: z.coerce.number().default(4000),
   JWT_SECRET: z.string().min(16),
   DATABASE_URL: z.string().url(),
-  CORS_ORIGIN: z.string().default('http://localhost:5173'),
+  CORS_ORIGIN: optionalStringWithDefault('http://localhost:8080,http://localhost:5173'),
   SMTP_HOST: z.string().optional(),
   SMTP_PORT: z.coerce.number().default(587),
   SMTP_USER: z.string().optional(),

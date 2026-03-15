@@ -32,23 +32,113 @@ API-first multi-user leaf app for homework, meds/supplements, exercise, and recu
 - `apps/web/src/components/` contains reusable shell/navigation/account UI pieces
 - shared view models and schedule logic live in `apps/web/src/appTypes.ts`, `apps/web/src/appConstants.ts`, and `apps/web/src/scheduleUtils.ts`
 
-## Quickstart (Docker)
+## Quickstart
 
-Start the full stack:
+If you want the simplest path, use the included start/stop scripts. They run the app with Docker and print the important URLs for you.
+
+### Before you start
+
+- Install Docker Desktop if you are on macOS or Windows.
+- Install Docker Engine and Docker Compose if you are on Linux.
+- Make sure Docker is running before you continue.
+
+### Fastest first run
+
+On macOS or Linux:
 
 ```bash
-docker compose up --build
+./start-local.sh
 ```
 
-Services:
+On Windows PowerShell:
 
-- Web: http://localhost:8080
-- API health: http://localhost:4000/health
-- Mailpit: http://localhost:8025
+```powershell
+.\start-local.ps1
+```
 
-### First-run modes
+Then open:
 
-1. Secure first-run (recommended)
+- Web app: http://localhost:8080
+- API health check: http://localhost:4000/health
+- Mailpit inbox for test emails: http://localhost:8025
+
+The startup script will print a setup token if one is needed. Copy that token into the Initial Setup screen in the browser.
+
+### Recommended first experience: Demo mode
+
+If you want to get a feel for the product before setting up your real data, turn on `Demo mode` during the Initial Setup flow in the browser.
+
+Demo mode creates:
+
+- Sample routines
+- Example users and guide relationships
+- Recent and upcoming activity so the app feels populated immediately
+
+This is the best option for a first look.
+
+### If you want to share it on your local network
+
+On macOS or Linux:
+
+```bash
+./start-local.sh --lan
+```
+
+On Windows PowerShell:
+
+```powershell
+.\start-local.ps1 -Lan
+```
+
+This makes the app use your machine's `.local` hostname when your network supports it.
+
+### How to stop it
+
+On macOS or Linux:
+
+```bash
+./stop-local.sh
+```
+
+On Windows PowerShell:
+
+```powershell
+.\stop-local.ps1
+```
+
+This stops the containers but keeps your saved local data, including the database, so you can start again later and pick up where you left off.
+
+### How to start over from scratch
+
+If you want a completely fresh reset, stop the stack with the `volumes` flag.
+
+On macOS or Linux:
+
+```bash
+./stop-local.sh --volumes
+```
+
+On Windows PowerShell:
+
+```powershell
+.\stop-local.ps1 -Volumes
+```
+
+This deletes the Docker volumes used by the app. In practice, that means your local database and other persisted local data are removed, so the next start behaves like a brand-new install.
+
+Use this if:
+
+- You want to redo Initial Setup
+- You want to clear demo data and begin again
+- You want a clean local reset for troubleshooting
+
+Do not use this if you want to keep your current local data.
+
+### Manual Docker startup
+
+If you prefer raw Docker commands instead of the helper scripts:
+
+1. Secure first-run
 
 ```bash
 SETUP_TOKEN="$(openssl rand -hex 24)" && \
@@ -56,9 +146,7 @@ echo "Setup token: $SETUP_TOKEN" && \
 AUTO_BOOTSTRAP_ADMIN=false SETUP_TOKEN="$SETUP_TOKEN" docker compose up --build
 ```
 
-Use the printed token in the web Initial Setup form.
-
-2. Bootstrap admin automatically (demo/automation)
+2. Bootstrap admin automatically
 
 ```bash
 AUTO_BOOTSTRAP_ADMIN=true \
@@ -67,22 +155,50 @@ BOOTSTRAP_ADMIN_PASSWORD=changeme123 \
 docker compose up --build
 ```
 
-3. First-run demo workspace
+When using the manual Docker path, you can still enable `Demo mode` during the Initial Setup flow in the browser.
 
-Start the stack in secure or bootstrap mode, then enable `Demo mode` in the web First-run Setup form when creating the first admin.
+## Repo Start/Stop Scripts
 
-Demo mode creates:
+The repo includes helper scripts for local Docker usage:
 
-- Sample routines for the new admin across multiple schedule types
-- Additional fake users for admin and guide views
-- Guide relationships in both directions, including active-guide and passive-guide examples from the original account
-- Recent, overdue, due-today, and upcoming activity using dynamically generated relative dates
-- Shared login password across the spoofed demo users so quick manual switching is possible when needed
+```bash
+./start-local.sh
+./stop-local.sh
+```
 
-Maintenance rule:
+Windows PowerShell equivalents:
 
-- When a new user-facing feature needs seeded data to be visible, update `apps/api/src/demoSeed.ts` and keep the seeded timestamps relative to the current date so the demo workspace remains useful over time.
-- Preserve a single-account walkthrough: the original user should continue to land in member, active-guide, and passive-guide states without requiring account switching.
+```powershell
+.\start-local.ps1
+.\stop-local.ps1
+```
+
+By default `./start-local.sh` configures the stack for local-only access on `localhost`.
+
+By default `.\start-local.ps1` does the same on Windows.
+
+To advertise the machine on your local network using its detected `.local` hostname and open tagged `ufw` rules:
+
+```bash
+./start-local.sh --lan
+```
+
+The hostname comes from `HOSTNAME_LOCAL`, then `HOSTNAME`, then `hostname`.
+
+Help:
+
+```bash
+./start-local.sh --help
+./stop-local.sh --help
+```
+
+```powershell
+.\start-local.ps1 -Help
+.\stop-local.ps1 -Help
+```
+
+Use `./stop-local.sh --volumes` if you also want to remove Docker volumes.
+Use `.\stop-local.ps1 -Volumes` for the same reset on Windows.
 
 ## Optional LAN/Hostname Access
 

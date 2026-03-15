@@ -32,7 +32,7 @@ services:
       PORT: 4000
       JWT_SECRET: demo_super_secret_change_in_prod
       DATABASE_URL: postgresql://leaf:leaf@postgres:5432/leaf
-      CORS_ORIGIN: ${CORS_ORIGIN}
+      CORS_ORIGIN: ${CORS_ORIGIN:-}
       SMTP_HOST: mailpit
       SMTP_PORT: 1025
       SMTP_FROM: leaf@example.com

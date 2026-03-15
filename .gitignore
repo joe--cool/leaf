@@ -11,5 +11,3 @@ test-results
 build
 *.log
 prisma/dev.db
-start-local.sh
-stop-local.sh
