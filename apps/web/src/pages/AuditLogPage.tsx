@@ -77,7 +77,7 @@ export function AuditLogPage({
             <Stack spacing={4}>
               <Stack spacing={2}>
                 <Stack direction={{ base: 'column', md: 'row' }} spacing={2} align={{ base: 'start', md: 'center' }}>
-                  <Badge colorScheme={badgeScheme(entry.category)} borderRadius="full" px={3} py={1}>
+                  <Badge {...badgeStyles(entry.category)} borderRadius="full" px={3} py={1}>
                     {labelForCategory(entry.category)}
                   </Badge>
                   <Badge variant="subtle" borderRadius="full" px={3} py={1}>
@@ -125,11 +125,17 @@ export function AuditLogPage({
   );
 }
 
-function badgeScheme(category: AuditLogEntry['category']) {
-  if (category === 'relationship') return 'orange';
-  if (category === 'activity') return 'green';
-  if (category === 'routine') return 'purple';
-  return 'blue';
+function badgeStyles(category: AuditLogEntry['category']) {
+  if (category === 'relationship') {
+    return { bg: 'clay.200', color: 'clay.900', _dark: { bg: 'clay.700', color: 'clay.50' } };
+  }
+  if (category === 'activity') {
+    return { bg: 'leaf.100', color: 'leaf.800', _dark: { bg: 'leaf.800', color: 'leaf.100' } };
+  }
+  if (category === 'routine') {
+    return { bg: 'blackAlpha.100', color: 'inherit', _dark: { bg: 'whiteAlpha.160', color: 'inherit' } };
+  }
+  return { bg: 'clay.100', color: 'clay.800', _dark: { bg: 'clay.800', color: 'clay.100' } };
 }
 
 function labelForCategory(category: AuditLogEntry['category']) {

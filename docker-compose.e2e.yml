@@ -1,0 +1,20 @@
+services:
+  postgres:
+    ports: []
+
+  mailpit:
+    ports: []
+
+  api:
+    environment:
+      CORS_ORIGIN: http://127.0.0.1:18080
+      AUTO_BOOTSTRAP_ADMIN: 'false'
+    ports:
+      - '14000:4000'
+
+  web:
+    build:
+      args:
+        VITE_API_URL: http://127.0.0.1:14000
+    ports:
+      - '18080:80'

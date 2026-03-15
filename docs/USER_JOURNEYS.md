@@ -336,6 +336,8 @@ Retrospective score changes should appear in the audit log.
 
 Retrospectives are not proof-of-completion artifacts. They are scheduled or manual reflection artifacts owned by the member.
 
+In the product UI, this should show up as `Looking Back` or cadence-based labels such as `Weekly reflection`, `Monthly reflection`, or `Daily reflection` rather than repeating the internal retrospective term everywhere.
+
 ### Cadence
 
 Retrospectives should support:
@@ -344,14 +346,16 @@ Retrospectives should support:
 - manual creation at any time
 - backfilled creation for a past scheduled period
 
+The member should configure scheduled reflection cadence from Profile. The Looking Back area should use those defaults rather than owning schedule configuration directly.
+
 If nobody writes anything, there should be no empty retrospective artifact.
 
 ### Structure
 
 A retrospective should contain:
 
-- a primary note for the period
-- an attached discussion log for follow-up comments
+- one primary summary for the period that can be edited as the shared picture changes
+- an attached discussion log for separate reflective notes and follow-up comments
 
 Anyone with access to that retrospective should be able to participate in the attached discussion.
 

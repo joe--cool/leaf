@@ -15,8 +15,13 @@ export const inviteSchema = z.object({
 export const acceptInviteSchema = z.object({ token: z.string().min(1) });
 export const adminGuideSchema = z.object({ guideId: z.string(), memberId: z.string() });
 export const preferencesSchema = z.object({
+  targetMemberId: z.string().optional(),
   weeklyDigestHour: z.number().int().min(0).max(23).optional(),
   weeklyDigestDay: z.number().int().min(0).max(6).optional(),
+  reflectionCadence: z.enum(['daily', 'weekly', 'monthly']).optional(),
+  reflectionWeekday: z.number().int().min(0).max(6).optional(),
+  reflectionMonthDay: z.number().int().min(1).max(31).optional(),
+  reflectionPrompt: z.string().max(2000).nullable().optional(),
   timezone: z.string().optional(),
   name: z.string().min(1).optional(),
   avatarUrl: z.string().nullable().optional(),

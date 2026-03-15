@@ -63,7 +63,7 @@ export function AdminPage({
       <Box bgGradient={modeGradient} borderRadius="3xl" p={6} border="1px solid" borderColor={panelBorder} boxShadow={statGlow}>
         <HStack justify="space-between" align={{ base: 'start', md: 'center' }} flexWrap="wrap" spacing={4}>
           <Box>
-            <Badge colorScheme="orange" borderRadius="full" px={3} py={1}>
+            <Badge bg="clay.200" color="clay.900" _dark={{ bg: 'clay.700', color: 'clay.50' }} borderRadius="full" px={3} py={1}>
               Admin
             </Badge>
             <Heading size="lg" mt={3}>
@@ -99,7 +99,7 @@ export function AdminPage({
                       {entry.email}
                     </Text>
                   </Box>
-                  <Badge colorScheme="orange" borderRadius="full" px={3} py={1}>
+                  <Badge bg="clay.200" color="clay.900" _dark={{ bg: 'clay.700', color: 'clay.50' }} borderRadius="full" px={3} py={1}>
                     {entry.roles.map((role) => role.role).join(', ')}
                   </Badge>
                 </Flex>
@@ -139,7 +139,7 @@ export function AdminPage({
                 </Select>
               </FormControl>
               <Button
-                colorScheme="orange"
+                colorScheme="clay"
                 onClick={() =>
                   onSaveMapping().catch((error) => toast({ status: 'error', title: String(error) }))
                 }

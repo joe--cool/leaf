@@ -60,6 +60,7 @@ export const appNavItems: Array<{ key: PageKey; path: string; label: string }> =
   { key: 'dashboard', path: '/dashboard', label: 'Overview' },
   { key: 'my-items', path: '/my-items', label: 'My Items' },
   { key: 'routines', path: '/routines', label: 'Routines' },
+  { key: 'retrospectives', path: '/retrospectives', label: 'Looking Back' },
 ];
 
 export const accountNavItems: Array<{
@@ -69,7 +70,6 @@ export const accountNavItems: Array<{
   adminOnly?: boolean;
 }> = [
   { key: 'profile', path: '/profile', label: 'Profile & Relationships' },
-  { key: 'retrospectives', path: '/retrospectives', label: 'Retrospectives' },
   { key: 'audit-log', path: '/audit-log', label: 'Audit Log' },
   { key: 'admin', path: '/admin', label: 'Admin', adminOnly: true },
 ];

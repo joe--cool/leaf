@@ -128,13 +128,32 @@ export async function registerUserItemRoutes(app: FastifyInstance): Promise<void
     const actor = authUser(request);
     const body = preferencesSchema.parse(request.body ?? {});
 
+    if (body.targetMemberId && body.targetMemberId !== actor.id) {
+      const relation = await prisma.reviewerRelation.findUnique({
+        where: {
+          reviewerId_revieweeId: {
+            reviewerId: actor.id,
+            revieweeId: body.targetMemberId,
+          },
+        },
+      });
+
+      if (!relation?.canManageAccountability) {
+        throw app.httpErrors.forbidden('You cannot update this member prompt');
+      }
+    }
+
     return prisma.user.update({
-      where: { id: actor.id },
+      where: { id: body.targetMemberId ?? actor.id },
       data: {
         name: body.name,
         avatarUrl: body.avatarUrl,
         weeklyDigestHour: body.weeklyDigestHour,
         weeklyDigestDay: body.weeklyDigestDay,
+        reflectionCadence: body.reflectionCadence,
+        reflectionWeekday: body.reflectionWeekday,
+        reflectionMonthDay: body.reflectionMonthDay,
+        reflectionPrompt: body.reflectionPrompt === undefined ? undefined : body.reflectionPrompt?.trim() || null,
         timezone: body.timezone,
       },
     });

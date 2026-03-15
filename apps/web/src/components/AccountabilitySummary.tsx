@@ -15,13 +15,13 @@ export function AccountabilitySummaryBlock({
   return (
     <Stack spacing={2.5}>
       <HStack spacing={2} flexWrap="wrap">
-        <Badge colorScheme={statusColor(summary.label)} borderRadius="full" px={3} py={1}>
+        <Badge {...statusBadgeProps(summary.label)} borderRadius="full" px={3} py={1}>
           {summary.label}
         </Badge>
         <Badge borderRadius="full" px={3} py={1}>
           {summary.score === null ? 'No score yet' : `${summary.score}% accountability`}
         </Badge>
-        <Badge colorScheme={trendColor(summary.trendLabel)} borderRadius="full" px={3} py={1}>
+        <Badge {...trendBadgeProps(summary.trendLabel)} borderRadius="full" px={3} py={1}>
           {summary.trendLabel}
         </Badge>
       </HStack>
@@ -59,17 +59,21 @@ export function PrivacyDisclosure({
   );
 }
 
-function statusColor(label: AccountabilitySummary['label']) {
-  if (label === 'On track') return 'green';
-  if (label === 'Steady' || label === 'Monitoring') return 'blue';
-  if (label === 'Needs attention') return 'orange';
-  if (label === 'Off track') return 'red';
-  return 'gray';
+function statusBadgeProps(label: AccountabilitySummary['label']) {
+  if (label === 'On track') return { bg: 'leaf.100', color: 'leaf.800', _dark: { bg: 'leaf.800', color: 'leaf.100' } };
+  if (label === 'Steady' || label === 'Monitoring') {
+    return { bg: 'clay.100', color: 'clay.800', _dark: { bg: 'clay.800', color: 'clay.100' } };
+  }
+  if (label === 'Needs attention') {
+    return { bg: 'clay.200', color: 'clay.900', _dark: { bg: 'clay.700', color: 'clay.50' } };
+  }
+  if (label === 'Off track') return { bg: 'blackAlpha.100', color: 'clay.900', _dark: { bg: 'whiteAlpha.160', color: 'clay.50' } };
+  return { bg: 'blackAlpha.100', color: 'inherit', _dark: { bg: 'whiteAlpha.160', color: 'inherit' } };
 }
 
-function trendColor(label: AccountabilitySummary['trendLabel']) {
-  if (label === 'Improving') return 'green';
-  if (label === 'Falling') return 'red';
-  if (label === 'Holding steady') return 'blue';
-  return 'gray';
+function trendBadgeProps(label: AccountabilitySummary['trendLabel']) {
+  if (label === 'Improving') return { bg: 'leaf.100', color: 'leaf.800', _dark: { bg: 'leaf.800', color: 'leaf.100' } };
+  if (label === 'Falling') return { bg: 'clay.200', color: 'clay.900', _dark: { bg: 'clay.700', color: 'clay.50' } };
+  if (label === 'Holding steady') return { bg: 'clay.100', color: 'clay.800', _dark: { bg: 'clay.800', color: 'clay.100' } };
+  return { bg: 'blackAlpha.100', color: 'inherit', _dark: { bg: 'whiteAlpha.160', color: 'inherit' } };
 }

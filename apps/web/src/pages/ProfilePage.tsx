@@ -84,6 +84,12 @@ export function ProfilePage({
   setPrefDay,
   prefHour,
   setPrefHour,
+  reflectionCadence,
+  setReflectionCadence,
+  reflectionWeekday,
+  setReflectionWeekday,
+  reflectionMonthDay,
+  setReflectionMonthDay,
   mutedText,
   inviteEmail,
   setInviteEmail,
@@ -113,6 +119,12 @@ export function ProfilePage({
   setPrefDay: (value: string) => void;
   prefHour: string;
   setPrefHour: (value: string) => void;
+  reflectionCadence: 'daily' | 'weekly' | 'monthly';
+  setReflectionCadence: (value: 'daily' | 'weekly' | 'monthly') => void;
+  reflectionWeekday: string;
+  setReflectionWeekday: (value: string) => void;
+  reflectionMonthDay: string;
+  setReflectionMonthDay: (value: string) => void;
   mutedText: string;
   inviteEmail: string;
   setInviteEmail: (value: string) => void;
@@ -181,6 +193,66 @@ export function ProfilePage({
                 onClick={() => onUpdateProfile().catch((error) => toast({ status: 'error', title: String(error) }))}
               >
                 Save Profile
+              </Button>
+            </Stack>
+          </Box>
+
+          <Box bg={panelBgStrong} borderRadius="3xl" p={6} border="1px solid" borderColor={panelBorder} boxShadow={statGlow}>
+            <Heading size="md" mb={4}>
+              Looking Back Schedule
+            </Heading>
+            <Text color={mutedText} mb={4}>
+              Configure scheduled reflections here. The main app stays focused on capturing reflections, while schedule
+              defaults live with the rest of your account configuration.
+            </Text>
+            <Stack spacing={4}>
+              <FormControl>
+                <FormLabel>Cadence</FormLabel>
+                <Select
+                  bg={inputBg}
+                  value={reflectionCadence}
+                  onChange={(event) => setReflectionCadence(event.target.value as 'daily' | 'weekly' | 'monthly')}
+                >
+                  <option value="daily">Daily reflection</option>
+                  <option value="weekly">Weekly reflection</option>
+                  <option value="monthly">Monthly reflection</option>
+                </Select>
+              </FormControl>
+              {reflectionCadence === 'weekly' ? (
+                <FormControl>
+                  <FormLabel>Weekly day</FormLabel>
+                  <Select bg={inputBg} value={reflectionWeekday} onChange={(event) => setReflectionWeekday(event.target.value)}>
+                    {weekdayOptions.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </Select>
+                </FormControl>
+              ) : null}
+              {reflectionCadence === 'monthly' ? (
+                <FormControl>
+                  <FormLabel>Day of month</FormLabel>
+                  <Select bg={inputBg} value={reflectionMonthDay} onChange={(event) => setReflectionMonthDay(event.target.value)}>
+                    {Array.from({ length: 28 }, (_, index) => index + 1).map((day) => (
+                      <option key={day} value={day}>
+                        {day}
+                      </option>
+                    ))}
+                  </Select>
+                  <FormHelperText color={mutedText}>
+                    Keep this within the first 28 days so every month has a stable schedule.
+                  </FormHelperText>
+                </FormControl>
+              ) : null}
+              <Button
+                colorScheme="leaf"
+                alignSelf="start"
+                onClick={() =>
+                  onUpdateNotificationPreferences().catch((error) => toast({ status: 'error', title: String(error) }))
+                }
+              >
+                Save Looking Back Schedule
               </Button>
             </Stack>
           </Box>
@@ -281,7 +353,17 @@ export function ProfilePage({
                     {selectedTemplate.mode === 'active' ? 'Active operational role' : 'Summary-only role'}
                   </Text>
                 </Box>
-                <Badge colorScheme={selectedTemplate.mode === 'active' ? 'green' : 'gray'} borderRadius="full" px={3} py={1}>
+                <Badge
+                  bg={selectedTemplate.mode === 'active' ? 'leaf.100' : 'blackAlpha.100'}
+                  color={selectedTemplate.mode === 'active' ? 'leaf.800' : 'inherit'}
+                  _dark={{
+                    bg: selectedTemplate.mode === 'active' ? 'leaf.800' : 'whiteAlpha.160',
+                    color: selectedTemplate.mode === 'active' ? 'leaf.100' : 'inherit',
+                  }}
+                  borderRadius="full"
+                  px={3}
+                  py={1}
+                >
                   {selectedTemplate.badge}
                 </Badge>
               </HStack>
@@ -363,7 +445,17 @@ export function ProfilePage({
                           </Text>
                         </Box>
                         <Stack spacing={2} align="end">
-                          <Badge colorScheme={entry.mode === 'active' ? 'green' : 'gray'} borderRadius="full" px={3} py={1}>
+                          <Badge
+                            bg={entry.mode === 'active' ? 'leaf.100' : 'blackAlpha.100'}
+                            color={entry.mode === 'active' ? 'leaf.800' : 'inherit'}
+                            _dark={{
+                              bg: entry.mode === 'active' ? 'leaf.800' : 'whiteAlpha.160',
+                              color: entry.mode === 'active' ? 'leaf.100' : 'inherit',
+                            }}
+                            borderRadius="full"
+                            px={3}
+                            py={1}
+                          >
                             {template.label}
                           </Badge>
                           <Badge variant="subtle" borderRadius="full" px={3} py={1}>
@@ -422,7 +514,17 @@ export function ProfilePage({
                           {entry.member.email}
                         </Text>
                       </Box>
-                      <Badge colorScheme={entry.mode === 'active' ? 'green' : 'gray'} borderRadius="full" px={3} py={1}>
+                      <Badge
+                        bg={entry.mode === 'active' ? 'leaf.100' : 'blackAlpha.100'}
+                        color={entry.mode === 'active' ? 'leaf.800' : 'inherit'}
+                        _dark={{
+                          bg: entry.mode === 'active' ? 'leaf.800' : 'whiteAlpha.160',
+                          color: entry.mode === 'active' ? 'leaf.100' : 'inherit',
+                        }}
+                        borderRadius="full"
+                        px={3}
+                        py={1}
+                      >
                         {entry.mode === 'active' ? 'Active guide' : 'Passive guide'}
                       </Badge>
                     </HStack>

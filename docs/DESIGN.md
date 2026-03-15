@@ -271,18 +271,22 @@ Retrospectives should have separate participant-entered 1–10 scores. Each part
 
 Retrospectives are a separate product system, not proof-of-completion.
 
+In the product UI, this surface should read as `Looking Back` or cadence-based labels such as `Weekly reflection` rather than exposing the internal retrospective term everywhere.
+
 They should support:
 
 - configurable scheduled retrospectives
 - manual retrospectives
 - backfilled retrospectives for past scheduled periods
 
+Scheduled reflection cadence should be configured from the member's profile/settings surface, not from the looking-back capture surface itself.
+
 No retrospective artifact should exist if no one added any content.
 
 Each retrospective should contain:
 
-- a primary note for the period
-- an attached discussion log
+- one primary period summary that can be edited over time to reflect the current shared understanding of how the period went
+- an attached discussion log of separate reflective notes that does not overwrite the primary summary
 
 It belongs to the member, but all current participants with access may participate.
 

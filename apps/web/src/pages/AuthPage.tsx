@@ -139,6 +139,8 @@ export function AuthPage({
           {needsSetup ? (
             <Box
               as="form"
+              name="workspace-setup"
+              autoComplete="on"
               onSubmit={(event: FormEvent<HTMLDivElement>) => {
                 event.preventDefault();
                 onRunSetup().catch((error) => toast({ status: 'error', title: String(error) }));
@@ -153,17 +155,43 @@ export function AuthPage({
                   Start with one account, decide whether to seed a realistic demo, then invite people into explicit
                   relationships after you land inside.
                 </Text>
-                <FormControl>
+                <FormControl id="setup-name">
                   <FormLabel>Your name</FormLabel>
-                  <Input bg={inputBg} value={setupName} onChange={(event) => setSetupName(event.target.value)} />
+                  <Input
+                    bg={inputBg}
+                    id="setup-name"
+                    name="name"
+                    autoComplete="name"
+                    value={setupName}
+                    onChange={(event) => setSetupName(event.target.value)}
+                  />
                 </FormControl>
-                <FormControl>
+                <FormControl id="setup-email">
                   <FormLabel>Email</FormLabel>
-                  <Input bg={inputBg} value={setupEmail} onChange={(event) => setSetupEmail(event.target.value)} />
+                  <Input
+                    bg={inputBg}
+                    id="setup-email"
+                    type="email"
+                    inputMode="email"
+                    name="email"
+                    autoCapitalize="none"
+                    spellCheck={false}
+                    autoComplete="email"
+                    value={setupEmail}
+                    onChange={(event) => setSetupEmail(event.target.value)}
+                  />
                 </FormControl>
-                <FormControl>
+                <FormControl id="setup-password">
                   <FormLabel>Password</FormLabel>
-                  <Input bg={inputBg} type="password" value={setupPassword} onChange={(event) => setSetupPassword(event.target.value)} />
+                  <Input
+                    bg={inputBg}
+                    id="setup-password"
+                    type="password"
+                    name="password"
+                    autoComplete="new-password"
+                    value={setupPassword}
+                    onChange={(event) => setSetupPassword(event.target.value)}
+                  />
                 </FormControl>
                 <FormControl>
                   <FormLabel>Setup token (optional)</FormLabel>
@@ -189,6 +217,8 @@ export function AuthPage({
           ) : (
             <Box
               as="form"
+              name="login"
+              autoComplete="on"
               onSubmit={(event: FormEvent<HTMLDivElement>) => {
                 event.preventDefault();
                 onLogin().catch((error) => toast({ status: 'error', title: String(error) }));
@@ -200,13 +230,32 @@ export function AuthPage({
                 </Badge>
                 <Heading size="lg">Enter your workspace</Heading>
                 <Text color={mutedText}>Use your email and password to continue.</Text>
-                <FormControl>
+                <FormControl id="login-email">
                   <FormLabel>Email</FormLabel>
-                  <Input bg={inputBg} value={email} onChange={(event) => setEmail(event.target.value)} />
+                  <Input
+                    bg={inputBg}
+                    id="login-email"
+                    type="email"
+                    inputMode="email"
+                    name="username"
+                    autoCapitalize="none"
+                    spellCheck={false}
+                    autoComplete="username"
+                    value={email}
+                    onChange={(event) => setEmail(event.target.value)}
+                  />
                 </FormControl>
-                <FormControl>
+                <FormControl id="login-password">
                   <FormLabel>Password</FormLabel>
-                  <Input bg={inputBg} type="password" value={password} onChange={(event) => setPassword(event.target.value)} />
+                  <Input
+                    bg={inputBg}
+                    id="login-password"
+                    type="password"
+                    name="password"
+                    autoComplete="current-password"
+                    value={password}
+                    onChange={(event) => setPassword(event.target.value)}
+                  />
                 </FormControl>
                 <Button colorScheme="leaf" type="submit">
                   Sign in

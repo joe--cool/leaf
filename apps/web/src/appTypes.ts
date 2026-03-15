@@ -8,6 +8,10 @@ export type User = {
   timezone: string;
   weeklyDigestDay: number;
   weeklyDigestHour: number;
+  reflectionCadence: 'daily' | 'weekly' | 'monthly';
+  reflectionWeekday: number;
+  reflectionMonthDay: number;
+  reflectionPrompt?: string | null;
   roles: Array<{ role: string }>;
   members: Array<
     RelationshipDetails & {
@@ -56,7 +60,15 @@ export type MemberItem = Item & {
 };
 
 export type MemberWorkspace = {
-  member: { id: string; email: string; name: string };
+  member: {
+    id: string;
+    email: string;
+    name: string;
+    reflectionCadence: 'daily' | 'weekly' | 'monthly';
+    reflectionWeekday: number;
+    reflectionMonthDay: number;
+    reflectionPrompt?: string | null;
+  };
   relationship: {
     mode: 'active' | 'passive';
     canActOnItems: boolean;
@@ -119,18 +131,42 @@ export type AuditLogEntry = {
 
 export type RetrospectiveEntry = {
   id: string;
+  subjectUserId: string;
+  kind: 'manual' | 'scheduled';
   periodStart: string;
   periodEnd: string;
   title: string;
   audience: string;
   subjectName: string;
-  summary: string;
-  accountabilityLabel: string;
-  accountabilityScore: number | null;
-  trendLabel: string;
-  trendDelta: number | null;
   visibility: string;
-  highlights: string[];
+  createdAt: string;
+  createdByName: string;
+  summary: string | null;
+  promptPreset: string;
+  prompts: string[];
+  writingPrompt?: string | null;
+  viewerRole: 'member' | 'guide' | 'observer';
+  canContribute: boolean;
+  contributions: RetrospectiveContribution[];
+};
+
+export type RetrospectiveDraftKind = 'manual' | 'scheduled';
+
+export type RetrospectiveSubjectOption = {
+  id: string;
+  label: string;
+  detail: string;
+  name: string;
+  cadence: 'daily' | 'weekly' | 'monthly';
+  writingPrompt?: string | null;
+};
+
+export type RetrospectiveContribution = {
+  id: string;
+  body: string;
+  createdAt: string;
+  authorName: string;
+  authorRole: 'member' | 'guide' | 'participant';
 };
 
 export type PageKey =

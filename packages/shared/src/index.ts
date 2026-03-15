@@ -92,3 +92,37 @@ export const apiTokenSchema = z.object({
 });
 
 export type ApiTokenResponse = z.infer<typeof apiTokenSchema>;
+
+export const retrospectiveKindSchema = z.enum(['manual', 'scheduled']);
+export type RetrospectiveKind = z.infer<typeof retrospectiveKindSchema>;
+
+export const retrospectivePromptPresetSchema = z.enum([
+  'weekly-review',
+  'support-check-in',
+  'reset-and-obstacles',
+]);
+export type RetrospectivePromptPreset = z.infer<typeof retrospectivePromptPresetSchema>;
+
+export const defaultReflectionWritingPrompt =
+  'What stands out from this period? What went well, what was harder than expected, and what is one thing to change or try next?';
+
+export const retrospectiveCreateSchema = z.object({
+  subjectUserId: z.string().optional(),
+  kind: retrospectiveKindSchema.default('scheduled'),
+  periodStart: z.string().datetime(),
+  periodEnd: z.string().datetime(),
+  promptPreset: retrospectivePromptPresetSchema.default('weekly-review'),
+  title: z.string().trim().min(1).max(120).optional(),
+  summary: z.string().trim().min(1).max(2000).optional(),
+});
+export type RetrospectiveCreateInput = z.infer<typeof retrospectiveCreateSchema>;
+
+export const retrospectiveContributionSchema = z.object({
+  body: z.string().trim().min(1).max(2000),
+});
+export type RetrospectiveContributionInput = z.infer<typeof retrospectiveContributionSchema>;
+
+export const retrospectiveUpdateSchema = z.object({
+  summary: z.string().trim().min(1).max(2000),
+});
+export type RetrospectiveUpdateInput = z.infer<typeof retrospectiveUpdateSchema>;

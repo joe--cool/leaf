@@ -1,9 +1,13 @@
+import { readFileSync } from 'node:fs';
+import { dirname, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { ChakraProvider } from '@chakra-ui/react';
-import { cleanup, render, screen, waitFor, within } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { App } from './App';
+import type { RetrospectiveEntry } from './appTypes';
 
 const { apiFetchMock, getTokenMock, setTokenMock, setRefreshTokenMock, clearTokenMock, tokenState } = vi.hoisted(() => ({
   apiFetchMock: vi.fn(),
@@ -30,6 +34,9 @@ type MeResponse = {
   timezone: string;
   weeklyDigestDay: number;
   weeklyDigestHour: number;
+  reflectionCadence: 'daily' | 'weekly' | 'monthly';
+  reflectionWeekday: number;
+  reflectionMonthDay: number;
   roles: Array<{ role: string }>;
   members: Array<{
     mode?: 'active' | 'passive';
@@ -59,6 +66,9 @@ const meResponse: MeResponse = {
   timezone: 'UTC',
   weeklyDigestDay: 1,
   weeklyDigestHour: 8,
+  reflectionCadence: 'weekly',
+  reflectionWeekday: 0,
+  reflectionMonthDay: 1,
   roles: [{ role: 'USER' }],
   members: [],
   guides: [],
@@ -74,6 +84,7 @@ function mockAuthedApi(overrides: Partial<MeResponse> = {}) {
     if (path === '/items') return [];
     if (path === '/members') return [];
     if (path === '/history/audit') return [];
+    if (path === '/retrospectives') return [];
     if (path === '/admin/users') return [];
     throw new Error(`Unexpected api path: ${path}`);
   });
@@ -148,7 +159,14 @@ describe('App routes', () => {
       if (path === '/members') {
         return [
           {
-            member: { id: 'u2', email: 'member@example.com', name: 'Alex' },
+            member: {
+              id: 'u2',
+              email: 'member@example.com',
+              name: 'Alex',
+              reflectionCadence: 'weekly',
+              reflectionWeekday: 0,
+              reflectionMonthDay: 1,
+            },
             relationship: {
               mode: 'active',
               canActOnItems: true,
@@ -177,6 +195,7 @@ describe('App routes', () => {
         ];
       }
       if (path === '/history/audit') return [];
+      if (path === '/retrospectives') return [];
       if (path === '/admin/users') return [];
       throw new Error(`Unexpected api path: ${path}`);
     });
@@ -240,7 +259,14 @@ describe('App routes', () => {
       if (path === '/members') {
         return [
           {
-            member: { id: 'u2', email: 'member@example.com', name: 'Alex' },
+            member: {
+              id: 'u2',
+              email: 'member@example.com',
+              name: 'Alex',
+              reflectionCadence: 'weekly',
+              reflectionWeekday: 0,
+              reflectionMonthDay: 1,
+            },
             relationship: {
               mode: 'passive',
               canActOnItems: false,
@@ -269,6 +295,29 @@ describe('App routes', () => {
         ];
       }
       if (path === '/history/audit') return [];
+      if (path === '/retrospectives') {
+        return [
+          {
+            id: 'r_member_1',
+            subjectUserId: 'u2',
+            kind: 'scheduled',
+            title: 'Weekly reflection · Alex',
+            subjectName: 'Alex',
+            periodStart: '2026-03-07T00:00:00.000Z',
+            periodEnd: '2026-03-14T00:00:00.000Z',
+            audience: 'Alex and User',
+            visibility: 'Visible while the relationship history window still includes this period.',
+            createdAt: '2026-03-13T11:00:00.000Z',
+            createdByName: 'Alex',
+            summary: 'A steady week.',
+            promptPreset: 'weekly-review',
+            prompts: ['What went well?'],
+            viewerRole: 'guide',
+            canContribute: false,
+            contributions: [],
+          },
+        ];
+      }
       if (path === '/admin/users') return [];
       throw new Error(`Unexpected api path: ${path}`);
     });
@@ -276,11 +325,12 @@ describe('App routes', () => {
     renderApp('/members');
 
     expect((await screen.findAllByRole('heading', { name: 'Members' })).length).toBeGreaterThan(0);
-    expect(screen.getByText('Needs attention first')).toBeInTheDocument();
-    expect(screen.getByText('Observation only')).toBeInTheDocument();
+    expect(screen.getByText('Weekly reflection · Alex')).toBeInTheDocument();
+    expect(screen.getAllByText('Observation only').length).toBeGreaterThan(0);
     expect(screen.getAllByText(/Guide-visible only\./).length).toBeGreaterThan(0);
     expect(screen.getAllByText('This score only reflects items shared in this relationship.').length).toBeGreaterThan(0);
     expect(screen.queryByRole('button', { name: 'Manage routines' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Create Impromptu Reflection' })).not.toBeInTheDocument();
   });
 
   it('shows member actions, guide attention, and next review on the dashboard for dual-role users', async () => {
@@ -312,7 +362,14 @@ describe('App routes', () => {
       if (path === '/members') {
         return [
           {
-            member: { id: 'u2', email: 'member@example.com', name: 'Alex' },
+            member: {
+              id: 'u2',
+              email: 'member@example.com',
+              name: 'Alex',
+              reflectionCadence: 'weekly',
+              reflectionWeekday: 0,
+              reflectionMonthDay: 1,
+            },
             relationship: {
               mode: 'active',
               canActOnItems: true,
@@ -341,6 +398,7 @@ describe('App routes', () => {
         ];
       }
       if (path === '/history/audit') return [];
+      if (path === '/retrospectives') return [];
       if (path === '/admin/users') return [];
       throw new Error(`Unexpected api path: ${path}`);
     });
@@ -365,7 +423,7 @@ describe('App routes', () => {
     expect(screen.queryByRole('link', { name: 'Admin' })).not.toBeInTheDocument();
     expect(screen.queryByRole('link', { name: 'Members' })).not.toBeInTheDocument();
     expect(screen.queryByRole('link', { name: 'Notifications' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('link', { name: 'Retrospectives' })).not.toBeInTheDocument();
+    expect(screen.getAllByRole('link', { name: 'Looking Back' }).length).toBeGreaterThan(0);
     expect(screen.queryByRole('link', { name: 'Audit Log' })).not.toBeInTheDocument();
   });
 
@@ -383,7 +441,7 @@ describe('App routes', () => {
     expect(screen.getByRole('link', { name: 'Back to app' })).toBeInTheDocument();
   });
 
-  it('renders retrospectives and audit log as dedicated account surfaces', async () => {
+  it('renders looking back as an app surface and audit log as an account surface', async () => {
     apiFetchMock.mockImplementation(async (path: string) => {
       if (path === '/setup/status') return { needsSetup: false };
       if (path === '/auth/oauth/options') return { providers: [] };
@@ -438,7 +496,14 @@ describe('App routes', () => {
       if (path === '/members') {
         return [
           {
-            member: { id: 'u2', email: 'member@example.com', name: 'Alex' },
+            member: {
+              id: 'u2',
+              email: 'member@example.com',
+              name: 'Alex',
+              reflectionCadence: 'weekly',
+              reflectionWeekday: 0,
+              reflectionMonthDay: 1,
+            },
             relationship: {
               mode: 'active',
               canActOnItems: true,
@@ -487,15 +552,65 @@ describe('App routes', () => {
           },
         ];
       }
+      if (path === '/retrospectives') {
+        return [
+          {
+            id: 'r1',
+            subjectUserId: 'u1',
+            kind: 'scheduled',
+            title: 'Weekly reflection · User',
+            subjectName: 'User',
+            periodStart: '2026-03-07T00:00:00.000Z',
+            periodEnd: '2026-03-14T00:00:00.000Z',
+            audience: 'User and Jordan',
+            visibility: 'Visible to permitted guides whose relationship history includes this period.',
+            createdAt: '2026-03-13T10:00:00.000Z',
+            createdByName: 'User',
+            summary: 'A solid week overall.',
+            promptPreset: 'weekly-review',
+            prompts: ['What went well?', 'What was harder?', 'What changes next?'],
+            viewerRole: 'member',
+            canContribute: true,
+            contributions: [
+              {
+                id: 'rc1',
+                body: 'Handled before breakfast.',
+                createdAt: '2026-03-13T10:10:00.000Z',
+                authorName: 'User',
+                authorRole: 'member',
+              },
+            ],
+          },
+          {
+            id: 'r2',
+            subjectUserId: 'u2',
+            kind: 'manual',
+            title: 'Impromptu Reflection · Alex',
+            subjectName: 'Alex',
+            periodStart: '2026-03-10T00:00:00.000Z',
+            periodEnd: '2026-03-13T00:00:00.000Z',
+            audience: 'Alex and User',
+            visibility: 'Visible while the relationship history window still includes this period.',
+            createdAt: '2026-03-13T11:00:00.000Z',
+            createdByName: 'User',
+            summary: 'This was a short reset after a rough couple of days.',
+            promptPreset: 'reset-and-obstacles',
+            prompts: ['What blocked Alex?', 'What reset is realistic?', 'What support helps next?'],
+            viewerRole: 'guide',
+            canContribute: true,
+            contributions: [],
+          },
+        ];
+      }
       if (path === '/admin/users') return [];
       throw new Error(`Unexpected api path: ${path}`);
     });
 
     renderApp('/retrospectives');
 
-    expect((await screen.findAllByRole('heading', { name: 'Retrospectives' })).length).toBeGreaterThan(0);
-    expect(screen.getByText('Reflection History')).toBeInTheDocument();
-    expect(screen.getAllByText(/Your follow-through|Alex relationship review/).length).toBeGreaterThan(0);
+    expect((await screen.findAllByRole('heading', { name: 'Looking Back' })).length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Weekly reflection · User').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Impromptu Reflection · Alex').length).toBeGreaterThan(0);
 
     cleanup();
 
@@ -504,6 +619,571 @@ describe('App routes', () => {
     expect((await screen.findAllByRole('heading', { name: 'Audit Log' })).length).toBeGreaterThan(0);
     expect(screen.getByText('Attributed account and relationship history')).toBeInTheDocument();
     expect(screen.getByText('Guide relationship started with Alex')).toBeInTheDocument();
+  });
+
+  it('opens a due scheduled reflection draft from my items and creates it', async () => {
+    let retrospectives: RetrospectiveEntry[] = [];
+
+    apiFetchMock.mockImplementation(async (path: string, options?: { method?: string; body?: string }) => {
+      if (path === '/setup/status') return { needsSetup: false };
+      if (path === '/auth/oauth/options') return { providers: [] };
+      if (path === '/me') {
+        return {
+          ...meResponse,
+          guides: [
+            {
+              mode: 'active',
+              canActOnItems: true,
+              canManageRoutines: true,
+              canManageFollowThrough: true,
+              historyWindow: 'Last 30 days + next due',
+              hiddenItemCount: 0,
+              guide: { id: 'u3', email: 'guide@example.com', name: 'Jordan' },
+            },
+          ],
+        };
+      }
+      if (path === '/items') {
+        return [
+          {
+            id: 'i1',
+            title: 'Morning meds',
+            category: 'health',
+            scheduleKind: 'DAILY',
+            scheduleData: { kind: 'DAILY', dailyTimes: ['08:00'] },
+            createdAt: '2026-03-10T08:00:00.000Z',
+            updatedAt: '2026-03-12T08:00:00.000Z',
+          },
+        ];
+      }
+      if (path === '/members') return [];
+      if (path === '/history/audit') return [];
+      if (path === '/retrospectives' && !options?.method) return retrospectives;
+      if (path === '/retrospectives' && options?.method === 'POST') {
+        const body = JSON.parse(options.body ?? '{}');
+        const created: RetrospectiveEntry = {
+          id: 'r_new',
+          subjectUserId: body.subjectUserId,
+          kind: body.kind,
+          title: body.title,
+          subjectName: 'User',
+          periodStart: body.periodStart,
+          periodEnd: body.periodEnd,
+          audience: 'User and Jordan',
+          visibility: 'Visible to permitted guides whose relationship history includes this period.',
+          createdAt: '2026-03-14T12:00:00.000Z',
+          createdByName: 'User',
+          summary: body.summary,
+          promptPreset: body.promptPreset,
+          prompts: ['What went well?', 'What was harder?', 'What changes next?'],
+          viewerRole: 'member',
+          canContribute: true,
+          contributions: [],
+        };
+        retrospectives = [created];
+        return created;
+      }
+      if (path === '/admin/users') return [];
+      throw new Error(`Unexpected api path: ${path}`);
+    });
+
+    renderApp('/my-items');
+
+    const user = userEvent.setup();
+    await screen.findAllByRole('heading', { name: 'My Items' });
+    await user.click(screen.getByRole('link', { name: 'Open reflection for myself' }));
+
+    expect(await screen.findByRole('heading', { name: 'Scheduled Look Back for Myself' })).toBeInTheDocument();
+    expect(screen.queryByLabelText('Reflection type')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('Reflection title')).not.toBeInTheDocument();
+    expect(screen.getByText('Scheduled period')).toBeInTheDocument();
+    expect(screen.getByText('Writing prompt')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Edit Writing Prompt' })).toBeInTheDocument();
+    expect(screen.queryByText('Search and browse old reflections, then open the one you want to review.')).not.toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Looking Back' })).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Create Reflection' }));
+
+    expect(await screen.findByLabelText('Summary for Weekly reflection · User')).toBeInTheDocument();
+    expect(await screen.findByText('Created by User for User and Jordan')).toBeInTheDocument();
+    expect(apiFetchMock).toHaveBeenCalledWith(
+      '/retrospectives',
+      expect.objectContaining({ method: 'POST' }),
+    );
+  });
+
+  it('opens a reflection from looking back and updates its summary and notes on the detail page', async () => {
+    let retrospectives: RetrospectiveEntry[] = [
+      {
+        id: 'r2',
+        subjectUserId: 'u2',
+        kind: 'manual',
+        title: 'Impromptu Reflection · Alex',
+        subjectName: 'Alex',
+        periodStart: '2026-03-10T00:00:00.000Z',
+        periodEnd: '2026-03-14T00:00:00.000Z',
+        audience: 'Alex and User',
+        visibility: 'Visible while the relationship history window still includes this period.',
+        createdAt: '2026-03-14T01:00:00.000Z',
+        createdByName: 'User',
+        summary: 'Shorter sessions should be easier to restart.',
+        promptPreset: 'support-check-in',
+        prompts: ['What support helped most?', 'What slipped?', 'What changes next?'],
+        viewerRole: 'guide',
+        canContribute: true,
+        contributions: [],
+      },
+      {
+        id: 'r1',
+        subjectUserId: 'u1',
+        kind: 'scheduled',
+        title: 'Weekly reflection · User',
+        subjectName: 'User',
+        periodStart: '2026-03-07T00:00:00.000Z',
+        periodEnd: '2026-03-14T00:00:00.000Z',
+        audience: 'User and Jordan',
+        visibility: 'Visible to permitted guides whose relationship history includes this period.',
+        createdAt: '2026-03-13T10:00:00.000Z',
+        createdByName: 'User',
+        summary: 'A solid week overall.',
+        promptPreset: 'weekly-review',
+        prompts: ['What went well?', 'What was harder?', 'What changes next?'],
+        viewerRole: 'member' as const,
+        canContribute: true,
+        contributions: [],
+      },
+    ];
+
+    apiFetchMock.mockImplementation(async (path: string, options?: { method?: string; body?: string }) => {
+      if (path === '/setup/status') return { needsSetup: false };
+      if (path === '/auth/oauth/options') return { providers: [] };
+      if (path === '/me') {
+        return {
+          ...meResponse,
+          guides: [
+            {
+              mode: 'active',
+              canActOnItems: true,
+              canManageRoutines: true,
+              canManageFollowThrough: true,
+              historyWindow: 'Last 30 days + next due',
+              hiddenItemCount: 0,
+              guide: { id: 'u3', email: 'guide@example.com', name: 'Jordan' },
+            },
+          ],
+          members: [
+            {
+              mode: 'active',
+              canActOnItems: true,
+              canManageRoutines: true,
+              canManageFollowThrough: true,
+              historyWindow: 'Last 30 days + next due',
+              hiddenItemCount: 0,
+              member: { id: 'u2', email: 'member@example.com', name: 'Alex' },
+            },
+          ],
+        };
+      }
+      if (path === '/items') return [];
+      if (path === '/members') return [];
+      if (path === '/history/audit') return [];
+      if (path === '/retrospectives' && !options?.method) return retrospectives;
+      if (path === '/retrospectives' && options?.method === 'POST') throw new Error('Unexpected create call');
+      if (path === '/retrospectives/r2' && options?.method === 'PATCH') {
+        retrospectives = retrospectives.map((entry) =>
+          entry.id === 'r2'
+            ? {
+                ...entry,
+                summary: 'Updated summary after review.',
+              }
+            : entry,
+        );
+        return retrospectives.find((entry) => entry.id === 'r2');
+      }
+      if (path === '/retrospectives/r2/contributions') {
+        retrospectives = retrospectives.map((entry) =>
+          entry.id === 'r2'
+            ? {
+                ...entry,
+                contributions: [
+                  ...entry.contributions,
+                  {
+                    id: 'note_2',
+                    body: 'Alex agreed to move practice earlier.',
+                    createdAt: '2026-03-14T01:10:00.000Z',
+                    authorName: 'User',
+                    authorRole: 'guide' as const,
+                  },
+                ],
+              }
+            : entry,
+        );
+        return retrospectives.find((entry) => entry.id === 'r2');
+      }
+      if (path === '/admin/users') return [];
+      throw new Error(`Unexpected api path: ${path}`);
+    });
+
+    renderApp('/retrospectives');
+
+    const user = userEvent.setup();
+    await screen.findAllByRole('heading', { name: 'Looking Back' });
+    await user.click(screen.getByRole('link', { name: /Impromptu Reflection · Alex/i }));
+
+    fireEvent.change(await screen.findByLabelText('Summary for Impromptu Reflection · Alex'), {
+      target: { value: 'Updated summary after review.' },
+    });
+    await user.click(screen.getAllByRole('button', { name: 'Save Summary' })[0]!);
+
+    await waitFor(() => {
+      expect(screen.getAllByDisplayValue('Updated summary after review.').length).toBeGreaterThan(0);
+    });
+    expect(apiFetchMock).toHaveBeenCalledWith(
+      '/retrospectives/r2',
+      expect.objectContaining({ method: 'PATCH' }),
+    );
+
+    fireEvent.change(screen.getByLabelText('Add note for Impromptu Reflection · Alex'), {
+      target: { value: 'Alex agreed to move practice earlier.' },
+    });
+    await user.click(screen.getAllByRole('button', { name: 'Save Note' })[0]!);
+
+    await screen.findByText('Alex agreed to move practice earlier.');
+    expect(apiFetchMock).toHaveBeenCalledWith(
+      '/retrospectives/r2/contributions',
+      expect.objectContaining({ method: 'POST' }),
+    );
+  }, 10000);
+
+  it('filters looking back entries by date range overlap', async () => {
+    apiFetchMock.mockImplementation(async (path: string) => {
+      if (path === '/setup/status') return { needsSetup: false };
+      if (path === '/auth/oauth/options') return { providers: [] };
+      if (path === '/me') {
+        return {
+          ...meResponse,
+          members: [
+            {
+              mode: 'active',
+              canActOnItems: true,
+              canManageRoutines: true,
+              canManageFollowThrough: true,
+              historyWindow: 'Last 30 days + next due',
+              hiddenItemCount: 0,
+              member: { id: 'u2', email: 'member@example.com', name: 'Alex' },
+            },
+          ],
+        };
+      }
+      if (path === '/items') return [];
+      if (path === '/members') return [];
+      if (path === '/history/audit') return [];
+      if (path === '/retrospectives') {
+        return [
+          {
+            id: 'r1',
+            subjectUserId: 'u1',
+            kind: 'scheduled',
+            title: 'Weekly reflection · User',
+            subjectName: 'User',
+            periodStart: '2026-03-01T00:00:00.000Z',
+            periodEnd: '2026-03-08T00:00:00.000Z',
+            audience: 'User and Jordan',
+            visibility: 'Visible to permitted guides whose relationship history includes this period.',
+            createdAt: '2026-03-08T10:00:00.000Z',
+            createdByName: 'User',
+            summary: 'A solid week overall.',
+            promptPreset: 'weekly-review',
+            prompts: ['What went well?', 'What was harder?', 'What changes next?'],
+            viewerRole: 'member',
+            canContribute: true,
+            contributions: [],
+          },
+          {
+            id: 'r2',
+            subjectUserId: 'u2',
+            kind: 'manual',
+            title: 'Impromptu Reflection · Alex',
+            subjectName: 'Alex',
+            periodStart: '2026-03-10T00:00:00.000Z',
+            periodEnd: '2026-03-13T00:00:00.000Z',
+            audience: 'Alex and User',
+            visibility: 'Visible while the relationship history window still includes this period.',
+            createdAt: '2026-03-13T11:00:00.000Z',
+            createdByName: 'User',
+            summary: 'This was a short reset after a rough couple of days.',
+            promptPreset: 'reset-and-obstacles',
+            prompts: ['What blocked Alex?', 'What reset is realistic?', 'What support helps next?'],
+            viewerRole: 'guide',
+            canContribute: true,
+            contributions: [],
+          },
+          {
+            id: 'r3',
+            subjectUserId: 'u2',
+            kind: 'scheduled',
+            title: 'Weekly reflection · Alex',
+            subjectName: 'Alex',
+            periodStart: '2026-03-14T00:00:00.000Z',
+            periodEnd: '2026-03-21T00:00:00.000Z',
+            audience: 'Alex and User',
+            visibility: 'Visible while the relationship history window still includes this period.',
+            createdAt: '2026-03-21T11:00:00.000Z',
+            createdByName: 'User',
+            summary: 'Planning ahead helped.',
+            promptPreset: 'weekly-review',
+            prompts: ['What went well?', 'What changed next?'],
+            viewerRole: 'guide',
+            canContribute: true,
+            contributions: [],
+          },
+        ] satisfies RetrospectiveEntry[];
+      }
+      if (path === '/admin/users') return [];
+      throw new Error(`Unexpected api path: ${path}`);
+    });
+
+    renderApp('/retrospectives');
+
+    await screen.findAllByRole('heading', { name: 'Looking Back' });
+    expect(screen.getByText('Weekly reflection · User')).toBeInTheDocument();
+    expect(screen.getByText('Impromptu Reflection · Alex')).toBeInTheDocument();
+    expect(screen.getByText('Weekly reflection · Alex')).toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText('From'), { target: { value: '2026-03-09' } });
+    fireEvent.change(screen.getByLabelText('To'), { target: { value: '2026-03-13' } });
+
+    expect(screen.queryByText('Weekly reflection · User')).not.toBeInTheDocument();
+    expect(screen.getByText('Impromptu Reflection · Alex')).toBeInTheDocument();
+    expect(screen.queryByText('Weekly reflection · Alex')).not.toBeInTheDocument();
+    expect(screen.getByText('No reflections match the current filters.')).not.toBeInTheDocument();
+  });
+
+  it('opens an impromptu reflection draft from members when no scheduled reflection is due', async () => {
+    let createdReflection: RetrospectiveEntry | null = null;
+
+    apiFetchMock.mockImplementation(async (path: string, options?: { method?: string; body?: string }) => {
+      if (path === '/setup/status') return { needsSetup: false };
+      if (path === '/auth/oauth/options') return { providers: [] };
+      if (path === '/me') {
+        return {
+          ...meResponse,
+          members: [
+            {
+              mode: 'active',
+              canActOnItems: true,
+              canManageRoutines: true,
+              canManageFollowThrough: true,
+              historyWindow: 'Last 30 days + next due',
+              hiddenItemCount: 0,
+              member: { id: 'u2', email: 'member@example.com', name: 'Alex' },
+            },
+          ],
+        };
+      }
+      if (path === '/items') return [];
+      if (path === '/members') {
+        return [
+          {
+            member: {
+              id: 'u2',
+              email: 'member@example.com',
+              name: 'Alex',
+              reflectionCadence: 'weekly',
+              reflectionWeekday: 0,
+              reflectionMonthDay: 1,
+            },
+            relationship: {
+              mode: 'active',
+              canActOnItems: true,
+              canManageRoutines: true,
+              canManageFollowThrough: true,
+              historyWindow: 'Last 30 days + next due',
+              hiddenItemCount: 0,
+            },
+            items: [],
+          },
+        ];
+      }
+      if (path === '/history/audit') return [];
+      if (path === '/retrospectives' && options?.method === 'POST') {
+        const body = JSON.parse(options.body ?? '{}');
+        createdReflection = {
+          id: 'r_new_manual',
+          subjectUserId: body.subjectUserId,
+          kind: body.kind,
+          title: body.title,
+          subjectName: 'Alex',
+          periodStart: body.periodStart,
+          periodEnd: body.periodEnd,
+          audience: 'Alex and User',
+          visibility: 'Visible while the relationship history window still includes this period.',
+          createdAt: '2026-03-14T12:00:00.000Z',
+          createdByName: 'User',
+          summary: body.summary,
+          promptPreset: body.promptPreset,
+          prompts: ['What went well?', 'What was harder?', 'What changes next?'],
+          writingPrompt: null,
+          viewerRole: 'guide',
+          canContribute: true,
+          contributions: [],
+        };
+        return createdReflection;
+      }
+      if (path === '/retrospectives') {
+        return createdReflection
+          ? [createdReflection]
+          : [
+          {
+            id: 'r_existing',
+            subjectUserId: 'u2',
+            kind: 'scheduled',
+            title: 'Weekly reflection · Alex',
+            subjectName: 'Alex',
+            periodStart: '2098-12-25T00:00:00.000Z',
+            periodEnd: '2099-01-01T00:00:00.000Z',
+            audience: 'Alex and User',
+            visibility: 'Visible while the relationship history window still includes this period.',
+            createdAt: '2099-01-01T12:00:00.000Z',
+            createdByName: 'User',
+            summary: 'Already current.',
+            promptPreset: 'weekly-review',
+            prompts: ['What went well?', 'What was harder?', 'What changes next?'],
+            viewerRole: 'guide',
+            canContribute: true,
+            contributions: [],
+          },
+        ] satisfies RetrospectiveEntry[];
+      }
+      if (path === '/admin/users') return [];
+      throw new Error(`Unexpected api path: ${path}`);
+    });
+
+    renderApp('/members');
+
+    const user = userEvent.setup();
+    await screen.findAllByRole('heading', { name: 'Members' });
+    await user.click(screen.getByRole('link', { name: 'Open reflection for Alex' }));
+
+    expect(await screen.findByRole('heading', { name: 'Impromptu Reflection for Alex' })).toBeInTheDocument();
+    expect(screen.getByText('Date range')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Choose Date Range' }));
+    await user.click(screen.getByRole('button', { name: 'Use Range' }));
+    await user.click(screen.getByRole('button', { name: 'Create Reflection' }));
+    await waitFor(() => {
+      expect(apiFetchMock).toHaveBeenCalledWith('/retrospectives', expect.objectContaining({ method: 'POST' }));
+    });
+    expect((await screen.findAllByRole('heading', { name: 'Impromptu Reflection · Alex' })).length).toBeGreaterThan(0);
+    expect(screen.getByLabelText('Summary for Impromptu Reflection · Alex')).toHaveAttribute(
+      'placeholder',
+      'Capture the current state of this off-cycle reflection.',
+    );
+  }, 10000);
+
+  it('updates the writing prompt immediately from the create page', async () => {
+    apiFetchMock.mockImplementation(async (path: string, options?: { method?: string; body?: string }) => {
+      if (path === '/setup/status') return { needsSetup: false };
+      if (path === '/auth/oauth/options') return { providers: [] };
+      if (path === '/me') {
+        return {
+          ...meResponse,
+          members: [
+            {
+              mode: 'active',
+              canActOnItems: true,
+              canManageRoutines: true,
+              canManageFollowThrough: true,
+              historyWindow: 'Last 30 days + next due',
+              hiddenItemCount: 0,
+              member: { id: 'u2', email: 'member@example.com', name: 'Alex' },
+            },
+          ],
+        };
+      }
+      if (path === '/items') return [];
+      if (path === '/members') {
+        return [
+          {
+            member: {
+              id: 'u2',
+              email: 'member@example.com',
+              name: 'Alex',
+              reflectionCadence: 'weekly',
+              reflectionWeekday: 0,
+              reflectionMonthDay: 1,
+              reflectionPrompt: null,
+            },
+            relationship: {
+              mode: 'active',
+              canActOnItems: true,
+              canManageRoutines: true,
+              canManageFollowThrough: true,
+              historyWindow: 'Last 30 days + next due',
+              hiddenItemCount: 0,
+            },
+            items: [],
+          },
+        ];
+      }
+      if (path === '/history/audit') return [];
+      if (path === '/retrospectives') {
+        return [
+          {
+            id: 'r_existing',
+            subjectUserId: 'u2',
+            kind: 'scheduled',
+            title: 'Weekly reflection · Alex',
+            subjectName: 'Alex',
+            periodStart: '2098-12-25T00:00:00.000Z',
+            periodEnd: '2099-01-01T00:00:00.000Z',
+            audience: 'Alex and User',
+            visibility: 'Visible while the relationship history window still includes this period.',
+            createdAt: '2099-01-01T12:00:00.000Z',
+            createdByName: 'User',
+            summary: 'Already current.',
+            promptPreset: 'weekly-review',
+            prompts: ['What went well?', 'What was harder?', 'What changes next?'],
+            viewerRole: 'guide',
+            canContribute: true,
+            contributions: [],
+            writingPrompt: null,
+          },
+        ] satisfies RetrospectiveEntry[];
+      }
+      if (path === '/me/preferences' && options?.method === 'PATCH') {
+        expect(JSON.parse(options.body ?? '{}')).toMatchObject({
+          targetMemberId: 'u2',
+          reflectionPrompt: 'Notice what regained momentum and what support should change next.',
+        });
+        return {
+          id: 'u2',
+          reflectionPrompt: 'Notice what regained momentum and what support should change next.',
+        };
+      }
+      if (path === '/admin/users') return [];
+      throw new Error(`Unexpected api path: ${path}`);
+    });
+
+    renderApp('/members');
+
+    const user = userEvent.setup();
+    await screen.findAllByRole('heading', { name: 'Members' });
+    await user.click(screen.getByRole('link', { name: 'Open reflection for Alex' }));
+
+    await screen.findByRole('heading', { name: 'Impromptu Reflection for Alex' });
+    await user.click(screen.getByRole('button', { name: 'Edit Writing Prompt' }));
+    await user.clear(screen.getByLabelText('Writing prompt for Alex'));
+    await user.type(
+      screen.getByLabelText('Writing prompt for Alex'),
+      'Notice what regained momentum and what support should change next.',
+    );
+    await user.click(screen.getByRole('button', { name: 'Save Prompt' }));
+
+    await waitFor(() => {
+      expect(
+        screen.getByText('Notice what regained momentum and what support should change next.'),
+      ).toBeInTheDocument();
+    });
   });
 
   it('shows relationship permissions and visibility details on the profile page', async () => {
@@ -536,6 +1216,8 @@ describe('App routes', () => {
 
     await screen.findAllByRole('heading', { name: 'Profile & Relationships' });
     expect(screen.getByRole('heading', { name: 'Relationship Setup' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Looking Back Schedule' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Save Looking Back Schedule' })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Notification Preferences' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Save Notification Preferences' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Active Guide/i })).toBeInTheDocument();
@@ -543,6 +1225,33 @@ describe('App routes', () => {
     expect(screen.getByText('Jordan')).toBeInTheDocument();
     expect(screen.getByText("1 hidden item stays outside this guide's view.")).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Your Members' })).toBeInTheDocument();
+  });
+
+  it('updates the account menu immediately after saving profile changes', async () => {
+    apiFetchMock.mockImplementation(async (path: string, options?: { body?: string }) => {
+      if (path === '/me') return meResponse;
+      if (path === '/items') return [];
+      if (path === '/history/audit') return [];
+      if (path === '/retrospectives') return [];
+      if (path === '/me/preferences') {
+        expect(JSON.parse(options?.body ?? '{}')).toMatchObject({ name: 'Updated User' });
+        return { ...meResponse, name: 'Updated User', avatarUrl: null };
+      }
+      if (path === '/admin/users') return [];
+      throw new Error(`Unexpected api path: ${path}`);
+    });
+
+    renderApp('/profile');
+
+    const user = userEvent.setup();
+    const nameInput = await screen.findByLabelText('Name');
+    await user.clear(nameInput);
+    await user.type(nameInput, 'Updated User');
+    await user.click(screen.getByRole('button', { name: 'Save Profile' }));
+
+    await user.click((await screen.findAllByRole('button', { name: 'Open account menu' }))[0]!);
+    const menu = await screen.findByTestId('account-menu');
+    expect(within(menu).getByText('Updated User')).toBeInTheDocument();
   });
 
   it('submits login when pressing Enter in the password field', async () => {
@@ -554,6 +1263,7 @@ describe('App routes', () => {
       if (path === '/me') return meResponse;
       if (path === '/items') return [];
       if (path === '/history/audit') return [];
+      if (path === '/retrospectives') return [];
       throw new Error(`Unexpected api path: ${path}`);
     });
 
@@ -569,6 +1279,38 @@ describe('App routes', () => {
         expect.objectContaining({ method: 'POST' }),
       );
     });
+  });
+
+  it('marks the login fields with browser autofill hints', async () => {
+    tokenState.value = null;
+    apiFetchMock.mockImplementation(async (path: string) => {
+      if (path === '/setup/status') return { needsSetup: false };
+      if (path === '/auth/oauth/options') return { providers: [] };
+      throw new Error(`Unexpected api path: ${path}`);
+    });
+
+    renderApp('/dashboard');
+
+    const emailInput = await screen.findByLabelText('Email');
+    const passwordInput = screen.getByLabelText('Password');
+
+    expect(emailInput).toHaveAttribute('type', 'email');
+    expect(emailInput).toHaveAttribute('name', 'username');
+    expect(emailInput).toHaveAttribute('autocomplete', 'username');
+    expect(emailInput).toHaveAttribute('id', 'login-email');
+    expect(passwordInput).toHaveAttribute('name', 'password');
+    expect(passwordInput).toHaveAttribute('autocomplete', 'current-password');
+    expect(passwordInput).toHaveAttribute('id', 'login-password');
+  });
+
+  it('marks the first-run setup fields with browser autofill hints', async () => {
+    const here = dirname(fileURLToPath(import.meta.url));
+    const authPageSource = readFileSync(resolve(here, 'pages/AuthPage.tsx'), 'utf8');
+
+    expect(authPageSource).toContain('id="setup-email"');
+    expect(authPageSource).toContain('autoComplete="email"');
+    expect(authPageSource).toContain('id="setup-password"');
+    expect(authPageSource).toContain('autoComplete="new-password"');
   });
 
   it('submits first-run setup with demo mode when the checkbox is enabled', async () => {
@@ -589,6 +1331,7 @@ describe('App routes', () => {
       if (path === '/items') return [];
       if (path === '/members') return [];
       if (path === '/history/audit') return [];
+      if (path === '/retrospectives') return [];
       if (path === '/admin/users') return [];
       throw new Error(`Unexpected api path: ${path}`);
     });
@@ -610,6 +1353,7 @@ describe('App routes', () => {
     });
     expect(await screen.findByRole('heading', { name: 'Welcome' })).toBeInTheDocument();
     expect(screen.getByText('Demo mode is ready')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Open Profile Settings' })).toBeInTheDocument();
   });
 
   it('shows invite context and accepts the invite without manual token handling', async () => {
@@ -668,6 +1412,7 @@ describe('App routes', () => {
       if (path === '/items') return [];
       if (path === '/members') return [];
       if (path === '/history/audit') return [];
+      if (path === '/retrospectives') return [];
       if (path === '/admin/users') return [];
       throw new Error(`Unexpected api path: ${path}`);
     });

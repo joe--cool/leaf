@@ -90,6 +90,16 @@ export function WelcomePage({
             </HStack>
           </Box>
           <Box bg={panelBgStrong} borderRadius="3xl" p={6} border="1px solid" borderColor={panelBorder} boxShadow={statGlow}>
+            <Heading size="md" mb={3}>Looking Back schedule lives in Profile</Heading>
+            <Text color={mutedText}>
+              Configure daily, weekly, or monthly scheduled reflections from Profile so the main app stays focused on
+              capturing reflections instead of managing their cadence.
+            </Text>
+            <Button as={RouterLink} to="/profile" variant="outline" mt={4} onClick={onFinish}>
+              Open Profile Settings
+            </Button>
+          </Box>
+          <Box bg={panelBgStrong} borderRadius="3xl" p={6} border="1px solid" borderColor={panelBorder} boxShadow={statGlow}>
             <Heading size="md" mb={3}>Signed in as {user.name}</Heading>
             <Stack spacing={2} color={mutedText} fontSize="sm">
               <Text>{user.email}</Text>

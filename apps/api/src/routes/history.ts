@@ -24,6 +24,20 @@ export async function registerHistoryRoutes(app: FastifyInstance): Promise<void>
           include: {
             reviewee: {
               include: {
+                retrospectivesOwned: {
+                  include: {
+                    createdBy: true,
+                    contributions: {
+                      include: {
+                        author: true,
+                      },
+                      orderBy: { createdAt: 'desc' },
+                      take: 5,
+                    },
+                  },
+                  orderBy: { createdAt: 'desc' },
+                  take: 10,
+                },
                 items: {
                   include: {
                     completions: {
@@ -58,6 +72,20 @@ export async function registerHistoryRoutes(app: FastifyInstance): Promise<void>
           },
           orderBy: { createdAt: 'desc' },
           take: 20,
+        },
+        retrospectivesOwned: {
+          include: {
+            createdBy: true,
+            contributions: {
+              include: {
+                author: true,
+              },
+              orderBy: { createdAt: 'desc' },
+              take: 5,
+            },
+          },
+          orderBy: { createdAt: 'desc' },
+          take: 10,
         },
         sentInvites: {
           include: {
@@ -133,6 +161,30 @@ export async function registerHistoryRoutes(app: FastifyInstance): Promise<void>
               visibility: baseVisibility,
             })),
           ),
+          ...(relation.reviewee.retrospectivesOwned ?? []).flatMap((retrospective) => [
+            {
+              id: `member-retrospective-${retrospective.id}`,
+              occurredAt: retrospective.createdAt.toISOString(),
+              category: 'activity' as const,
+              scope: 'member' as const,
+              subjectName: relation.reviewee.name,
+              title: `${relation.reviewee.name} looking-back entry created`,
+              detail: `${retrospective.title} opened a shared reflection artifact.`,
+              actorName: retrospective.createdBy.name,
+              visibility: baseVisibility,
+            },
+            ...retrospective.contributions.map((contribution) => ({
+              id: `member-retrospective-note-${contribution.id}`,
+              occurredAt: contribution.createdAt.toISOString(),
+              category: 'activity' as const,
+              scope: 'member' as const,
+              subjectName: relation.reviewee.name,
+              title: `${contribution.author.name} added a reflective note`,
+              detail: contribution.body,
+              actorName: contribution.author.name,
+              visibility: baseVisibility,
+            })),
+          ]),
         ];
       }),
       ...user.items.map((item) => ({
@@ -159,6 +211,30 @@ export async function registerHistoryRoutes(app: FastifyInstance): Promise<void>
           visibility: 'Visible in your own account history and to permitted guides.',
         })),
       ),
+      ...(user.retrospectivesOwned ?? []).flatMap((retrospective) => [
+        {
+          id: `retrospective-${retrospective.id}`,
+          occurredAt: retrospective.createdAt.toISOString(),
+          category: 'activity' as const,
+          scope: 'self' as const,
+          subjectName: user.name,
+          title: `Created looking-back entry ${retrospective.title}`,
+          detail: 'A shared reflection artifact was created.',
+          actorName: retrospective.createdBy.name,
+          visibility: 'Visible in your own account history and to permitted guides.',
+        },
+        ...retrospective.contributions.map((contribution) => ({
+          id: `retrospective-note-${contribution.id}`,
+          occurredAt: contribution.createdAt.toISOString(),
+          category: 'activity' as const,
+          scope: 'self' as const,
+          subjectName: user.name,
+          title: `${contribution.author.name} added a reflective note`,
+          detail: contribution.body,
+          actorName: contribution.author.name,
+          visibility: 'Visible in your own account history and to permitted guides.',
+        })),
+      ]),
       ...user.sentInvites.map((invite) => ({
         id: `invite-${invite.id}`,
         occurredAt: invite.createdAt.toISOString(),

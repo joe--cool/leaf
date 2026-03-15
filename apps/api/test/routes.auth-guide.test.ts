@@ -10,12 +10,19 @@ const inviteFindUniqueMock = vi.fn();
 const inviteUpdateMock = vi.fn();
 const userFindUniqueMock = vi.fn();
 const userFindManyMock = vi.fn();
+const userUpdateMock = vi.fn();
 const seedDemoWorkspaceMock = vi.fn();
 const userCreateMock = vi.fn();
 const issueAuthTokensMock = vi.fn();
 const hashPasswordMock = vi.fn();
 const reviewerRelationUpsertMock = vi.fn();
 const transactionMock = vi.fn();
+const reviewerRelationFindUniqueMock = vi.fn();
+const retrospectiveFindManyMock = vi.fn();
+const retrospectiveFindUniqueMock = vi.fn();
+const retrospectiveCreateMock = vi.fn();
+const retrospectiveUpdateMock = vi.fn();
+const retrospectiveContributionCreateMock = vi.fn();
 
 vi.mock('../src/auth.js', () => ({
   hashPassword: hashPasswordMock,
@@ -47,7 +54,7 @@ vi.mock('../src/prisma.js', () => ({
       findUnique: userFindUniqueMock,
       findMany: userFindManyMock,
       create: userCreateMock,
-      update: vi.fn(),
+      update: userUpdateMock,
     },
     invite: {
       create: inviteCreateMock,
@@ -57,6 +64,7 @@ vi.mock('../src/prisma.js', () => ({
     reviewerRelation: {
       create: vi.fn(),
       upsert: reviewerRelationUpsertMock,
+      findUnique: reviewerRelationFindUniqueMock,
     },
     userRole: {
       upsert: vi.fn(),
@@ -68,6 +76,15 @@ vi.mock('../src/prisma.js', () => ({
     },
     trackingCompletion: {
       create: vi.fn(),
+    },
+    retrospective: {
+      findMany: retrospectiveFindManyMock,
+      findUnique: retrospectiveFindUniqueMock,
+      create: retrospectiveCreateMock,
+      update: retrospectiveUpdateMock,
+    },
+    retrospectiveContribution: {
+      create: retrospectiveContributionCreateMock,
     },
     refreshToken: {
       create: vi.fn(),
@@ -88,7 +105,12 @@ describe('auth/guide routes', () => {
       accessToken: 'access-token',
       refreshToken: 'refresh-token',
     });
-    transactionMock.mockImplementation(async (operations: unknown[]) => Promise.all(operations as Promise<unknown>[]));
+    transactionMock.mockImplementation(async (input: unknown) => {
+      if (typeof input === 'function') {
+        return input((await import('../src/prisma.js')).prisma);
+      }
+      return Promise.all(input as Promise<unknown>[]);
+    });
   });
 
   it('returns enabled oauth providers', async () => {
@@ -508,6 +530,549 @@ describe('auth/guide routes', () => {
         title: 'Account created',
       }),
     ]);
+    await app.close();
+  });
+
+  it('returns retrospective artifacts that respect the guide history window', async () => {
+    retrospectiveFindManyMock.mockResolvedValue([
+      {
+        id: 'retro_visible',
+        kind: 'scheduled',
+        title: 'Weekly reflection · Alex',
+        summaryText: 'The shorter routine was easier to restart this week.',
+        promptPreset: 'weekly-review',
+        prompts: ['What went well?', 'What changed next?'],
+        audienceSummary: 'Alex and Guide User',
+        visibilitySummary: 'Visible while the history window includes this period.',
+        periodStart: new Date('2026-03-10T00:00:00.000Z'),
+        periodEnd: new Date('2026-03-13T00:00:00.000Z'),
+        createdAt: new Date('2026-03-13T12:00:00.000Z'),
+        updatedAt: new Date('2026-03-13T12:00:00.000Z'),
+        subjectUserId: 'u2',
+        createdById: 'u1',
+        relationId: 'rel_1',
+        subjectUser: { id: 'u2', name: 'Alex' },
+        createdBy: { id: 'u1', name: 'Guide User' },
+        relation: {
+          id: 'rel_1',
+          reviewerId: 'u1',
+          revieweeId: 'u2',
+          canManageAccountability: true,
+          historyWindow: 'Last 30 days + next due',
+          createdAt: new Date('2026-03-01T00:00:00.000Z'),
+        },
+        contributions: [
+          {
+            id: 'note_1',
+            body: 'We shortened the task and it helped.',
+            createdAt: new Date('2026-03-13T13:00:00.000Z'),
+            authorId: 'u2',
+            author: { id: 'u2', name: 'Alex' },
+          },
+        ],
+      },
+      {
+        id: 'retro_hidden',
+        kind: 'manual',
+        title: 'Old Impromptu Reflection',
+        summaryText: 'Old summary',
+        promptPreset: 'reset-and-obstacles',
+        prompts: ['What blocked Alex?'],
+        audienceSummary: 'Alex and Guide User',
+        visibilitySummary: 'Hidden outside the relationship window.',
+        periodStart: new Date('2026-01-01T00:00:00.000Z'),
+        periodEnd: new Date('2026-01-07T00:00:00.000Z'),
+        createdAt: new Date('2026-01-07T12:00:00.000Z'),
+        updatedAt: new Date('2026-01-07T12:00:00.000Z'),
+        subjectUserId: 'u2',
+        createdById: 'u1',
+        relationId: 'rel_1',
+        subjectUser: { id: 'u2', name: 'Alex' },
+        createdBy: { id: 'u1', name: 'Guide User' },
+        relation: {
+          id: 'rel_1',
+          reviewerId: 'u1',
+          revieweeId: 'u2',
+          canManageAccountability: true,
+          historyWindow: 'Last 30 days + next due',
+          createdAt: new Date('2026-03-01T00:00:00.000Z'),
+        },
+        contributions: [],
+      },
+    ]);
+
+    const { registerRoutes } = await import('../src/routes.js');
+    const app = Fastify();
+    app.decorate(
+      'authenticate',
+      async (request: { user?: { id: string; email: string; roles: string[] } }) => {
+        request.user = { id: 'u1', email: 'guide@example.com', roles: ['USER'] };
+      },
+    );
+    await app.register(registerRoutes);
+
+    const res = await app.inject({ method: 'GET', url: '/retrospectives' });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toEqual([
+      expect.objectContaining({
+        id: 'retro_visible',
+        title: 'Weekly reflection · Alex',
+        canContribute: true,
+        summary: 'The shorter routine was easier to restart this week.',
+        contributions: [
+          expect.objectContaining({
+            body: 'We shortened the task and it helped.',
+            authorName: 'Alex',
+          }),
+        ],
+      }),
+    ]);
+    await app.close();
+  });
+
+  it('keeps recent lookback reflections visible even when the relationship was created later', async () => {
+    retrospectiveFindManyMock.mockResolvedValue([
+      {
+        id: 'retro_recent',
+        kind: 'scheduled',
+        title: 'Weekly reflection · Alex',
+        summaryText: 'Recent reflection inside the lookback window.',
+        promptPreset: 'weekly-review',
+        prompts: ['What went well?'],
+        audienceSummary: 'Alex and Guide User',
+        visibilitySummary: 'Visible while the history window includes this period.',
+        periodStart: new Date('2026-03-08T00:00:00.000Z'),
+        periodEnd: new Date('2026-03-14T00:00:00.000Z'),
+        createdAt: new Date('2026-03-14T12:00:00.000Z'),
+        updatedAt: new Date('2026-03-14T12:00:00.000Z'),
+        subjectUserId: 'u2',
+        createdById: 'u1',
+        relationId: 'rel_1',
+        subjectUser: { id: 'u2', name: 'Alex', reflectionPrompt: null },
+        createdBy: { id: 'u1', name: 'Guide User' },
+        relation: {
+          id: 'rel_1',
+          reviewerId: 'u1',
+          revieweeId: 'u2',
+          canManageAccountability: true,
+          historyWindow: 'Last 30 days + next due',
+          createdAt: new Date('2026-03-14T15:00:00.000Z'),
+        },
+        contributions: [],
+      },
+    ]);
+
+    const { registerRoutes } = await import('../src/routes.js');
+    const app = Fastify();
+    app.decorate(
+      'authenticate',
+      async (request: { user?: { id: string; email: string; roles: string[] } }) => {
+        request.user = { id: 'u1', email: 'guide@example.com', roles: ['USER'] };
+      },
+    );
+    await app.register(registerRoutes);
+
+    const res = await app.inject({ method: 'GET', url: '/retrospectives' });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toEqual([
+      expect.objectContaining({
+        id: 'retro_recent',
+        summary: 'Recent reflection inside the lookback window.',
+      }),
+    ]);
+    await app.close();
+  });
+
+  it('creates a guided-member reflection with a summary', async () => {
+    userFindUniqueMock.mockResolvedValue({
+      id: 'u2',
+      name: 'Alex',
+      reviewers: [],
+    });
+    reviewerRelationFindUniqueMock.mockResolvedValue({
+      id: 'rel_1',
+      reviewerId: 'u1',
+      revieweeId: 'u2',
+      canManageAccountability: true,
+      historyWindow: 'Last 30 days + next due',
+      reviewer: { id: 'u1', name: 'Guide User' },
+      reviewee: { id: 'u2', name: 'Alex' },
+    });
+    retrospectiveCreateMock.mockResolvedValue({ id: 'retro_new' });
+    retrospectiveFindUniqueMock.mockResolvedValue({
+      id: 'retro_new',
+      kind: 'manual',
+      title: 'Impromptu Reflection · Alex · Mar 10 to Mar 13',
+      summaryText: 'We are moving the session earlier in the day.',
+      promptPreset: 'support-check-in',
+      prompts: ['What support helped Alex most?'],
+      audienceSummary: 'Alex and Guide User',
+      visibilitySummary: 'Visible while the history window includes this period.',
+      periodStart: new Date('2026-03-10T00:00:00.000Z'),
+      periodEnd: new Date('2026-03-14T00:00:00.000Z'),
+      createdAt: new Date('2026-03-14T01:00:00.000Z'),
+      updatedAt: new Date('2026-03-14T01:00:00.000Z'),
+      subjectUserId: 'u2',
+      createdById: 'u1',
+      relationId: 'rel_1',
+      subjectUser: { id: 'u2', name: 'Alex' },
+      createdBy: { id: 'u1', name: 'Guide User' },
+      relation: {
+        id: 'rel_1',
+        reviewerId: 'u1',
+        revieweeId: 'u2',
+        canManageAccountability: true,
+        historyWindow: 'Last 30 days + next due',
+        createdAt: new Date('2026-03-01T00:00:00.000Z'),
+      },
+      contributions: [
+        {
+          id: 'note_1',
+          body: 'We are moving the session earlier in the day.',
+          createdAt: new Date('2026-03-14T01:05:00.000Z'),
+          authorId: 'u1',
+          author: { id: 'u1', name: 'Guide User' },
+        },
+      ],
+    });
+
+    const { registerRoutes } = await import('../src/routes.js');
+    const app = Fastify();
+    app.decorate(
+      'authenticate',
+      async (request: { user?: { id: string; email: string; roles: string[] } }) => {
+        request.user = { id: 'u1', email: 'guide@example.com', roles: ['USER'] };
+      },
+    );
+    await app.register(registerRoutes);
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/retrospectives',
+      payload: {
+        subjectUserId: 'u2',
+        kind: 'manual',
+        periodStart: '2026-03-10T00:00:00.000Z',
+        periodEnd: '2026-03-14T00:00:00.000Z',
+        promptPreset: 'support-check-in',
+        summary: 'We are moving the session earlier in the day.',
+      },
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(retrospectiveCreateMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          subjectUserId: 'u2',
+          relationId: 'rel_1',
+          createdById: 'u1',
+          kind: 'manual',
+          summaryText: 'We are moving the session earlier in the day.',
+        }),
+      }),
+    );
+    expect(retrospectiveContributionCreateMock).not.toHaveBeenCalled();
+    expect(res.json()).toEqual(
+      expect.objectContaining({
+        id: 'retro_new',
+        title: 'Impromptu Reflection · Alex · Mar 10 to Mar 13',
+        summary: 'We are moving the session earlier in the day.',
+        canContribute: true,
+      }),
+    );
+    await app.close();
+  });
+
+  it('updates the reflection summary without creating a note entry', async () => {
+    retrospectiveFindUniqueMock
+      .mockResolvedValueOnce({
+        id: 'retro_new',
+        kind: 'manual',
+        title: 'Impromptu Reflection · Alex · Mar 10 to Mar 13',
+        summaryText: 'Original summary',
+        promptPreset: 'support-check-in',
+        prompts: ['What support helped Alex most?'],
+        audienceSummary: 'Alex and Guide User',
+        visibilitySummary: 'Visible while the history window includes this period.',
+        periodStart: new Date('2026-03-10T00:00:00.000Z'),
+        periodEnd: new Date('2026-03-14T00:00:00.000Z'),
+        createdAt: new Date('2026-03-14T01:00:00.000Z'),
+        updatedAt: new Date('2026-03-14T01:00:00.000Z'),
+        subjectUserId: 'u2',
+        createdById: 'u1',
+        relationId: 'rel_1',
+        subjectUser: { id: 'u2', name: 'Alex', reflectionPrompt: null },
+        createdBy: { id: 'u1', name: 'Guide User' },
+        relation: {
+          id: 'rel_1',
+          reviewerId: 'u1',
+          revieweeId: 'u2',
+          canManageAccountability: true,
+          historyWindow: 'Last 30 days + next due',
+          createdAt: new Date('2026-03-01T00:00:00.000Z'),
+        },
+        contributions: [],
+      })
+      .mockResolvedValueOnce({
+        id: 'retro_new',
+        kind: 'manual',
+        title: 'Impromptu Reflection · Alex · Mar 10 to Mar 13',
+        summaryText: 'Updated summary',
+        promptPreset: 'support-check-in',
+        prompts: ['What support helped Alex most?'],
+        audienceSummary: 'Alex and Guide User',
+        visibilitySummary: 'Visible while the history window includes this period.',
+        periodStart: new Date('2026-03-10T00:00:00.000Z'),
+        periodEnd: new Date('2026-03-14T00:00:00.000Z'),
+        createdAt: new Date('2026-03-14T01:00:00.000Z'),
+        updatedAt: new Date('2026-03-14T01:10:00.000Z'),
+        subjectUserId: 'u2',
+        createdById: 'u1',
+        relationId: 'rel_1',
+        subjectUser: { id: 'u2', name: 'Alex', reflectionPrompt: null },
+        createdBy: { id: 'u1', name: 'Guide User' },
+        relation: {
+          id: 'rel_1',
+          reviewerId: 'u1',
+          revieweeId: 'u2',
+          canManageAccountability: true,
+          historyWindow: 'Last 30 days + next due',
+          createdAt: new Date('2026-03-01T00:00:00.000Z'),
+        },
+        contributions: [],
+      });
+    retrospectiveUpdateMock.mockResolvedValue({ id: 'retro_new' });
+
+    const { registerRoutes } = await import('../src/routes.js');
+    const app = Fastify();
+    app.decorate(
+      'authenticate',
+      async (request: { user?: { id: string; email: string; roles: string[] } }) => {
+        request.user = { id: 'u1', email: 'guide@example.com', roles: ['USER'] };
+      },
+    );
+    await app.register(registerRoutes);
+
+    const res = await app.inject({
+      method: 'PATCH',
+      url: '/retrospectives/retro_new',
+      payload: {
+        summary: 'Updated summary',
+      },
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(retrospectiveUpdateMock).toHaveBeenCalledWith({
+      where: { id: 'retro_new' },
+      data: { summaryText: 'Updated summary' },
+    });
+    expect(retrospectiveContributionCreateMock).not.toHaveBeenCalled();
+    expect(res.json()).toEqual(
+      expect.objectContaining({
+        id: 'retro_new',
+        summary: 'Updated summary',
+      }),
+    );
+    await app.close();
+  });
+
+  it('saves a member writing prompt through preferences when the guide can manage accountability', async () => {
+    reviewerRelationFindUniqueMock.mockResolvedValue({
+      id: 'rel_1',
+      reviewerId: 'u1',
+      revieweeId: 'u2',
+      canManageAccountability: true,
+    });
+    userUpdateMock.mockResolvedValue({
+      id: 'u2',
+      email: 'alex@example.com',
+      name: 'Alex',
+      reflectionPrompt: 'Focus on what regained momentum this week.',
+    });
+
+    const { registerRoutes } = await import('../src/routes.js');
+    const app = Fastify();
+    await app.register(sensible);
+    app.decorate(
+      'authenticate',
+      async (request: { user?: { id: string; email: string; roles: string[] } }) => {
+        request.user = { id: 'u1', email: 'guide@example.com', roles: ['USER'] };
+      },
+    );
+    await app.register(registerRoutes);
+
+    const res = await app.inject({
+      method: 'PATCH',
+      url: '/me/preferences',
+      payload: {
+        targetMemberId: 'u2',
+        reflectionPrompt: 'Focus on what regained momentum this week.',
+      },
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(reviewerRelationFindUniqueMock).toHaveBeenCalledWith({
+      where: {
+        reviewerId_revieweeId: {
+          reviewerId: 'u1',
+          revieweeId: 'u2',
+        },
+      },
+    });
+    expect(userUpdateMock).toHaveBeenCalledWith({
+      where: { id: 'u2' },
+      data: expect.objectContaining({
+        reflectionPrompt: 'Focus on what regained momentum this week.',
+      }),
+    });
+    expect(res.json()).toEqual(
+      expect.objectContaining({
+        id: 'u2',
+        reflectionPrompt: 'Focus on what regained momentum this week.',
+      }),
+    );
+    await app.close();
+  });
+
+  it('blocks writing prompt updates when the guide lacks accountability permissions', async () => {
+    reviewerRelationFindUniqueMock.mockResolvedValue({
+      id: 'rel_1',
+      reviewerId: 'u1',
+      revieweeId: 'u2',
+      canManageAccountability: false,
+    });
+
+    const { registerRoutes } = await import('../src/routes.js');
+    const app = Fastify();
+    await app.register(sensible);
+    app.decorate(
+      'authenticate',
+      async (request: { user?: { id: string; email: string; roles: string[] } }) => {
+        request.user = { id: 'u1', email: 'guide@example.com', roles: ['USER'] };
+      },
+    );
+    await app.register(registerRoutes);
+
+    const res = await app.inject({
+      method: 'PATCH',
+      url: '/me/preferences',
+      payload: {
+        targetMemberId: 'u2',
+        reflectionPrompt: 'This should not save.',
+      },
+    });
+
+    expect(res.statusCode).toBe(403);
+    expect(userUpdateMock).not.toHaveBeenCalled();
+    await app.close();
+  });
+
+  it('adds a reflective note to an existing reflection', async () => {
+    retrospectiveFindUniqueMock
+      .mockResolvedValueOnce({
+        id: 'retro_new',
+        kind: 'manual',
+        title: 'Impromptu Reflection · Alex · Mar 10 to Mar 13',
+        summaryText: 'Original summary',
+        promptPreset: 'support-check-in',
+        prompts: ['What support helped Alex most?'],
+        audienceSummary: 'Alex and Guide User',
+        visibilitySummary: 'Visible while the history window includes this period.',
+        periodStart: new Date('2026-03-10T00:00:00.000Z'),
+        periodEnd: new Date('2026-03-14T00:00:00.000Z'),
+        createdAt: new Date('2026-03-14T01:00:00.000Z'),
+        updatedAt: new Date('2026-03-14T01:00:00.000Z'),
+        subjectUserId: 'u2',
+        createdById: 'u1',
+        relationId: 'rel_1',
+        subjectUser: { id: 'u2', name: 'Alex', reflectionPrompt: null },
+        createdBy: { id: 'u1', name: 'Guide User' },
+        relation: {
+          id: 'rel_1',
+          reviewerId: 'u1',
+          revieweeId: 'u2',
+          canManageAccountability: true,
+          historyWindow: 'Last 30 days + next due',
+          createdAt: new Date('2026-03-01T00:00:00.000Z'),
+        },
+        contributions: [],
+      })
+      .mockResolvedValueOnce({
+        id: 'retro_new',
+        kind: 'manual',
+        title: 'Impromptu Reflection · Alex · Mar 10 to Mar 13',
+        summaryText: 'Original summary',
+        promptPreset: 'support-check-in',
+        prompts: ['What support helped Alex most?'],
+        audienceSummary: 'Alex and Guide User',
+        visibilitySummary: 'Visible while the history window includes this period.',
+        periodStart: new Date('2026-03-10T00:00:00.000Z'),
+        periodEnd: new Date('2026-03-14T00:00:00.000Z'),
+        createdAt: new Date('2026-03-14T01:00:00.000Z'),
+        updatedAt: new Date('2026-03-14T01:05:00.000Z'),
+        subjectUserId: 'u2',
+        createdById: 'u1',
+        relationId: 'rel_1',
+        subjectUser: { id: 'u2', name: 'Alex', reflectionPrompt: null },
+        createdBy: { id: 'u1', name: 'Guide User' },
+        relation: {
+          id: 'rel_1',
+          reviewerId: 'u1',
+          revieweeId: 'u2',
+          canManageAccountability: true,
+          historyWindow: 'Last 30 days + next due',
+          createdAt: new Date('2026-03-01T00:00:00.000Z'),
+        },
+        contributions: [
+          {
+            id: 'note_2',
+            body: 'Alex agreed to move practice earlier.',
+            createdAt: new Date('2026-03-14T01:05:00.000Z'),
+            authorId: 'u1',
+            author: { id: 'u1', name: 'Guide User' },
+          },
+        ],
+      });
+
+    const { registerRoutes } = await import('../src/routes.js');
+    const app = Fastify();
+    app.decorate(
+      'authenticate',
+      async (request: { user?: { id: string; email: string; roles: string[] } }) => {
+        request.user = { id: 'u1', email: 'guide@example.com', roles: ['USER'] };
+      },
+    );
+    await app.register(registerRoutes);
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/retrospectives/retro_new/contributions',
+      payload: {
+        body: 'Alex agreed to move practice earlier.',
+      },
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(retrospectiveContributionCreateMock).toHaveBeenCalledWith({
+      data: {
+        retrospectiveId: 'retro_new',
+        authorId: 'u1',
+        body: 'Alex agreed to move practice earlier.',
+      },
+    });
+    expect(res.json()).toEqual(
+      expect.objectContaining({
+        id: 'retro_new',
+        contributions: [
+          expect.objectContaining({
+            body: 'Alex agreed to move practice earlier.',
+            authorName: 'Guide User',
+          }),
+        ],
+      }),
+    );
     await app.close();
   });
 });

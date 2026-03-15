@@ -193,6 +193,17 @@ pnpm typecheck
 pnpm test
 ```
 
+Focused browser E2E against an isolated Docker stack:
+
+```bash
+pnpm test:e2e:docker
+```
+
+Details:
+
+- [docs/E2E.md](/home/adillow/git-repos/tracker/docs/E2E.md)
+- [docs/ENGINEERING_GUARDRAILS.md](/home/adillow/git-repos/tracker/docs/ENGINEERING_GUARDRAILS.md)
+
 CI:
 
 - GitHub Actions runs lint, typecheck, tests, and Docker build checks
@@ -201,6 +212,7 @@ CI:
 ## Documentation
 
 - Design doc: `docs/DESIGN.md`
+- Engineering guardrails: `docs/ENGINEERING_GUARDRAILS.md`
 - ADRs: `docs/adr/`
 
 ## License

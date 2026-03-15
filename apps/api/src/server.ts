@@ -20,6 +20,7 @@ export async function buildServer() {
     .filter(Boolean);
 
   await app.register(cors, {
+    methods: ['GET', 'HEAD', 'POST', 'PATCH', 'PUT', 'DELETE', 'OPTIONS'],
     origin(origin, callback) {
       if (!origin) return callback(null, true);
       if (allowedOrigins.includes(origin)) return callback(null, true);

@@ -29,6 +29,10 @@ model User {
   timezone         String             @default("UTC")
   weeklyDigestHour Int                @default(8)
   weeklyDigestDay  Int                @default(1)
+  reflectionCadence String           @default("weekly")
+  reflectionWeekday Int              @default(0)
+  reflectionMonthDay Int             @default(1)
+  reflectionPrompt String?
   createdAt        DateTime           @default(now())
   updatedAt        DateTime           @updatedAt
   roles            UserRole[]
@@ -39,6 +43,9 @@ model User {
   sentInvites      Invite[]           @relation("inviter")
   receivedInvites  Invite[]           @relation("invitee")
   refreshTokens    RefreshToken[]
+  retrospectivesOwned Retrospective[] @relation("retrospectiveSubject")
+  retrospectivesCreated Retrospective[] @relation("retrospectiveCreator")
+  retrospectiveContributions RetrospectiveContribution[]
 }
 
 model UserRole {
@@ -65,8 +72,48 @@ model ReviewerRelation {
 
   reviewer User @relation("reviewer", fields: [reviewerId], references: [id], onDelete: Cascade)
   reviewee User @relation("reviewee", fields: [revieweeId], references: [id], onDelete: Cascade)
+  retrospectives Retrospective[]
 
   @@unique([reviewerId, revieweeId])
+}
+
+model Retrospective {
+  id                String   @id @default(cuid())
+  subjectUserId     String
+  relationId        String?
+  createdById       String
+  kind              String   @default("scheduled")
+  title             String
+  summaryText       String?
+  promptPreset      String
+  prompts           Json
+  audienceSummary   String
+  visibilitySummary String
+  periodStart       DateTime
+  periodEnd         DateTime
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  subjectUser   User              @relation("retrospectiveSubject", fields: [subjectUserId], references: [id], onDelete: Cascade)
+  relation      ReviewerRelation? @relation(fields: [relationId], references: [id], onDelete: SetNull)
+  createdBy     User              @relation("retrospectiveCreator", fields: [createdById], references: [id], onDelete: Cascade)
+  contributions RetrospectiveContribution[]
+
+  @@index([subjectUserId, periodEnd])
+  @@index([relationId, periodEnd])
+}
+
+model RetrospectiveContribution {
+  id              String   @id @default(cuid())
+  retrospectiveId String
+  authorId        String
+  body            String
+  createdAt       DateTime @default(now())
+
+  retrospective Retrospective @relation(fields: [retrospectiveId], references: [id], onDelete: Cascade)
+  author        User          @relation(fields: [authorId], references: [id], onDelete: Cascade)
+
+  @@index([retrospectiveId, createdAt])
 }
 
 model TrackingItem {

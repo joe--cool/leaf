@@ -12,9 +12,10 @@ import {
 } from '@chakra-ui/react';
 import { Link as RouterLink } from 'react-router-dom';
 import { buildAccountabilitySummary } from '../accountabilityUtils';
+import { buildReflectionDraftPath } from '../reflectionUtils';
 import { AccountabilitySummaryBlock } from '../components/AccountabilitySummary';
 import { getCategoryLabel, summarizeSchedule } from '../scheduleUtils';
-import type { ActionableItem, Item } from '../appTypes';
+import type { ActionableItem, Item, RetrospectiveEntry } from '../appTypes';
 
 export function MyItemsPage({
   items,
@@ -29,6 +30,8 @@ export function MyItemsPage({
   subtleText,
   mutedText,
   panelBg,
+  reflectionSubject,
+  retrospectiveEntries,
 }: {
   items: Item[];
   dueItems: ActionableItem[];
@@ -42,10 +45,16 @@ export function MyItemsPage({
   subtleText: string;
   mutedText: string;
   panelBg: string;
+  reflectionSubject: { id: string; name: string; cadence: 'daily' | 'weekly' | 'monthly' };
+  retrospectiveEntries: RetrospectiveEntry[];
 }) {
   const primaryItems = dueItems.length > 0 ? dueItems : actionableItems.slice(0, 3);
   const secondaryItems = upcomingItems.slice(0, 4);
   const accountability = buildAccountabilitySummary(items);
+  const reflectionPath = buildReflectionDraftPath({
+    ...reflectionSubject,
+    retrospectives: retrospectiveEntries.filter((entry) => entry.subjectUserId === reflectionSubject.id),
+  });
 
   return (
     <Grid templateColumns={{ base: '1fr', xl: '1.08fr 0.92fr' }} gap={5}>
@@ -73,6 +82,15 @@ export function MyItemsPage({
               />
             </Box>
             <HStack mt={5} spacing={3} flexWrap="wrap">
+              <Button
+                as={RouterLink}
+                to={reflectionPath}
+                colorScheme="clay"
+                size="sm"
+                aria-label="Open reflection for myself"
+              >
+                Open Reflection
+              </Button>
               <Button as={RouterLink} to="/routines" colorScheme="leaf" size="sm">
                 Manage routines
               </Button>

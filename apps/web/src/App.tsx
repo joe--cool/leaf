@@ -18,6 +18,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Link as RouterLink, matchPath, useLocation, useNavigate } from 'react-router-dom';
 import 'react-day-picker/dist/style.css';
 import './app.css';
+import { defaultReflectionWritingPrompt } from '@leaf/shared';
 import { apiFetch, clearToken, getToken, setRefreshToken, setToken } from './api';
 import { categoryOptions, createDraftSchedule } from './appConstants';
 import {
@@ -39,7 +40,9 @@ import type {
   MemberWorkspace,
   OAuthProvider,
   PageKey,
+  RetrospectiveDraftKind,
   RetrospectiveEntry,
+  RetrospectiveSubjectOption,
   User,
 } from './appTypes';
 import { AccountMenu } from './components/AccountMenu';
@@ -55,11 +58,13 @@ import { InviteAcceptancePage } from './pages/InviteAcceptancePage';
 import { MembersPage } from './pages/MembersPage';
 import { MyItemsPage } from './pages/MyItemsPage';
 import { ProfilePage } from './pages/ProfilePage';
+import { RetrospectiveDetailPage } from './pages/RetrospectiveDetailPage';
+import { RetrospectiveCreatePage } from './pages/RetrospectiveCreatePage';
 import { RetrospectivesPage } from './pages/RetrospectivesPage';
 import { RoutinesPage } from './pages/RoutinesPage';
 import { AuditLogPage } from './pages/AuditLogPage';
 import { WelcomePage } from './pages/WelcomePage';
-import { buildRetrospectiveEntries } from './retrospectiveUtils';
+import { cadenceWindowForDate } from './reflectionUtils';
 
 function startsWithPath(pathname: string, path: string): boolean {
   return pathname === path || pathname.startsWith(`${path}/`);
@@ -131,6 +136,7 @@ export function App() {
   const [adminUsers, setAdminUsers] = useState<AdminUser[]>([]);
   const [memberWorkspaces, setMemberWorkspaces] = useState<MemberWorkspace[]>([]);
   const [auditEntries, setAuditEntries] = useState<AuditLogEntry[]>([]);
+  const [retrospectiveEntries, setRetrospectiveEntries] = useState<RetrospectiveEntry[]>([]);
 
   const [title, setTitle] = useState(getDefaultTitle('health'));
   const [category, setCategory] = useState('health');
@@ -147,6 +153,9 @@ export function App() {
   const [prefTimezone, setPrefTimezone] = useState(Intl.DateTimeFormat().resolvedOptions().timeZone);
   const [prefDay, setPrefDay] = useState('1');
   const [prefHour, setPrefHour] = useState('8');
+  const [reflectionCadence, setReflectionCadence] = useState<'daily' | 'weekly' | 'monthly'>('weekly');
+  const [reflectionWeekday, setReflectionWeekday] = useState('0');
+  const [reflectionMonthDay, setReflectionMonthDay] = useState('1');
   const [profileName, setProfileName] = useState('');
   const [profileAvatarUrl, setProfileAvatarUrl] = useState<string | null>(null);
   const [sessionLoadError, setSessionLoadError] = useState<string | null>(null);
@@ -217,15 +226,17 @@ export function App() {
         .sort((left, right) => right.rank - left.rank || left.member.name.localeCompare(right.member.name)),
     [memberWorkspaces],
   );
-  const retrospectiveEntries = useMemo<RetrospectiveEntry[]>(
-    () => (user ? buildRetrospectiveEntries(user, items, memberPortfolios) : []),
-    [user, items, memberPortfolios],
-  );
-
   const canGuideMembers = (user?.members.length ?? 0) > 0;
   const inviteMatch = matchPath('/join/:token', location.pathname);
   const inviteToken = inviteMatch?.params.token ?? null;
+  const isCreatingRetrospective = location.pathname === '/retrospectives/new';
+  const retrospectiveMatch = isCreatingRetrospective ? null : matchPath('/retrospectives/:id', location.pathname);
+  const retrospectiveId = retrospectiveMatch?.params.id ?? null;
   const welcomeMode = startsWithPath(location.pathname, '/welcome');
+  const selectedRetrospective = useMemo(
+    () => retrospectiveEntries.find((entry) => entry.id === retrospectiveId) ?? null,
+    [retrospectiveEntries, retrospectiveId],
+  );
   const currentPage: PageKey = useMemo(() => {
     if (startsWithPath(location.pathname, '/profile')) return 'profile';
     if (startsWithPath(location.pathname, '/retrospectives')) return 'retrospectives';
@@ -238,9 +249,9 @@ export function App() {
     if (startsWithPath(location.pathname, '/admin')) return 'admin';
     return 'dashboard';
   }, [location.pathname]);
+  const hidePageIntro = currentPage === 'retrospectives' && isCreatingRetrospective;
 
-  const accountMode =
-    currentPage === 'profile' || currentPage === 'retrospectives' || currentPage === 'audit-log' || currentPage === 'admin';
+  const accountMode = currentPage === 'profile' || currentPage === 'audit-log' || currentPage === 'admin';
   const adminMode = currentPage === 'admin' && isAdmin;
 
   const shellBg = useColorModeValue('rgba(252, 249, 243, 0.9)', 'rgba(14, 19, 19, 0.92)');
@@ -309,7 +320,7 @@ export function App() {
             : currentPage === 'profile'
               ? 'Account'
               : currentPage === 'retrospectives'
-                ? 'History'
+              ? 'History'
                 : currentPage === 'audit-log'
                   ? 'Transparency'
               : 'Admin';
@@ -327,7 +338,9 @@ export function App() {
           : currentPage === 'profile'
             ? 'Profile & Relationships'
             : currentPage === 'retrospectives'
-              ? 'Retrospectives'
+              ? retrospectiveId && selectedRetrospective
+                ? selectedRetrospective.title
+                : 'Looking Back'
               : currentPage === 'audit-log'
                 ? 'Audit Log'
             : 'Admin';
@@ -345,7 +358,9 @@ export function App() {
           : currentPage === 'profile'
               ? 'Update identity details and make relationship permissions visible.'
               : currentPage === 'retrospectives'
-                ? 'Review reflection windows, accountability movement, and relationship context over time.'
+                ? retrospectiveId
+                  ? 'Review one reflection, update its summary, and keep reflective notes attached to that record.'
+                  : 'Search and browse old reflections, then open the one you want to review.'
                 : currentPage === 'audit-log'
                   ? 'Inspect attributed account, relationship, and routine changes without leaving the product.'
               : 'User roles and relationship assignments.';
@@ -363,6 +378,9 @@ export function App() {
     setPrefTimezone(me.timezone);
     setPrefDay(String(me.weeklyDigestDay));
     setPrefHour(String(me.weeklyDigestHour));
+    setReflectionCadence(me.reflectionCadence);
+    setReflectionWeekday(String(me.reflectionWeekday));
+    setReflectionMonthDay(String(me.reflectionMonthDay));
 
     const loadedItems = await apiFetch<Item[]>('/items');
     setItems(loadedItems);
@@ -375,6 +393,9 @@ export function App() {
 
     const loadedAuditEntries = await apiFetch<AuditLogEntry[]>('/history/audit');
     setAuditEntries(loadedAuditEntries);
+
+    const loadedRetrospectives = await apiFetch<RetrospectiveEntry[]>('/retrospectives');
+    setRetrospectiveEntries(loadedRetrospectives);
 
     if (me.roles.some((entry) => entry.role === 'ADMIN')) {
       const users = await apiFetch<AdminUser[]>('/admin/users');
@@ -390,6 +411,7 @@ export function App() {
       user: me,
       items: loadedItems,
       auditEntries: loadedAuditEntries,
+      retrospectives: loadedRetrospectives,
     };
   }
 
@@ -610,28 +632,113 @@ export function App() {
   }
 
   async function updateProfile() {
-    await apiFetch('/me/preferences', {
+    const updatedUser = await apiFetch<User>('/me/preferences', {
       method: 'PATCH',
       body: JSON.stringify({
         name: profileName,
         avatarUrl: profileAvatarUrl,
       }),
     });
+    setUser((current) => (current ? { ...current, ...updatedUser } : current));
     toast({ status: 'success', title: 'Profile updated' });
-    await refreshMe();
   }
 
   async function updateNotificationPreferences() {
-    await apiFetch('/me/preferences', {
+    const updatedUser = await apiFetch<User>('/me/preferences', {
       method: 'PATCH',
       body: JSON.stringify({
         timezone: prefTimezone,
         weeklyDigestDay: Number(prefDay),
         weeklyDigestHour: Number(prefHour),
+        reflectionCadence,
+        reflectionWeekday: Number(reflectionWeekday),
+        reflectionMonthDay: Number(reflectionMonthDay),
       }),
     });
+    setUser((current) => (current ? { ...current, ...updatedUser } : current));
     toast({ status: 'success', title: 'Notification preferences updated' });
-    await refreshMe();
+  }
+
+  async function updateReflectionPrompt(targetUserId: string, reflectionPrompt: string | null) {
+    const updatedUser = await apiFetch<{ id: string; reflectionPrompt?: string | null; name?: string; avatarUrl?: string | null }>(
+      '/me/preferences',
+      {
+      method: 'PATCH',
+      body: JSON.stringify({
+        targetMemberId: targetUserId === user?.id ? undefined : targetUserId,
+        reflectionPrompt,
+      }),
+      },
+    );
+    const resolvedPrompt = updatedUser.reflectionPrompt?.trim() || defaultReflectionWritingPrompt;
+    setUser((current) =>
+      current && current.id === updatedUser.id
+        ? {
+            ...current,
+            reflectionPrompt: updatedUser.reflectionPrompt ?? null,
+          }
+        : current,
+    );
+    setMemberWorkspaces((current) =>
+      current.map((workspace) =>
+        workspace.member.id === updatedUser.id
+          ? {
+              ...workspace,
+              member: {
+                ...workspace.member,
+                reflectionPrompt: updatedUser.reflectionPrompt ?? null,
+              },
+            }
+          : workspace,
+      ),
+    );
+    setRetrospectiveEntries((current) =>
+      current.map((entry) =>
+        entry.subjectUserId === updatedUser.id
+          ? {
+              ...entry,
+              writingPrompt: resolvedPrompt,
+            }
+          : entry,
+      ),
+    );
+    toast({ status: 'success', title: 'Writing prompt updated' });
+  }
+
+  async function createRetrospective(payload: {
+    subjectUserId?: string;
+    kind: 'manual' | 'scheduled';
+    periodStart: string;
+    periodEnd: string;
+    promptPreset: 'weekly-review' | 'support-check-in' | 'reset-and-obstacles';
+    title?: string;
+    summary?: string;
+  }) {
+    const created = await apiFetch<RetrospectiveEntry>('/retrospectives', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+    setRetrospectiveEntries((current) => [created, ...current.filter((entry) => entry.id !== created.id)]);
+    toast({ status: 'success', title: 'Retrospective created' });
+    return created;
+  }
+
+  async function addRetrospectiveContribution(id: string, body: string) {
+    const updated = await apiFetch<RetrospectiveEntry>(`/retrospectives/${id}/contributions`, {
+      method: 'POST',
+      body: JSON.stringify({ body }),
+    });
+    setRetrospectiveEntries((current) => current.map((entry) => (entry.id === id ? updated : entry)));
+    toast({ status: 'success', title: 'Retrospective updated' });
+  }
+
+  async function updateRetrospectiveSummary(id: string, summary: string) {
+    const updated = await apiFetch<RetrospectiveEntry>(`/retrospectives/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ summary }),
+    });
+    setRetrospectiveEntries((current) => current.map((entry) => (entry.id === id ? updated : entry)));
+    toast({ status: 'success', title: 'Reflection summary updated' });
   }
 
   function signOut() {
@@ -641,8 +748,12 @@ export function App() {
     setAdminUsers([]);
     setMemberWorkspaces([]);
     setAuditEntries([]);
+    setRetrospectiveEntries([]);
     setProfileName('');
     setProfileAvatarUrl(null);
+    setReflectionCadence('weekly');
+    setReflectionWeekday('0');
+    setReflectionMonthDay('1');
     setSessionLoadError(null);
     setDidSeedDemoWorkspace(false);
     navigate('/dashboard');
@@ -756,6 +867,12 @@ export function App() {
           setPrefDay={setPrefDay}
           prefHour={prefHour}
           setPrefHour={setPrefHour}
+          reflectionCadence={reflectionCadence}
+          setReflectionCadence={setReflectionCadence}
+          reflectionWeekday={reflectionWeekday}
+          setReflectionWeekday={setReflectionWeekday}
+          reflectionMonthDay={reflectionMonthDay}
+          setReflectionMonthDay={setReflectionMonthDay}
           mutedText={mutedText}
           inviteEmail={inviteEmail}
           setInviteEmail={setInviteEmail}
@@ -787,13 +904,82 @@ export function App() {
           subtleText={subtleText}
           mutedText={mutedText}
           panelBg={panelBg}
+          reflectionSubject={{
+            id: user.id,
+            name: user.name,
+            cadence: user.reflectionCadence,
+          }}
+          retrospectiveEntries={retrospectiveEntries}
         />
       );
     }
     if (currentPage === 'retrospectives') {
+      const retrospectiveSubjects: RetrospectiveSubjectOption[] = user
+        ? [
+            {
+              id: user.id,
+              label: 'My account',
+              detail: user.guides.length > 0 ? 'Visible to permitted guides' : 'Private to you',
+              name: user.name,
+              cadence: user.reflectionCadence,
+              writingPrompt: user.reflectionPrompt,
+            },
+            ...user.members.filter((entry) => entry.canManageFollowThrough).map((entry) => {
+              const workspace = memberWorkspaces.find((workspace) => workspace.member.id === entry.member.id);
+              return {
+                id: entry.member.id,
+                label: entry.member.name,
+                detail: `Guide review · ${entry.historyWindow}`,
+                name: entry.member.name,
+                cadence: workspace?.member.reflectionCadence ?? 'weekly',
+                writingPrompt: workspace?.member.reflectionPrompt,
+              };
+            }),
+          ]
+        : [];
+      const searchParams = new URLSearchParams(location.search);
+      if (isCreatingRetrospective) {
+        const requestedSubjectId = searchParams.get('subject');
+        const initialSubject = retrospectiveSubjects.find((subject) => subject.id === requestedSubjectId)?.id ?? retrospectiveSubjects[0]?.id ?? '';
+        const requestedKind = searchParams.get('kind');
+        const initialKind: RetrospectiveDraftKind = requestedKind === 'manual' ? 'manual' : 'scheduled';
+        return (
+          <RetrospectiveCreatePage
+            subjects={retrospectiveSubjects}
+            initialDraft={{ subjectUserId: initialSubject, kind: initialKind }}
+            onCreate={createRetrospective}
+            onUpdatePrompt={updateReflectionPrompt}
+            panelBgStrong={panelBgStrong}
+            panelBorder={panelBorder}
+            statGlow={statGlow}
+            subtleText={subtleText}
+            mutedText={mutedText}
+            inputBg={inputBg}
+          />
+        );
+      }
+      if (retrospectiveId) {
+        return (
+          <RetrospectiveDetailPage
+            entry={selectedRetrospective}
+            onUpdateSummary={updateRetrospectiveSummary}
+            onContribute={addRetrospectiveContribution}
+            onUpdatePrompt={updateReflectionPrompt}
+            panelBgStrong={panelBgStrong}
+            panelBorder={panelBorder}
+            statGlow={statGlow}
+            subtleText={subtleText}
+            mutedText={mutedText}
+            panelBg={panelBg}
+          />
+        );
+      }
       return (
         <RetrospectivesPage
           entries={retrospectiveEntries}
+          subjects={retrospectiveSubjects}
+          currentUserId={user.id}
+          initialSubjectId={searchParams.get('subject') ?? undefined}
           modeGradient={modeGradient}
           panelBgStrong={panelBgStrong}
           panelBorder={panelBorder}
@@ -823,6 +1009,7 @@ export function App() {
         <MembersPage
           canReviewOthers={canGuideMembers}
           memberPortfolios={memberPortfolios}
+          retrospectiveEntries={retrospectiveEntries}
           modeGradient={modeGradient}
           panelBgStrong={panelBgStrong}
           panelBorder={panelBorder}
@@ -1093,17 +1280,19 @@ export function App() {
 
               <GridItem>
                 <Stack spacing={5}>
-                  <PageIntro
-                    eyebrow={pageEyebrow}
-                    title={pageTitle}
-                    summary={pageSummary}
-                    subtleText={subtleText}
-                    mutedText={mutedText}
-                    currentPage={currentPage}
-                    panelBgStrong={panelBgStrong}
-                    panelBorder={panelBorder}
-                    digestSummary={digestSummary}
-                  />
+                  {!hidePageIntro ? (
+                    <PageIntro
+                      eyebrow={pageEyebrow}
+                      title={pageTitle}
+                      summary={pageSummary}
+                      subtleText={subtleText}
+                      mutedText={mutedText}
+                      currentPage={currentPage}
+                      panelBgStrong={panelBgStrong}
+                      panelBorder={panelBorder}
+                      digestSummary={digestSummary}
+                    />
+                  ) : null}
                   {renderPage()}
                 </Stack>
               </GridItem>
