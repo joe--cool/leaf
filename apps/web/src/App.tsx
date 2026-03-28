@@ -581,6 +581,29 @@ export function App() {
     await refreshMe();
   }
 
+  async function recordOccurrenceAction(input: {
+    itemId: string;
+    kind: 'complete' | 'skip' | 'note';
+    targetAt: string;
+    note?: string;
+  }) {
+    await apiFetch(`/items/${input.itemId}/actions`, {
+      method: 'POST',
+      body: JSON.stringify({
+        kind: input.kind,
+        targetAt: input.targetAt,
+        note: input.note,
+      }),
+    });
+    if (input.kind !== 'note') {
+      toast({
+        status: 'success',
+        title: input.kind === 'complete' ? 'Occurrence completed' : 'Occurrence skipped',
+      });
+    }
+    await refreshMe();
+  }
+
   function onCategoryChange(nextCategory: string) {
     setCategory(nextCategory);
     setTitle((currentTitle) => {
@@ -911,10 +934,7 @@ export function App() {
       return (
         <MyItemsPage
           items={items}
-          dueItems={dueItems}
           actionableItems={actionableItems}
-          upcomingItems={upcomingItems}
-          laterItems={laterItems}
           modeGradient={modeGradient}
           panelBgStrong={panelBgStrong}
           panelBorder={panelBorder}
@@ -928,6 +948,7 @@ export function App() {
             cadence: user.reflectionCadence,
           }}
           retrospectiveEntries={retrospectiveEntries}
+          onOccurrenceAction={recordOccurrenceAction}
         />
       );
     }

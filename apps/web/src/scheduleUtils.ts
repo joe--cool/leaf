@@ -266,8 +266,127 @@ function startOfToday(now: Date): Date {
   return result;
 }
 
+function startOfDayAt(day: Date, hours = 12, minutes = 0): Date {
+  const result = new Date(day);
+  result.setHours(hours, minutes, 0, 0);
+  return result;
+}
+
 function daysUntilWeekday(currentDay: number, targetDay: number): number {
   return (targetDay - currentDay + 7) % 7;
+}
+
+function normalizeTimestamp(value: string | null | undefined): string | null {
+  if (!value) return null;
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.valueOf())) return null;
+  return parsed.toISOString();
+}
+
+function isSameLocalDay(left: Date, right: Date): boolean {
+  return (
+    left.getFullYear() === right.getFullYear() &&
+    left.getMonth() === right.getMonth() &&
+    left.getDate() === right.getDate()
+  );
+}
+
+function completionMatchesTarget(item: Item, targetAt: string): boolean {
+  const normalizedTarget = normalizeTimestamp(targetAt);
+  if (!normalizedTarget) return false;
+  const targetDate = new Date(normalizedTarget);
+
+  return (item.completions ?? []).some((completion) => {
+    const explicitTarget = normalizeTimestamp(completion.targetAt ?? undefined);
+    if (explicitTarget) return explicitTarget === normalizedTarget;
+
+    const occurredAt = normalizeTimestamp(completion.occurredAt);
+    if (!occurredAt) return false;
+    return isSameLocalDay(new Date(occurredAt), targetDate);
+  });
+}
+
+function skipMatchesTarget(item: Item, targetAt: string): boolean {
+  const normalizedTarget = normalizeTimestamp(targetAt);
+  if (!normalizedTarget) return false;
+  return (item.actions ?? []).some(
+    (entry) => entry.kind === 'skip' && normalizeTimestamp(entry.targetAt) === normalizedTarget,
+  );
+}
+
+function noteForTarget(item: Item, targetAt: string): string | null {
+  const normalizedTarget = normalizeTimestamp(targetAt);
+  if (!normalizedTarget) return null;
+
+  const candidateNotes = [
+    ...(item.actions ?? [])
+      .filter((entry) => entry.kind === 'note' && normalizeTimestamp(entry.targetAt) === normalizedTarget)
+      .sort((left, right) => right.occurredAt.localeCompare(left.occurredAt))
+      .map((entry) => entry.note?.trim())
+      .filter((value): value is string => Boolean(value)),
+    ...(item.completions ?? [])
+      .filter((entry) => {
+        const explicitTarget = normalizeTimestamp(entry.targetAt ?? undefined);
+        if (explicitTarget) return explicitTarget === normalizedTarget;
+        const occurredAt = normalizeTimestamp(entry.occurredAt);
+        return occurredAt ? isSameLocalDay(new Date(occurredAt), new Date(normalizedTarget)) : false;
+      })
+      .sort((left, right) => right.occurredAt.localeCompare(left.occurredAt))
+      .map((entry) => entry.note?.trim())
+      .filter((value): value is string => Boolean(value)),
+  ];
+
+  return candidateNotes[0] ?? null;
+}
+
+export function summarizeOccurrenceNote(item: Item, occurrenceAt?: string): string | null {
+  return occurrenceAt ? noteForTarget(item, occurrenceAt) : null;
+}
+
+function resolveTimeParts(value: string | undefined, fallbackHours = 12, fallbackMinutes = 0) {
+  if (!value) return { hours: fallbackHours, minutes: fallbackMinutes };
+  const [rawHours, rawMinutes] = value.split(':');
+  const hours = Number(rawHours);
+  const minutes = Number(rawMinutes);
+  if (!Number.isInteger(hours) || !Number.isInteger(minutes)) {
+    return { hours: fallbackHours, minutes: fallbackMinutes };
+  }
+  return { hours, minutes };
+}
+
+function buildResolvedSummary(base: ActionSummary, item: Item): ActionSummary {
+  const occurrenceAt = base.occurrenceAt;
+  if (!occurrenceAt) return base;
+
+  if (completionMatchesTarget(item, occurrenceAt)) {
+    return {
+      ...base,
+      bucket: 'later',
+      urgency: 4,
+      status: 'Completed',
+      detail: 'This occurrence is already complete.',
+    };
+  }
+
+  if (skipMatchesTarget(item, occurrenceAt)) {
+    return {
+      ...base,
+      bucket: 'later',
+      urgency: 4,
+      status: 'Skipped',
+      detail: 'This occurrence was skipped and moved out of the active queue.',
+    };
+  }
+
+  return base;
+}
+
+function nextUnresolvedSummary(primary: ActionSummary, fallback: ActionSummary | null, item: Item): ActionSummary {
+  const resolvedPrimary = buildResolvedSummary(primary, item);
+  if (resolvedPrimary.bucket !== 'later' || !fallback) return resolvedPrimary;
+
+  const resolvedFallback = buildResolvedSummary(fallback, item);
+  return resolvedFallback.bucket === 'later' ? resolvedPrimary : resolvedFallback;
 }
 
 export function summarizeActionableState(item: Item, now = new Date()): ActionSummary {
@@ -313,22 +432,26 @@ export function summarizeActionableState(item: Item, now = new Date()): ActionSu
     const raw = typeof schedule.oneTimeAt === 'string' ? schedule.oneTimeAt : '';
     const dueAt = raw ? new Date(raw).getTime() : Number.NaN;
     if (!Number.isNaN(dueAt)) {
-      if (dueAt < currentTime) {
-        return {
-          bucket: 'due',
-          urgency: 0,
-          status: 'Overdue',
-          detail: `Scheduled for ${formatDateTime(dueAt)}.`,
-          dueAt,
-        };
-      }
-      return {
-        bucket: 'upcoming',
-        urgency: dueAt - currentTime < 1000 * 60 * 60 * 24 ? 1 : 2,
-        status: 'Scheduled next',
-        detail: `Due ${formatDateTime(dueAt)}.`,
-        dueAt,
-      };
+      const occurrenceAt = new Date(dueAt).toISOString();
+      const base: ActionSummary =
+        dueAt < currentTime
+          ? {
+              bucket: 'due',
+              urgency: 0,
+              status: 'Overdue',
+              detail: `Scheduled for ${formatDateTime(dueAt)}.`,
+              dueAt,
+              occurrenceAt,
+            }
+          : {
+              bucket: 'upcoming',
+              urgency: dueAt - currentTime < 1000 * 60 * 60 * 24 ? 1 : 2,
+              status: 'Scheduled next',
+              detail: `Due ${formatDateTime(dueAt)}.`,
+              dueAt,
+              occurrenceAt,
+            };
+      return buildResolvedSummary(base, item);
     }
   }
 
@@ -336,20 +459,52 @@ export function summarizeActionableState(item: Item, now = new Date()): ActionSu
     const times = Array.isArray(schedule.dailyTimes)
       ? schedule.dailyTimes.filter((value): value is string => typeof value === 'string' && value.trim().length > 0)
       : [];
+    const firstTime = resolveTimeParts(times[0]);
+    const todayOccurrenceAt = startOfDayAt(today, firstTime.hours, firstTime.minutes).toISOString();
+    const tomorrow = new Date(today);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    const tomorrowOccurrenceAt = startOfDayAt(tomorrow, firstTime.hours, firstTime.minutes).toISOString();
+
     if (times.length > 0) {
-      return {
-        bucket: 'due',
-        urgency: 1,
-        status: 'Due today',
-        detail: `${times.length} check${times.length === 1 ? '' : 's'} scheduled today.`,
-      };
+      return nextUnresolvedSummary(
+        {
+          bucket: 'due',
+          urgency: 1,
+          status: 'Due today',
+          detail: `${times.length} check${times.length === 1 ? '' : 's'} scheduled today.`,
+          occurrenceAt: todayOccurrenceAt,
+          dueAt: new Date(todayOccurrenceAt).getTime(),
+        },
+        {
+          bucket: 'upcoming',
+          urgency: 2,
+          status: 'Coming up',
+          detail: `Next due ${formatDateTime(new Date(tomorrowOccurrenceAt).getTime())}.`,
+          occurrenceAt: tomorrowOccurrenceAt,
+          dueAt: new Date(tomorrowOccurrenceAt).getTime(),
+        },
+        item,
+      );
     }
-    return {
-      bucket: 'due',
-      urgency: 2,
-      status: 'Due today',
-      detail: 'This routine repeats every day.',
-    };
+    return nextUnresolvedSummary(
+      {
+        bucket: 'due',
+        urgency: 2,
+        status: 'Due today',
+        detail: 'This routine repeats every day.',
+        occurrenceAt: todayOccurrenceAt,
+        dueAt: new Date(todayOccurrenceAt).getTime(),
+      },
+      {
+        bucket: 'upcoming',
+        urgency: 2,
+        status: 'Coming up',
+        detail: `Next due ${formatDateTime(new Date(tomorrowOccurrenceAt).getTime())}.`,
+        occurrenceAt: tomorrowOccurrenceAt,
+        dueAt: new Date(tomorrowOccurrenceAt).getTime(),
+      },
+      item,
+    );
   }
 
   if (scheduleKind === 'WEEKLY') {
@@ -358,22 +513,48 @@ export function summarizeActionableState(item: Item, now = new Date()): ActionSu
       : [];
     if (weekdays.length > 0) {
       if (weekdays.includes(now.getDay())) {
-        return {
-          bucket: 'due',
-          urgency: 1,
-          status: 'Due today',
-          detail: 'Today is one of the selected routine days.',
-        };
+        const todayOccurrenceAt = startOfDayAt(today).toISOString();
+        const nextWeekday = weekdays
+          .map((day) => ({ day, diff: daysUntilWeekday((now.getDay() + 1) % 7, day) + 1 }))
+          .sort((left, right) => left.diff - right.diff)[0];
+        const nextDate = new Date(today);
+        nextDate.setDate(nextDate.getDate() + (nextWeekday?.diff ?? 7));
+        const nextOccurrenceAt = startOfDayAt(nextDate).toISOString();
+
+        return nextUnresolvedSummary(
+          {
+            bucket: 'due',
+            urgency: 1,
+            status: 'Due today',
+            detail: 'Today is one of the selected routine days.',
+            occurrenceAt: todayOccurrenceAt,
+            dueAt: new Date(todayOccurrenceAt).getTime(),
+          },
+          {
+            bucket: 'upcoming',
+            urgency: 2,
+            status: 'Coming up',
+            detail: `Next due ${toDayName(nextDate.getDay())}.`,
+            occurrenceAt: nextOccurrenceAt,
+            dueAt: new Date(nextOccurrenceAt).getTime(),
+          },
+          item,
+        );
       }
       const nextDay = weekdays
         .map((day) => ({ day, diff: daysUntilWeekday(now.getDay(), day) }))
         .sort((left, right) => left.diff - right.diff)[0];
       if (nextDay) {
+        const nextDate = new Date(today);
+        nextDate.setDate(nextDate.getDate() + nextDay.diff);
+        const nextOccurrenceAt = startOfDayAt(nextDate).toISOString();
         return {
           bucket: 'upcoming',
           urgency: nextDay.diff <= 2 ? 2 : 3,
           status: 'Coming up',
           detail: `Next due ${toDayName(nextDay.day)}.`,
+          occurrenceAt: nextOccurrenceAt,
+          dueAt: new Date(nextOccurrenceAt).getTime(),
         };
       }
     }
@@ -393,13 +574,25 @@ export function summarizeActionableState(item: Item, now = new Date()): ActionSu
       const followingDueAt = nextDueAt < currentTime ? nextDueAt + intervalMs : nextDueAt;
 
       if (nextDueAt <= currentTime && now.toDateString() === new Date(nextDueAt).toDateString()) {
-        return {
-          bucket: 'due',
-          urgency: 1,
-          status: 'Due today',
-          detail: `Repeats every ${interval} day${interval === 1 ? '' : 's'}.`,
-          dueAt: nextDueAt,
-        };
+        return nextUnresolvedSummary(
+          {
+            bucket: 'due',
+            urgency: 1,
+            status: 'Due today',
+            detail: `Repeats every ${interval} day${interval === 1 ? '' : 's'}.`,
+            dueAt: nextDueAt,
+            occurrenceAt: new Date(nextDueAt).toISOString(),
+          },
+          {
+            bucket: 'upcoming',
+            urgency: 2,
+            status: 'Coming up',
+            detail: `Next due ${formatDateTime(followingDueAt)}.`,
+            dueAt: followingDueAt,
+            occurrenceAt: new Date(followingDueAt).toISOString(),
+          },
+          item,
+        );
       }
 
       return {
@@ -408,6 +601,7 @@ export function summarizeActionableState(item: Item, now = new Date()): ActionSu
         status: 'Coming up',
         detail: `Next due ${formatDateTime(followingDueAt)}.`,
         dueAt: followingDueAt,
+        occurrenceAt: new Date(followingDueAt).toISOString(),
       };
     }
   }
@@ -421,15 +615,31 @@ export function summarizeActionableState(item: Item, now = new Date()): ActionSu
     : [];
 
   if (customDates.length > 0) {
-    const dueTodayDate = customDates.find((value) => value >= today.getTime() && value <= currentTime);
-    if (dueTodayDate) {
-      return {
+    const dueOrPastDate = customDates.find((value) => value <= currentTime);
+    if (dueOrPastDate) {
+      const base = {
         bucket: 'due',
-        urgency: 0,
-        status: 'Due today',
-        detail: `Scheduled for ${formatDateTime(dueTodayDate)}.`,
-        dueAt: dueTodayDate,
-      };
+        urgency: dueOrPastDate < today.getTime() ? 0 : 1,
+        status: dueOrPastDate < today.getTime() ? 'Overdue' : 'Due today',
+        detail: `Scheduled for ${formatDateTime(dueOrPastDate)}.`,
+        dueAt: dueOrPastDate,
+        occurrenceAt: new Date(dueOrPastDate).toISOString(),
+      } satisfies ActionSummary;
+      const futureDate = customDates.find((value) => value > currentTime) ?? null;
+      return nextUnresolvedSummary(
+        base,
+        futureDate
+          ? {
+              bucket: 'upcoming',
+              urgency: futureDate - currentTime < 1000 * 60 * 60 * 24 * 3 ? 2 : 3,
+              status: 'Scheduled next',
+              detail: `Next on ${formatDateTime(futureDate)}.`,
+              dueAt: futureDate,
+              occurrenceAt: new Date(futureDate).toISOString(),
+            }
+          : null,
+        item,
+      );
     }
     const upcomingDate = customDates.find((value) => value >= currentTime);
     if (upcomingDate) {
@@ -439,6 +649,7 @@ export function summarizeActionableState(item: Item, now = new Date()): ActionSu
         status: 'Scheduled next',
         detail: `Next on ${formatDateTime(upcomingDate)}.`,
         dueAt: upcomingDate,
+        occurrenceAt: new Date(upcomingDate).toISOString(),
       };
     }
   }
