@@ -106,6 +106,35 @@ export async function registerUserItemRoutes(app: FastifyInstance): Promise<void
     });
   });
 
+  app.put('/items/:id', { preHandler: [app.authenticate] }, async (request) => {
+    const actor = authUser(request);
+    const params = idParamSchema.parse(request.params);
+    const body = trackingItemCreateSchema.parse(request.body);
+    const item = await prisma.trackingItem.findUnique({ where: { id: params.id } });
+    if (!item || item.ownerId !== actor.id) {
+      throw app.httpErrors.notFound('Item not found');
+    }
+
+    return prisma.trackingItem.update({
+      where: { id: params.id },
+      data: {
+        title: body.title,
+        description: body.description,
+        category: body.category,
+        scheduleKind: scheduleKindForStorage(body.schedule) as
+          | 'ONE_TIME'
+          | 'DAILY'
+          | 'WEEKLY'
+          | 'INTERVAL_DAYS'
+          | 'CUSTOM_DATES',
+        scheduleData: body.schedule,
+        notificationEnabled: body.notificationEnabled,
+        notificationHardToDismiss: body.notificationHardToDismiss,
+        notificationRepeatMinutes: body.notificationRepeatMinutes,
+      },
+    });
+  });
+
   app.post('/items/:id/complete', { preHandler: [app.authenticate] }, async (request) => {
     const actor = authUser(request);
     const params = idParamSchema.parse(request.params);

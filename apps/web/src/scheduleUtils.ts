@@ -1,6 +1,7 @@
-import type { ScheduleKind } from '@leaf/shared';
+import type { Schedule, ScheduleKind, SingleSchedule } from '@leaf/shared';
 import { categoryDefaultTitles, categoryOptions } from './appConstants';
-import type { ActionSummary, Item, MemberItem } from './appTypes';
+import { createDraftSchedule } from './appConstants';
+import type { ActionSummary, DraftSchedule, Item, MemberItem } from './appTypes';
 
 export function toInputDateTime(date: Date): string {
   const year = date.getFullYear();
@@ -9,6 +10,13 @@ export function toInputDateTime(date: Date): string {
   const hours = String(date.getHours()).padStart(2, '0');
   const minutes = String(date.getMinutes()).padStart(2, '0');
   return `${year}-${month}-${day}T${hours}:${minutes}`;
+}
+
+export function defaultOneTimeDate(daysFromNow = 1, hours = 17, minutes = 0, now = new Date()): string {
+  const result = new Date(now);
+  result.setDate(result.getDate() + daysFromNow);
+  result.setHours(hours, minutes, 0, 0);
+  return toInputDateTime(result);
 }
 
 export function toDayName(value: number): string {
@@ -22,6 +30,103 @@ export function getCategoryLabel(value: string): string {
 
 export function getDefaultTitle(value: string): string {
   return categoryDefaultTitles[value] ?? 'Add routine';
+}
+
+function normalizeDateTimeForInput(value: unknown): string {
+  if (typeof value !== 'string' || value.trim().length === 0) return '';
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.valueOf())) return '';
+  return toInputDateTime(parsed);
+}
+
+function parseScheduleDraft(schedule: Record<string, unknown>): DraftSchedule {
+  const kind = typeof schedule.kind === 'string' ? schedule.kind : 'DAILY';
+  const base = createDraftSchedule(kind === 'MULTI' ? 'DAILY' : (kind as DraftSchedule['kind']));
+  return {
+    ...base,
+    kind: base.kind,
+    label: typeof schedule.label === 'string' ? schedule.label : '',
+    oneTimeAt: normalizeDateTimeForInput(schedule.oneTimeAt),
+    dailyTimes: Array.isArray(schedule.dailyTimes)
+      ? schedule.dailyTimes.filter((value): value is string => typeof value === 'string' && value.trim().length > 0)
+      : base.dailyTimes,
+    weekdays: Array.isArray(schedule.weekdays)
+      ? schedule.weekdays.filter((value): value is number => Number.isInteger(value) && value >= 0 && value <= 6)
+      : base.weekdays,
+    intervalDays:
+      typeof schedule.intervalDays === 'number' && Number.isFinite(schedule.intervalDays)
+        ? String(schedule.intervalDays)
+        : base.intervalDays,
+    intervalAnchor: normalizeDateTimeForInput(schedule.intervalAnchor),
+    customDates: Array.isArray(schedule.customDates)
+      ? schedule.customDates
+          .map((value) => normalizeDateTimeForInput(value))
+          .filter((value) => value.trim().length > 0)
+      : base.customDates,
+  };
+}
+
+function buildSingleSchedule(draft: DraftSchedule, timezone: string): SingleSchedule {
+  const label = draft.label.trim() || undefined;
+
+  if (draft.kind === 'ONE_TIME') {
+    const oneTimeDate = draft.oneTimeAt ? new Date(draft.oneTimeAt) : new Date();
+    return { kind: 'ONE_TIME', label, oneTimeAt: oneTimeDate.toISOString(), timezone };
+  }
+  if (draft.kind === 'DAILY') {
+    return {
+      kind: 'DAILY',
+      label,
+      dailyTimes: draft.dailyTimes.map((value) => value.trim()).filter(Boolean),
+      timezone,
+    };
+  }
+  if (draft.kind === 'WEEKLY') {
+    return {
+      kind: 'WEEKLY',
+      label,
+      weekdays: draft.weekdays.filter((value) => Number.isInteger(value) && value >= 0 && value <= 6),
+      timezone,
+    };
+  }
+  if (draft.kind === 'INTERVAL_DAYS') {
+    return {
+      kind: 'INTERVAL_DAYS',
+      label,
+      intervalDays: Math.max(Number(draft.intervalDays) || 1, 1),
+      intervalAnchor: new Date(draft.intervalAnchor || new Date().toISOString()).toISOString(),
+      timezone,
+    };
+  }
+  return {
+    kind: 'CUSTOM_DATES',
+    label,
+    customDates: draft.customDates
+      .map((value) => value.trim())
+      .filter(Boolean)
+      .map((value) => new Date(value).toISOString()),
+    timezone,
+  };
+}
+
+export function buildScheduleFromDrafts(draftSchedules: DraftSchedule[], timezone: string): Schedule {
+  const schedules = draftSchedules.map((draft) => buildSingleSchedule(draft, timezone));
+  if (schedules.length === 1) return schedules[0]!;
+  return { kind: 'MULTI', schedules, timezone };
+}
+
+export function draftSchedulesFromItem(item: Item): DraftSchedule[] {
+  const schedule = item.scheduleData ?? {};
+  const scheduleKind = typeof schedule.kind === 'string' ? schedule.kind : item.scheduleKind;
+
+  if (scheduleKind === 'MULTI' && Array.isArray(schedule.schedules)) {
+    const schedules = schedule.schedules
+      .filter((entry): entry is Record<string, unknown> => typeof entry === 'object' && entry !== null)
+      .map(parseScheduleDraft);
+    if (schedules.length > 0) return schedules;
+  }
+
+  return [parseScheduleDraft({ ...schedule, kind: scheduleKind })];
 }
 
 export function summarizeSchedule(item: Item): string {

@@ -6,6 +6,7 @@ Primary references:
 
 - `docs/DESIGN.md`
 - `docs/USER_JOURNEYS.md`
+- `docs/DEVELOPMENT.md`
 - `apps/web/src/App.tsx`
 
 Item format:
@@ -21,6 +22,8 @@ Item format:
 - Implement one item at a time.
 - After an item is completed and validated, remove that item from this document rather than leaving it checked off.
 - Run relevant tests after every completed item before closing the work.
+- Before calling an iteration complete, run the full verification stack expected by `docs/DEVELOPMENT.md`, including complete web, API, and browser-backed coverage where applicable, not just a narrow targeted subset.
+- Follow the layered testing expectations in `docs/DEVELOPMENT.md` so logic, API, and browser coverage land in the right place.
 - After every iteration, once the changes are signed off, add a UX review note here before moving on to the next iteration.
 - Treat each item's `Review before closing` list as the minimum acceptance review.
 - Keep first-run demo mode current with shipped UX: if a new surface needs meaningful data, update `apps/api/src/demoSeed.ts`, prefer relative past/future dates, and add or extend tests so the seeded workspace continues to exercise the feature.
@@ -46,22 +49,6 @@ Main UX gaps:
 - Recommended execution order is the same as the section order in this document.
 
 ## Open Items
-
-### Ship a unified item creation flow with templates, one-time items, and better defaults
-
-The docs call for one creation flow for recurring and one-time work, with life-area-first templates. The current `Routines` page is still a builder-heavy configuration form and does not support the intended onboarding path.
-
-Deliver:
-
-- Introduce a unified create flow that starts with a template or scratch path, then branches into recurring or one-time scheduling without leaving the flow.
-- Add life-area-first starter templates that map to the documented examples and populate sensible titles, categories, cadence, and reminder defaults.
-- Keep advanced schedule editing available, but move it behind progressive disclosure so the common path feels lightweight.
-
-Review before closing:
-
-- A new member can create a useful first tracked item in a few steps without understanding schedule internals.
-- One-time work is created through the same flow as recurring work.
-- The final item state is still fully editable after creation from the `Routines` surface.
 
 ### Make `My Items` a true occurrence-first action workspace
 
@@ -212,6 +199,7 @@ Review before closing:
 
 ## UX Review Notes
 
+- 2026-03-27: Replaced the builder-first `Routines` form with a unified tracked-item flow that starts from life-area templates or scratch, branches into recurring versus one-time setup in place, keeps advanced scheduling/reminders behind disclosure, and adds in-surface item editing backed by a real `PUT /items/:id` update path.
 - 2026-03-14: Replaced the admin-flavored first-run form with workspace setup, added tokenless invite acceptance at `/join/:token` with visible relationship consent details, and routed newly authenticated users through a role-aware welcome step that points them to item creation, guide invitation, or member review while keeping demo mode visibly useful.
 - 2026-03-14: Added account-level `Looking Back` and `Audit Log` surfaces with dedicated navigation, reflective accountability windows for self and guided members, and attributed history for account, relationship, invite, routine, and completion events without collapsing those views into admin tooling.
 - 2026-03-14: Replaced generated retrospective rollups with durable looking-back artifacts, added scheduled/manual creation, an editable period summary plus separate reflective notes, enforced history-window-based guide visibility for older reflections, and extended demo mode with seeded reflections that exercise the workflow immediately.

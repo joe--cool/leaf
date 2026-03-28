@@ -5,6 +5,7 @@ export default defineConfig({
   resolve: {
     alias: {
       '@leaf/shared': fileURLToPath(new URL('../../packages/shared/src/index.ts', import.meta.url)),
+      '@zag-js/focus-visible': fileURLToPath(new URL('./src/test/mocks/zagFocusVisible.ts', import.meta.url)),
     },
   },
   test: {

@@ -30,6 +30,26 @@ print_status() {
   printf '[leaf] %s\n' "$1"
 }
 
+url_encode() {
+  local input="$1"
+  local output=""
+  local i char
+
+  for ((i = 0; i < ${#input}; i++)); do
+    char="${input:i:1}"
+    case "$char" in
+      [a-zA-Z0-9.~_-])
+        output+="$char"
+        ;;
+      *)
+        printf -v output '%s%%%02X' "$output" "'$char"
+        ;;
+    esac
+  done
+
+  printf '%s' "$output"
+}
+
 print_help_examples() {
   cat <<EOF
 
@@ -242,6 +262,7 @@ else
 fi
 if [[ -n "$SETUP_TOKEN_VALUE" && "$AUTO_BOOTSTRAP_ADMIN" != "true" ]]; then
   print_status "Setup token: ${SETUP_TOKEN_VALUE}"
+  print_status "Bootstrap link: ${WEB_ORIGIN_VALUE}/dashboard?setupToken=$(url_encode "$SETUP_TOKEN_VALUE")"
 fi
 print_status "When you're done, stop the stack with ./stop-local.sh"
 print_status "Use ./stop-local.sh --volumes only if you want to delete the local database and other persisted Docker data."

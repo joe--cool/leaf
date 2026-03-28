@@ -12,6 +12,8 @@ import {
   Heading,
   HStack,
   Input,
+  InputGroup,
+  InputLeftAddon,
   Radio,
   RadioGroup,
   Select,
@@ -19,12 +21,13 @@ import {
   Stack,
   Switch,
   Text,
-  useToast,
+  useDisclosure,
 } from '@chakra-ui/react';
 import { DayPicker } from 'react-day-picker';
 import { categoryOptions, scheduleKindOptions, weekdayOptions } from '../appConstants';
+import { itemTemplateOptions } from '../itemTemplates';
 import { getCategoryLabel, getDefaultTitle, summarizeSchedule, toInputDateTime } from '../scheduleUtils';
-import type { DraftSchedule, Item, SingleScheduleKind } from '../appTypes';
+import type { DraftSchedule, Item, ItemCreationMode, SingleScheduleKind } from '../appTypes';
 
 export function RoutinesPage({
   panelBgStrong,
@@ -39,6 +42,13 @@ export function RoutinesPage({
   setTitle,
   category,
   onCategoryChange,
+  selectedTemplateId,
+  onSelectTemplate,
+  creationMode,
+  onCreationModeChange,
+  editingItemId,
+  onEditItem,
+  onCancelEditing,
   draftSchedules,
   updateDraftSchedule,
   addSchedule,
@@ -55,7 +65,7 @@ export function RoutinesPage({
   setHardToDismiss,
   repeatMinutes,
   setRepeatMinutes,
-  onAddItem,
+  onSaveItem,
   items,
 }: {
   panelBgStrong: string;
@@ -70,6 +80,13 @@ export function RoutinesPage({
   setTitle: (value: string) => void;
   category: string;
   onCategoryChange: (value: string) => void;
+  selectedTemplateId: string;
+  onSelectTemplate: (value: string) => void;
+  creationMode: ItemCreationMode;
+  onCreationModeChange: (value: ItemCreationMode) => void;
+  editingItemId: string | null;
+  onEditItem: (item: Item) => void;
+  onCancelEditing: () => void;
   draftSchedules: DraftSchedule[];
   updateDraftSchedule: (index: number, mutator: (current: DraftSchedule) => DraftSchedule) => void;
   addSchedule: () => void;
@@ -86,113 +103,256 @@ export function RoutinesPage({
   setHardToDismiss: (value: boolean) => void;
   repeatMinutes: string;
   setRepeatMinutes: (value: string) => void;
-  onAddItem: () => Promise<void>;
+  onSaveItem: () => Promise<void>;
   items: Item[];
 }) {
-  const toast = useToast();
+  const advancedEditor = useDisclosure();
+  const primaryDraft = draftSchedules[0];
+  const hasAdvancedSchedule = draftSchedules.length > 1 || primaryDraft?.kind === 'CUSTOM_DATES';
+  const advancedForcedOpen = editingItemId !== null || hasAdvancedSchedule;
+  const advancedOpen = advancedForcedOpen || advancedEditor.isOpen;
+  const previewItem: Item = {
+    id: editingItemId ?? 'draft',
+    title: title || 'Untitled item',
+    category,
+    scheduleKind: draftSchedules.length > 1 ? 'MULTI' : (primaryDraft?.kind ?? 'DAILY'),
+    scheduleData:
+      draftSchedules.length > 1
+        ? {
+            kind: 'MULTI',
+            schedules: draftSchedules.map((draft) => ({
+              kind: draft.kind,
+              label: draft.label,
+              oneTimeAt: draft.oneTimeAt,
+              dailyTimes: draft.dailyTimes,
+              weekdays: draft.weekdays,
+              intervalDays: Number(draft.intervalDays),
+              intervalAnchor: draft.intervalAnchor,
+              customDates: draft.customDates,
+            })),
+          }
+        : {
+            kind: primaryDraft?.kind ?? 'DAILY',
+            label: primaryDraft?.label,
+            oneTimeAt: primaryDraft?.oneTimeAt,
+            dailyTimes: primaryDraft?.dailyTimes,
+            weekdays: primaryDraft?.weekdays,
+            intervalDays: Number(primaryDraft?.intervalDays),
+            intervalAnchor: primaryDraft?.intervalAnchor,
+            customDates: primaryDraft?.customDates,
+          },
+  };
 
   return (
     <Grid templateColumns={{ base: '1fr', xl: '1.08fr 0.92fr' }} gap={5}>
       <GridItem>
         <Box bg={panelBgStrong} borderRadius="3xl" p={6} border="1px solid" borderColor={panelBorder} boxShadow={statGlow}>
           <Heading size="md" mb={3}>
-            Routine Builder
+            {editingItemId ? 'Edit tracked item' : 'Create tracked item'}
           </Heading>
           <Stack spacing={4}>
             <Box bg={sectionBg} borderRadius="2xl" p={4} border="1px solid" borderColor={panelBorder}>
               <Text fontWeight="semibold" mb={1}>
-                1. Name the routine
+                1. Start from a template or scratch
+              </Text>
+              <RadioGroup value={selectedTemplateId} onChange={onSelectTemplate}>
+                <SimpleGrid columns={{ base: 1, md: 2 }} spacing={3}>
+                  {itemTemplateOptions.map((template) => (
+                    <Box
+                      key={template.id}
+                      as="label"
+                      bg={selectedTemplateId === template.id ? modeGradient : panelBg}
+                      border="1px solid"
+                      borderColor={selectedTemplateId === template.id ? 'leaf.500' : panelBorder}
+                      borderRadius="xl"
+                      px={4}
+                      py={4}
+                      cursor="pointer"
+                    >
+                      <Stack align="start" spacing={1}>
+                        <Radio value={template.id} colorScheme="leaf">
+                          {template.label}
+                        </Radio>
+                        <Text fontSize="sm" color={mutedText} pl={6}>
+                          {template.description}
+                        </Text>
+                      </Stack>
+                    </Box>
+                  ))}
+                  <Box
+                    as="label"
+                    bg={selectedTemplateId === 'scratch' ? modeGradient : panelBg}
+                    border="1px solid"
+                    borderColor={selectedTemplateId === 'scratch' ? 'leaf.500' : panelBorder}
+                    borderRadius="xl"
+                    px={4}
+                    py={4}
+                    cursor="pointer"
+                  >
+                    <Stack align="start" spacing={1}>
+                      <Radio value="scratch" colorScheme="leaf">
+                        Start from scratch
+                      </Radio>
+                      <Text fontSize="sm" color={mutedText} pl={6}>
+                        Choose the title, category, and schedule manually.
+                      </Text>
+                    </Stack>
+                  </Box>
+                </SimpleGrid>
+              </RadioGroup>
+            </Box>
+
+            <Box bg={sectionBg} borderRadius="2xl" p={4} border="1px solid" borderColor={panelBorder}>
+              <Text fontWeight="semibold" mb={1}>
+                2. Choose recurring or one-time
+              </Text>
+              <RadioGroup value={creationMode} onChange={(value) => onCreationModeChange(value as ItemCreationMode)}>
+                <SimpleGrid columns={{ base: 1, md: 2 }} spacing={3}>
+                  {[
+                    { value: 'recurring', label: 'Recurring item', detail: 'Use this for habits, routines, or ongoing commitments.' },
+                    { value: 'one-time', label: 'One-time item', detail: 'Use this for a single due date or one-off responsibility.' },
+                  ].map((option) => (
+                    <Box
+                      key={option.value}
+                      as="label"
+                      bg={creationMode === option.value ? modeGradient : panelBg}
+                      border="1px solid"
+                      borderColor={creationMode === option.value ? 'leaf.500' : panelBorder}
+                      borderRadius="xl"
+                      px={4}
+                      py={4}
+                      cursor="pointer"
+                    >
+                      <Stack align="start" spacing={1}>
+                        <Radio value={option.value} colorScheme="leaf">
+                          {option.label}
+                        </Radio>
+                        <Text color={mutedText} fontSize="sm" pl={6}>
+                          {option.detail}
+                        </Text>
+                      </Stack>
+                    </Box>
+                  ))}
+                </SimpleGrid>
+              </RadioGroup>
+            </Box>
+
+            <Box bg={sectionBg} borderRadius="2xl" p={4} border="1px solid" borderColor={panelBorder}>
+              <Text fontWeight="semibold" mb={1}>
+                3. Set up the item
               </Text>
               <Stack spacing={4}>
                 <FormControl>
-                  <FormLabel>Routine name</FormLabel>
-                  <Input
-                    bg={inputBg}
-                    placeholder={getDefaultTitle(category)}
-                    value={title}
-                    onChange={(event) => setTitle(event.target.value)}
-                  />
+                  <FormLabel>Item name</FormLabel>
+                  <Input bg={inputBg} placeholder={getDefaultTitle(category)} value={title} onChange={(event) => setTitle(event.target.value)} />
                 </FormControl>
                 <FormControl>
-                  <FormLabel>Type of routine</FormLabel>
-                  <RadioGroup value={category} onChange={onCategoryChange}>
-                    <SimpleGrid columns={{ base: 1, md: 2 }} spacing={3}>
-                      {categoryOptions.map((option) => (
-                        <Box
-                          key={option.value}
-                          as="label"
-                          bg={panelBg}
-                          border="1px solid"
-                          borderColor={category === option.value ? 'leaf.500' : panelBorder}
-                          borderRadius="xl"
-                          px={4}
-                          py={3}
-                          cursor="pointer"
-                        >
-                          <Radio value={option.value} colorScheme="leaf">
-                            {option.label}
-                          </Radio>
-                        </Box>
-                      ))}
-                    </SimpleGrid>
-                  </RadioGroup>
+                  <FormLabel>Life area</FormLabel>
+                  <Select bg={inputBg} value={category} onChange={(event) => onCategoryChange(event.target.value)}>
+                    {categoryOptions.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </Select>
                 </FormControl>
+
+                {creationMode === 'one-time' ? (
+                  <FormControl>
+                    <FormLabel>When should it happen?</FormLabel>
+                    <Input
+                      bg={inputBg}
+                      type="datetime-local"
+                      value={primaryDraft?.oneTimeAt ?? ''}
+                      onChange={(event) =>
+                        updateDraftSchedule(0, (current) => ({
+                          ...current,
+                          kind: 'ONE_TIME',
+                          oneTimeAt: event.target.value,
+                        }))
+                      }
+                    />
+                  </FormControl>
+                ) : hasAdvancedSchedule ? (
+                  <Box bg={panelBg} borderRadius="2xl" p={4}>
+                    <Text fontWeight="semibold">Advanced schedule active</Text>
+                    <Text color={mutedText} fontSize="sm" mt={1}>
+                      This item uses {draftSchedules.length > 1 ? 'multiple schedules' : 'specific dates'}. Open advanced scheduling below to edit it.
+                    </Text>
+                  </Box>
+                ) : (
+                  <RecurringQuickEditor
+                    draft={primaryDraft}
+                    inputBg={inputBg}
+                    panelBg={panelBg}
+                    panelBorder={panelBorder}
+                    mutedText={mutedText}
+                    updateDraftSchedule={updateDraftSchedule}
+                  />
+                )}
               </Stack>
             </Box>
 
             <Box bg={sectionBg} borderRadius="2xl" p={4} border="1px solid" borderColor={panelBorder}>
               <HStack justify="space-between" align="center" mb={3}>
-                <Box>
-                  <Text fontWeight="semibold">2. Set the cadence</Text>
-                </Box>
-                <Button size="sm" variant="outline" onClick={addSchedule}>
-                  Add another schedule
+                <Text fontWeight="semibold">4. Advanced scheduling and reminders</Text>
+                <Button size="sm" variant="outline" onClick={advancedEditor.onToggle} isDisabled={advancedForcedOpen}>
+                  {advancedForcedOpen ? 'Advanced options required' : advancedOpen ? 'Hide advanced options' : 'Show advanced options'}
                 </Button>
               </HStack>
+              {advancedOpen && (
+                <Stack spacing={4}>
+                  <Box border="1px solid" borderColor={panelBorder} borderRadius="2xl" p={4}>
+                    <HStack justify="space-between" align="center" mb={3}>
+                      <Text fontWeight="semibold">Scheduling details</Text>
+                      <Button size="sm" variant="outline" onClick={addSchedule}>
+                        Add another schedule
+                      </Button>
+                    </HStack>
+                    <Stack spacing={4}>
+                      {draftSchedules.map((draft, scheduleIndex) => (
+                        <ScheduleEditor
+                          key={`schedule-${scheduleIndex}`}
+                          draft={draft}
+                          scheduleIndex={scheduleIndex}
+                          draftSchedulesLength={draftSchedules.length}
+                          panelBorder={panelBorder}
+                          inputBg={inputBg}
+                          panelBg={panelBg}
+                          mutedText={mutedText}
+                          updateDraftSchedule={updateDraftSchedule}
+                          removeSchedule={removeSchedule}
+                          updateDailyTime={updateDailyTime}
+                          addDailyTime={addDailyTime}
+                          removeDailyTime={removeDailyTime}
+                          updateCustomDate={updateCustomDate}
+                          addCustomDate={addCustomDate}
+                          removeCustomDate={removeCustomDate}
+                        />
+                      ))}
+                    </Stack>
+                  </Box>
 
-              <Stack spacing={4}>
-                {draftSchedules.map((draft, scheduleIndex) => (
-                  <ScheduleEditor
-                    key={`schedule-${scheduleIndex}`}
-                    draft={draft}
-                    scheduleIndex={scheduleIndex}
-                    draftSchedulesLength={draftSchedules.length}
-                    panelBorder={panelBorder}
-                    inputBg={inputBg}
-                    panelBg={panelBg}
-                    mutedText={mutedText}
-                    updateDraftSchedule={updateDraftSchedule}
-                    removeSchedule={removeSchedule}
-                    updateDailyTime={updateDailyTime}
-                    addDailyTime={addDailyTime}
-                    removeDailyTime={removeDailyTime}
-                    updateCustomDate={updateCustomDate}
-                    addCustomDate={addCustomDate}
-                    removeCustomDate={removeCustomDate}
-                  />
-                ))}
-              </Stack>
-            </Box>
-
-            <Box bg={sectionBg} borderRadius="2xl" p={4} border="1px solid" borderColor={panelBorder}>
-              <Text fontWeight="semibold" mb={1}>
-                3. Choose reminder behavior
-              </Text>
-              <SimpleGrid columns={{ base: 1, md: 3 }} spacing={4}>
-                <FormControl display="flex" alignItems="center" justifyContent="space-between" bg={panelBg} borderRadius="2xl" px={4} py={3}>
-                  <FormLabel mb={0}>Desktop reminders</FormLabel>
-                  <Switch isChecked={notificationEnabled} onChange={(event) => setNotificationEnabled(event.target.checked)} />
-                </FormControl>
-                <FormControl display="flex" alignItems="center" justifyContent="space-between" bg={panelBg} borderRadius="2xl" px={4} py={3}>
-                  <FormLabel mb={0}>Repeat until handled</FormLabel>
-                  <Switch isChecked={hardToDismiss} onChange={(event) => setHardToDismiss(event.target.checked)} />
-                </FormControl>
-                <FormControl bg={panelBg} borderRadius="2xl" px={4} py={3}>
-                  <FormLabel>Repeat every</FormLabel>
-                  <Input bg={inputBg} type="number" min={1} value={repeatMinutes} onChange={(event) => setRepeatMinutes(event.target.value)} />
-                  <FormHelperText color={mutedText}>minutes</FormHelperText>
-                </FormControl>
-              </SimpleGrid>
+                  <SimpleGrid columns={{ base: 1, md: 3 }} spacing={4}>
+                    <FormControl display="flex" alignItems="center" justifyContent="space-between" bg={panelBg} borderRadius="2xl" px={4} py={3}>
+                      <FormLabel mb={0}>Desktop reminders</FormLabel>
+                      <Switch isChecked={notificationEnabled} onChange={(event) => setNotificationEnabled(event.target.checked)} />
+                    </FormControl>
+                    <FormControl display="flex" alignItems="center" justifyContent="space-between" bg={panelBg} borderRadius="2xl" px={4} py={3}>
+                      <FormLabel mb={0}>Repeat until handled</FormLabel>
+                      <Switch isChecked={hardToDismiss} onChange={(event) => setHardToDismiss(event.target.checked)} />
+                    </FormControl>
+                    <FormControl bg={panelBg} borderRadius="2xl" px={4} py={3}>
+                      <FormLabel>Repeat every</FormLabel>
+                      <InputGroup>
+                        <InputLeftAddon>Minutes</InputLeftAddon>
+                        <Input bg={inputBg} type="number" min={1} value={repeatMinutes} onChange={(event) => setRepeatMinutes(event.target.value)} />
+                      </InputGroup>
+                      <FormHelperText color={mutedText}>Only used when reminders repeat until handled.</FormHelperText>
+                    </FormControl>
+                  </SimpleGrid>
+                </Stack>
+              )}
             </Box>
 
             <Box bg={modeGradient} borderRadius="2xl" p={4} border="1px solid" borderColor={panelBorder}>
@@ -200,21 +360,26 @@ export function RoutinesPage({
                 Preview
               </Text>
               <Heading size="sm" mt={2}>
-                {title || 'Untitled routine'}
+                {title || 'Untitled item'}
               </Heading>
               <Text mt={1} color={mutedText}>
                 {getCategoryLabel(category)}
               </Text>
               <Text mt={3} fontSize="sm" color={mutedText}>
-                {draftSchedules.length === 1
-                  ? scheduleKindOptions.find((option) => option.value === draftSchedules[0]?.kind)?.label ?? 'Cadence not set'
-                  : `${draftSchedules.length} schedules combined`}
+                {summarizeSchedule(previewItem)}
               </Text>
             </Box>
 
-            <Button colorScheme="leaf" onClick={() => onAddItem().catch((error) => toast({ status: 'error', title: String(error) }))}>
-              Save routine
-            </Button>
+            <HStack spacing={3} flexWrap="wrap">
+              <Button colorScheme="leaf" onClick={() => void onSaveItem()}>
+                {editingItemId ? 'Save changes' : 'Save item'}
+              </Button>
+              {editingItemId && (
+                <Button variant="outline" onClick={onCancelEditing}>
+                  Cancel editing
+                </Button>
+              )}
+            </HStack>
           </Stack>
         </Box>
       </GridItem>
@@ -222,7 +387,7 @@ export function RoutinesPage({
       <GridItem>
         <Box bg={panelBgStrong} borderRadius="3xl" p={6} border="1px solid" borderColor={panelBorder} boxShadow={statGlow} h="100%">
           <Heading size="md" mb={3}>
-            Existing routines
+            Existing items
           </Heading>
           <Stack spacing={3}>
             {items.map((item) => (
@@ -234,17 +399,168 @@ export function RoutinesPage({
                       {summarizeSchedule(item)}
                     </Text>
                   </Box>
-                  <Badge colorScheme="orange" borderRadius="full" px={3} py={1}>
-                    {getCategoryLabel(item.category)}
-                  </Badge>
+                  <Stack align="end" spacing={2}>
+                    <Badge colorScheme="orange" borderRadius="full" px={3} py={1}>
+                      {getCategoryLabel(item.category)}
+                    </Badge>
+                    <Button
+                      size="xs"
+                      variant="outline"
+                      aria-label={`Edit ${item.title}`}
+                      onClick={() => onEditItem(item)}
+                    >
+                      Edit
+                    </Button>
+                  </Stack>
                 </HStack>
               </Box>
             ))}
-            {items.length === 0 && <Text color={mutedText}>No routines configured yet.</Text>}
+            {items.length === 0 && <Text color={mutedText}>No tracked items configured yet.</Text>}
           </Stack>
         </Box>
       </GridItem>
     </Grid>
+  );
+}
+
+function RecurringQuickEditor({
+  draft,
+  inputBg,
+  panelBg,
+  panelBorder,
+  mutedText,
+  updateDraftSchedule,
+}: {
+  draft: DraftSchedule | undefined;
+  inputBg: string;
+  panelBg: string;
+  panelBorder: string;
+  mutedText: string;
+  updateDraftSchedule: (index: number, mutator: (current: DraftSchedule) => DraftSchedule) => void;
+}) {
+  const activeKind = draft?.kind === 'ONE_TIME' || draft?.kind === 'CUSTOM_DATES' ? 'DAILY' : draft?.kind ?? 'DAILY';
+
+  return (
+    <Stack spacing={4}>
+      <FormControl>
+        <FormLabel>Recurring cadence</FormLabel>
+        <RadioGroup
+          value={activeKind}
+          onChange={(value) =>
+            updateDraftSchedule(0, (current) => ({
+              ...current,
+              kind: value as SingleScheduleKind,
+            }))
+          }
+        >
+          <SimpleGrid columns={{ base: 1, md: 3 }} spacing={3}>
+            {scheduleKindOptions
+              .filter((option) => option.value !== 'CUSTOM_DATES' && option.value !== 'ONE_TIME')
+              .map((option) => (
+                <Box
+                  key={option.value}
+                  as="label"
+                  bg={activeKind === option.value ? panelBg : 'transparent'}
+                  border="1px solid"
+                  borderColor={activeKind === option.value ? 'leaf.500' : panelBorder}
+                  borderRadius="xl"
+                  px={4}
+                  py={4}
+                  cursor="pointer"
+                >
+                  <Stack align="start" spacing={1}>
+                    <Radio value={option.value} colorScheme="leaf">
+                      {option.label}
+                    </Radio>
+                    <Text color={mutedText} fontSize="sm" pl={6}>
+                      {option.help}
+                    </Text>
+                  </Stack>
+                </Box>
+              ))}
+          </SimpleGrid>
+        </RadioGroup>
+      </FormControl>
+
+      {activeKind === 'DAILY' && (
+        <FormControl>
+          <FormLabel>Time of day</FormLabel>
+          <Input
+            bg={inputBg}
+            type="time"
+            value={draft?.dailyTimes[0] ?? '09:00'}
+            onChange={(event) =>
+              updateDraftSchedule(0, (current) => ({
+                ...current,
+                kind: 'DAILY',
+                dailyTimes: [event.target.value],
+              }))
+            }
+          />
+        </FormControl>
+      )}
+
+      {activeKind === 'WEEKLY' && (
+        <FormControl>
+          <FormLabel>Days of the week</FormLabel>
+          <CheckboxGroup
+            value={(draft?.weekdays ?? []).map(String)}
+            onChange={(values) =>
+              updateDraftSchedule(0, (current) => ({
+                ...current,
+                kind: 'WEEKLY',
+                weekdays: values.map((value) => Number(value)),
+              }))
+            }
+          >
+            <SimpleGrid columns={{ base: 3, md: 4 }} spacing={2}>
+              {weekdayOptions.map((option) => (
+                <Checkbox key={option.value} value={String(option.value)}>
+                  {option.label}
+                </Checkbox>
+              ))}
+            </SimpleGrid>
+          </CheckboxGroup>
+        </FormControl>
+      )}
+
+      {activeKind === 'INTERVAL_DAYS' && (
+        <SimpleGrid columns={{ base: 1, md: 2 }} spacing={4}>
+          <FormControl>
+            <FormLabel>Repeat every</FormLabel>
+            <Input
+              bg={inputBg}
+              type="number"
+              min={1}
+              value={draft?.intervalDays ?? '2'}
+              onChange={(event) =>
+                updateDraftSchedule(0, (current) => ({
+                  ...current,
+                  kind: 'INTERVAL_DAYS',
+                  intervalDays: event.target.value,
+                }))
+              }
+            />
+            <FormHelperText color={mutedText}>days</FormHelperText>
+          </FormControl>
+          <FormControl>
+            <FormLabel>Start from</FormLabel>
+            <Input
+              bg={inputBg}
+              type="datetime-local"
+              value={draft?.intervalAnchor ?? toInputDateTime(new Date())}
+              onChange={(event) =>
+                updateDraftSchedule(0, (current) => ({
+                  ...current,
+                  kind: 'INTERVAL_DAYS',
+                  intervalAnchor: event.target.value,
+                }))
+              }
+            />
+          </FormControl>
+        </SimpleGrid>
+      )}
+    </Stack>
   );
 }
 
@@ -305,8 +621,8 @@ function ScheduleEditor({
           <FormLabel>Cadence</FormLabel>
           <RadioGroup
             value={draft.kind}
-            onChange={(event) =>
-              updateDraftSchedule(scheduleIndex, (current) => ({ ...current, kind: event as SingleScheduleKind }))
+            onChange={(value) =>
+              updateDraftSchedule(scheduleIndex, (current) => ({ ...current, kind: value as SingleScheduleKind }))
             }
           >
             <SimpleGrid columns={{ base: 1, md: 2 }} spacing={3}>
@@ -314,15 +630,15 @@ function ScheduleEditor({
                 <Box
                   key={option.value}
                   as="label"
-                  bg={panelBg}
+                  bg={draft.kind === option.value ? panelBg : 'transparent'}
                   border="1px solid"
                   borderColor={draft.kind === option.value ? 'leaf.500' : panelBorder}
                   borderRadius="xl"
                   px={4}
-                  py={3}
+                  py={4}
                   cursor="pointer"
                 >
-                  <Stack spacing={1}>
+                  <Stack align="start" spacing={1}>
                     <Radio value={option.value} colorScheme="leaf">
                       {option.label}
                     </Radio>
@@ -373,7 +689,10 @@ function ScheduleEditor({
             <CheckboxGroup
               value={draft.weekdays.map(String)}
               onChange={(values) =>
-                updateDraftSchedule(scheduleIndex, (current) => ({ ...current, weekdays: values.map((value) => Number(value)) }))
+                updateDraftSchedule(scheduleIndex, (current) => ({
+                  ...current,
+                  weekdays: values.map((value) => Number(value)),
+                }))
               }
             >
               <SimpleGrid columns={{ base: 3, md: 4 }} spacing={2}>
