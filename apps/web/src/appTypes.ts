@@ -232,3 +232,5 @@ export type DraftSchedule = {
   intervalAnchor: string;
   customDates: string[];
 };
+
+export type ItemCreationMode = 'recurring' | 'one-time';

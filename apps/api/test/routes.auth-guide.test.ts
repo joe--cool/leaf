@@ -23,6 +23,9 @@ const retrospectiveFindUniqueMock = vi.fn();
 const retrospectiveCreateMock = vi.fn();
 const retrospectiveUpdateMock = vi.fn();
 const retrospectiveContributionCreateMock = vi.fn();
+const trackingItemFindUniqueMock = vi.fn();
+const trackingItemFindManyMock = vi.fn();
+const trackingItemUpdateMock = vi.fn();
 
 vi.mock('../src/auth.js', () => ({
   hashPassword: hashPasswordMock,
@@ -71,8 +74,9 @@ vi.mock('../src/prisma.js', () => ({
     },
     trackingItem: {
       create: vi.fn(),
-      findUnique: vi.fn(),
-      findMany: vi.fn(),
+      findUnique: trackingItemFindUniqueMock,
+      findMany: trackingItemFindManyMock,
+      update: trackingItemUpdateMock,
     },
     trackingCompletion: {
       create: vi.fn(),
@@ -129,6 +133,123 @@ describe('auth/guide routes', () => {
     const res = await app.inject({ method: 'GET', url: '/auth/oauth/options' });
     expect(res.statusCode).toBe(200);
     expect(res.json()).toEqual({ providers: ['google'] });
+    await app.close();
+  });
+
+  it('updates an existing item for the owner', async () => {
+    const { registerRoutes } = await import('../src/routes.js');
+
+    trackingItemFindUniqueMock.mockResolvedValue({
+      id: 'item_1',
+      ownerId: 'u1',
+    });
+    trackingItemUpdateMock.mockResolvedValue({ id: 'item_1' });
+
+    const app = Fastify();
+    await app.register(sensible);
+    app.decorate('authenticate', async (request: { user?: { id: string; email: string; roles: string[] } }) => {
+      request.user = { id: 'u1', email: 'u1@example.com', roles: ['USER'] };
+    });
+    await app.register(registerRoutes);
+
+    const res = await app.inject({
+      method: 'PUT',
+      url: '/items/item_1',
+      payload: {
+        title: 'Updated item',
+        category: 'health',
+        schedule: {
+          kind: 'ONE_TIME',
+          oneTimeAt: '2026-03-29T16:00:00.000Z',
+          timezone: 'UTC',
+        },
+        notificationEnabled: true,
+        notificationHardToDismiss: false,
+        notificationRepeatMinutes: 15,
+      },
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(trackingItemFindUniqueMock).toHaveBeenCalledWith({ where: { id: 'item_1' } });
+    expect(trackingItemUpdateMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: 'item_1' },
+        data: expect.objectContaining({
+          title: 'Updated item',
+          scheduleKind: 'ONE_TIME',
+        }),
+      }),
+    );
+    await app.close();
+  });
+
+  it('returns not found when updating an item owned by someone else', async () => {
+    const { registerRoutes } = await import('../src/routes.js');
+
+    trackingItemFindUniqueMock.mockResolvedValue({
+      id: 'item_1',
+      ownerId: 'u2',
+    });
+
+    const app = Fastify();
+    await app.register(sensible);
+    app.decorate('authenticate', async (request: { user?: { id: string; email: string; roles: string[] } }) => {
+      request.user = { id: 'u1', email: 'u1@example.com', roles: ['USER'] };
+    });
+    await app.register(registerRoutes);
+
+    const res = await app.inject({
+      method: 'PUT',
+      url: '/items/item_1',
+      payload: {
+        title: 'Updated item',
+        category: 'health',
+        schedule: {
+          kind: 'ONE_TIME',
+          oneTimeAt: '2026-03-29T16:00:00.000Z',
+          timezone: 'UTC',
+        },
+        notificationEnabled: true,
+        notificationHardToDismiss: false,
+        notificationRepeatMinutes: 15,
+      },
+    });
+
+    expect(res.statusCode).toBe(404);
+    expect(trackingItemUpdateMock).not.toHaveBeenCalled();
+    await app.close();
+  });
+
+  it('rejects invalid item update payloads before persistence', async () => {
+    const { registerRoutes } = await import('../src/routes.js');
+
+    const app = Fastify();
+    await app.register(sensible);
+    app.decorate('authenticate', async (request: { user?: { id: string; email: string; roles: string[] } }) => {
+      request.user = { id: 'u1', email: 'u1@example.com', roles: ['USER'] };
+    });
+    await app.register(registerRoutes);
+
+    const res = await app.inject({
+      method: 'PUT',
+      url: '/items/item_1',
+      payload: {
+        title: 'Updated item',
+        category: 'health',
+        schedule: {
+          kind: 'ONE_TIME',
+          oneTimeAt: '2026-03-29T16:00:00.000Z',
+          timezone: 'UTC',
+        },
+        notificationEnabled: true,
+        notificationHardToDismiss: false,
+        notificationRepeatMinutes: 0,
+      },
+    });
+
+    expect(res.statusCode).toBe(400);
+    expect(trackingItemFindUniqueMock).not.toHaveBeenCalled();
+    expect(trackingItemUpdateMock).not.toHaveBeenCalled();
     await app.close();
   });
 
@@ -246,7 +367,7 @@ describe('auth/guide routes', () => {
       type: 'GUIDE',
       inviteeMail: 'newguide@example.com',
       acceptedAt: null,
-      expiresAt: new Date('2026-03-21T08:00:00.000Z'),
+      expiresAt: new Date('2099-03-21T08:00:00.000Z'),
       targetUserId: 'u2',
       relationshipTemplateId: 'active-guide',
       relationshipMode: 'active',
@@ -274,7 +395,7 @@ describe('auth/guide routes', () => {
     expect(res.json()).toEqual({
       token: 'tok',
       inviteeEmail: 'newguide@example.com',
-      expiresAt: '2026-03-21T08:00:00.000Z',
+      expiresAt: '2099-03-21T08:00:00.000Z',
       inviter: { id: 'u1', name: 'Alex', email: 'alex@example.com' },
       member: { id: 'u2', name: 'Jordan', email: 'jordan@example.com' },
       proposedRelationship: {

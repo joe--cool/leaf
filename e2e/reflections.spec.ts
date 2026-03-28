@@ -1,14 +1,8 @@
 import { expect, test, type Page, type Response } from '@playwright/test';
-
-const adminEmail = 'e2e-admin@example.com';
-const adminPassword = 'changeme123';
+import { signInAsAdmin } from './support/session';
 const renamedAdmin = 'E2E Admin Renamed';
 
 test.describe.serial('reflection workflow', () => {
-  test('bootstraps the demo workspace', async ({ page }) => {
-    await bootstrapDemoWorkspace(page);
-  });
-
   test('creates scheduled and impromptu reflections and saves prompt and summary changes', async ({
     page,
   }) => {
@@ -71,62 +65,6 @@ test.describe.serial('reflection workflow', () => {
     await expect(page.getByLabel(/Summary for /)).toBeVisible();
   });
 });
-
-async function ensureDemoWorkspace(page: Page) {
-  await page.goto('/dashboard');
-
-  const authState = await waitForAuthState(page);
-
-  if (authState === 'setup') {
-    await page.locator('#setup-name').fill('E2E Admin');
-    await page.locator('#setup-email').fill(adminEmail);
-    await page.locator('#setup-password').fill(adminPassword);
-    await page.getByText('Enable demo mode').click();
-    await expect(page.getByRole('checkbox', { name: 'Enable demo mode' })).toBeChecked();
-    await page.getByRole('button', { name: 'Create Workspace' }).click();
-  } else if (authState === 'authenticated') {
-    return;
-  } else {
-    await signInAsAdmin(page);
-  }
-
-  await expect(page.getByRole('button', { name: 'Open account menu' })).toBeVisible();
-}
-
-async function bootstrapDemoWorkspace(page: Page) {
-  await ensureDemoWorkspace(page);
-}
-
-async function signInAsAdmin(page: Page) {
-  await page.goto('/dashboard');
-  const authState = await waitForAuthState(page);
-  if (authState === 'authenticated') {
-    return;
-  }
-
-  const emailField = page.locator('#login-email');
-  await expect(emailField).toBeVisible();
-  await emailField.fill(adminEmail);
-  const passwordField = page.locator('#login-password');
-  await passwordField.fill(adminPassword);
-  await passwordField.press('Enter');
-  await expect(page.getByRole('button', { name: 'Open account menu' })).toBeVisible();
-}
-
-async function waitForAuthState(page: Page): Promise<'setup' | 'login' | 'authenticated'> {
-  const setupHeading = page.getByRole('heading', { name: 'Create your workspace' });
-  const loginEmail = page.locator('#login-email');
-  const accountMenu = page.getByRole('button', { name: 'Open account menu' });
-
-  for (let attempt = 0; attempt < 40; attempt += 1) {
-    if (await accountMenu.isVisible().catch(() => false)) return 'authenticated';
-    if (await setupHeading.isVisible().catch(() => false)) return 'setup';
-    if (await loginEmail.isVisible().catch(() => false)) return 'login';
-    await page.waitForTimeout(250);
-  }
-
-  throw new Error('Auth state did not settle into setup, login, or authenticated shell');
-}
 
 async function openMembers(page: Page) {
   const openMembersLink = page.getByRole('link', { name: 'Open Members' }).first();

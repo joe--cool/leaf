@@ -35,6 +35,10 @@ function Write-Status([string]$Message) {
   Write-Host "[leaf] $Message"
 }
 
+function Get-UrlEncodedValue([string]$Value) {
+  return [Uri]::EscapeDataString($Value)
+}
+
 function Show-Help {
   @"
 Usage: .\start-local.ps1 [-Lan] [-Help]
@@ -231,6 +235,7 @@ if ($Lan) {
 }
 if (-not [string]::IsNullOrWhiteSpace($setupTokenValue) -and $autoBootstrapAdmin -ne 'true') {
   Write-Status "Setup token: $setupTokenValue"
+  Write-Status "Bootstrap link: $webOriginValue/dashboard?setupToken=$(Get-UrlEncodedValue $setupTokenValue)"
 }
 Write-Status 'When you are done, stop the stack with .\stop-local.ps1'
 Write-Status 'Use .\stop-local.ps1 -Volumes only if you want to delete the local database and other persisted Docker data.'

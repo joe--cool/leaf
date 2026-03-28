@@ -21,7 +21,10 @@ import './app.css';
 import { defaultReflectionWritingPrompt } from '@leaf/shared';
 import { apiFetch, clearToken, getToken, setRefreshToken, setToken } from './api';
 import { categoryOptions, createDraftSchedule } from './appConstants';
+import { resolveTemplateDraft } from './itemTemplates';
 import {
+  buildScheduleFromDrafts,
+  draftSchedulesFromItem,
   getDefaultTitle,
   projectedChecksPerWeek,
   summarizeActionableState,
@@ -34,6 +37,7 @@ import type {
   AuthNextStep,
   AuditLogEntry,
   DraftSchedule,
+  ItemCreationMode,
   InvitePreview,
   Item,
   MemberPortfolio,
@@ -119,7 +123,7 @@ export function App() {
   const [setupPassword, setSetupPassword] = useState('');
   const [setupToken, setSetupToken] = useState('');
   const [setupDemoMode, setSetupDemoMode] = useState(false);
-  const [selectedTemplateId, setSelectedTemplateId] = useState('active-guide');
+  const [selectedRelationshipTemplateId, setSelectedRelationshipTemplateId] = useState('active-guide');
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -138,12 +142,16 @@ export function App() {
   const [auditEntries, setAuditEntries] = useState<AuditLogEntry[]>([]);
   const [retrospectiveEntries, setRetrospectiveEntries] = useState<RetrospectiveEntry[]>([]);
 
-  const [title, setTitle] = useState(getDefaultTitle('health'));
-  const [category, setCategory] = useState('health');
-  const [draftSchedules, setDraftSchedules] = useState<DraftSchedule[]>([createDraftSchedule()]);
+  const [selectedTemplateId, setSelectedTemplateId] = useState('medication');
+  const [creationMode, setCreationMode] = useState<ItemCreationMode>('recurring');
+  const initialTemplate = resolveTemplateDraft('medication', 'recurring');
+  const [title, setTitle] = useState(initialTemplate.title);
+  const [category, setCategory] = useState(initialTemplate.category);
+  const [draftSchedules, setDraftSchedules] = useState<DraftSchedule[]>(initialTemplate.draftSchedules);
   const [notificationEnabled, setNotificationEnabled] = useState(true);
   const [hardToDismiss, setHardToDismiss] = useState(false);
   const [repeatMinutes, setRepeatMinutes] = useState('15');
+  const [editingItemId, setEditingItemId] = useState<string | null>(null);
 
   const [inviteEmail, setInviteEmail] = useState('');
   const [targetMemberId, setTargetMemberId] = useState('');
@@ -426,6 +434,15 @@ export function App() {
   }, []);
 
   useEffect(() => {
+    if (!needsSetup || setupToken.trim().length > 0) return;
+    const searchParams = new URLSearchParams(location.search);
+    const setupTokenFromUrl = searchParams.get('setupToken')?.trim();
+    if (setupTokenFromUrl) {
+      setSetupToken(setupTokenFromUrl);
+    }
+  }, [location.search, needsSetup, setupToken]);
+
+  useEffect(() => {
     if (!loggedIn) return;
     refreshMe()
       .then(() => setSessionLoadError(null))
@@ -452,54 +469,21 @@ export function App() {
       });
   }, [inviteToken]);
 
-  function buildSingleSchedule(draft: DraftSchedule) {
-    const timezone = prefTimezone || 'UTC';
-    const label = draft.label.trim() || undefined;
-
-    if (draft.kind === 'ONE_TIME') {
-      const oneTimeDate = draft.oneTimeAt ? new Date(draft.oneTimeAt) : new Date();
-      return { kind: 'ONE_TIME', label, oneTimeAt: oneTimeDate.toISOString(), timezone } as const;
-    }
-    if (draft.kind === 'DAILY') {
-      return {
-        kind: 'DAILY',
-        label,
-        dailyTimes: draft.dailyTimes.map((value) => value.trim()).filter(Boolean),
-        timezone,
-      } as const;
-    }
-    if (draft.kind === 'WEEKLY') {
-      return {
-        kind: 'WEEKLY',
-        label,
-        weekdays: draft.weekdays.filter((value) => Number.isInteger(value) && value >= 0 && value <= 6),
-        timezone,
-      } as const;
-    }
-    if (draft.kind === 'INTERVAL_DAYS') {
-      return {
-        kind: 'INTERVAL_DAYS',
-        label,
-        intervalDays: Number(draft.intervalDays),
-        intervalAnchor: new Date(draft.intervalAnchor || new Date().toISOString()).toISOString(),
-        timezone,
-      } as const;
-    }
-    return {
-      kind: 'CUSTOM_DATES',
-      label,
-      customDates: draft.customDates
-        .map((value) => value.trim())
-        .filter(Boolean)
-        .map((value) => new Date(value).toISOString()),
-      timezone,
-    } as const;
+  function resetItemEditor(templateId = selectedTemplateId, mode = creationMode) {
+    const nextDraft = resolveTemplateDraft(templateId as Parameters<typeof resolveTemplateDraft>[0], mode);
+    setSelectedTemplateId(templateId);
+    setCreationMode(mode);
+    setTitle(nextDraft.title);
+    setCategory(nextDraft.category);
+    setDraftSchedules(nextDraft.draftSchedules);
+    setNotificationEnabled(true);
+    setHardToDismiss(false);
+    setRepeatMinutes('15');
+    setEditingItemId(null);
   }
 
   function buildSchedule() {
-    const schedules = draftSchedules.map(buildSingleSchedule);
-    if (schedules.length === 1) return schedules[0]!;
-    return { kind: 'MULTI' as const, schedules, timezone: prefTimezone || 'UTC' };
+    return buildScheduleFromDrafts(draftSchedules, prefTimezone || 'UTC');
   }
 
   function markOnboardingSeen(currentUser: User | null) {
@@ -581,9 +565,9 @@ export function App() {
     window.location.href = response.url;
   }
 
-  async function addItem() {
-    await apiFetch('/items', {
-      method: 'POST',
+  async function saveItem() {
+    await apiFetch(editingItemId ? `/items/${editingItemId}` : '/items', {
+      method: editingItemId ? 'PUT' : 'POST',
       body: JSON.stringify({
         title,
         category,
@@ -593,9 +577,8 @@ export function App() {
         notificationRepeatMinutes: Number(repeatMinutes),
       }),
     });
-    toast({ status: 'success', title: 'Item added' });
-    setTitle(getDefaultTitle(category));
-    setDraftSchedules([createDraftSchedule()]);
+    toast({ status: 'success', title: editingItemId ? 'Item updated' : 'Item added' });
+    resetItemEditor();
     await refreshMe();
   }
 
@@ -609,12 +592,48 @@ export function App() {
     });
   }
 
+  function onTemplateChange(nextTemplateId: string) {
+    const nextDraft = resolveTemplateDraft(nextTemplateId as Parameters<typeof resolveTemplateDraft>[0], creationMode);
+    setSelectedTemplateId(nextTemplateId);
+    setEditingItemId(null);
+    setCategory(nextDraft.category);
+    setTitle(nextDraft.title);
+    setDraftSchedules(nextDraft.draftSchedules);
+    setNotificationEnabled(true);
+    setHardToDismiss(false);
+    setRepeatMinutes('15');
+  }
+
+  function onCreationModeChange(nextMode: ItemCreationMode) {
+    setCreationMode(nextMode);
+    if (editingItemId) {
+      setEditingItemId(null);
+    }
+    const nextDraft = resolveTemplateDraft(selectedTemplateId as Parameters<typeof resolveTemplateDraft>[0], nextMode);
+    setCategory(nextDraft.category);
+    setTitle(nextDraft.title);
+    setDraftSchedules(nextDraft.draftSchedules);
+  }
+
+  function editItem(item: Item) {
+    setEditingItemId(item.id);
+    setSelectedTemplateId('scratch');
+    setCreationMode(item.scheduleKind === 'ONE_TIME' ? 'one-time' : 'recurring');
+    setTitle(item.title);
+    setCategory(item.category);
+    setDraftSchedules(draftSchedulesFromItem(item));
+    setNotificationEnabled(item.notificationEnabled ?? true);
+    setHardToDismiss(item.notificationHardToDismiss ?? false);
+    setRepeatMinutes(String(item.notificationRepeatMinutes ?? 15));
+    navigate('/routines');
+  }
+
   async function inviteReviewer() {
     await apiFetch('/guides/invite', {
       method: 'POST',
       body: JSON.stringify({
         email: inviteEmail,
-        relationshipTemplateId: selectedTemplateId,
+        relationshipTemplateId: selectedRelationshipTemplateId,
         ...(isAdmin ? { targetMemberId } : {}),
       }),
     });
@@ -876,8 +895,8 @@ export function App() {
           mutedText={mutedText}
           inviteEmail={inviteEmail}
           setInviteEmail={setInviteEmail}
-          selectedTemplateId={selectedTemplateId}
-          setSelectedTemplateId={setSelectedTemplateId}
+          selectedTemplateId={selectedRelationshipTemplateId}
+          setSelectedTemplateId={setSelectedRelationshipTemplateId}
           isAdmin={isAdmin}
           adminUsers={adminUsers}
           targetMemberId={targetMemberId}
@@ -1035,6 +1054,13 @@ export function App() {
           setTitle={setTitle}
           category={category}
           onCategoryChange={onCategoryChange}
+          selectedTemplateId={selectedTemplateId}
+          onSelectTemplate={onTemplateChange}
+          creationMode={creationMode}
+          onCreationModeChange={onCreationModeChange}
+          editingItemId={editingItemId}
+          onEditItem={editItem}
+          onCancelEditing={() => resetItemEditor()}
           draftSchedules={draftSchedules}
           updateDraftSchedule={updateDraftSchedule}
           addSchedule={addSchedule}
@@ -1051,7 +1077,13 @@ export function App() {
           setHardToDismiss={setHardToDismiss}
           repeatMinutes={repeatMinutes}
           setRepeatMinutes={setRepeatMinutes}
-          onAddItem={addItem}
+          onSaveItem={async () => {
+            try {
+              await saveItem();
+            } catch (error) {
+              toast({ status: 'error', title: String(error) });
+            }
+          }}
           items={items}
         />
       );

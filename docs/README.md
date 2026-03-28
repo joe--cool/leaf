@@ -8,6 +8,8 @@ This folder contains the product, design, and architecture documentation for `le
   North-star product and system design direction.
 - [User Journeys](./USER_JOURNEYS.md)
   Desired target-state journeys for members, guides, notifications, retrospectives, and accountability workflows.
+- [Development Guide](./DEVELOPMENT.md)
+  Day-to-day implementation guidance, including the primary testing policy and repo workflow.
 
 ## Architecture Decision Records
 
@@ -23,8 +25,9 @@ This folder contains the product, design, and architecture documentation for `le
 
 1. [Design Doc](./DESIGN.md)
 2. [User Journeys](./USER_JOURNEYS.md)
-3. [ADR Index](./adr/README.md)
-4. Individual ADRs as needed
+3. [Development Guide](./DEVELOPMENT.md)
+4. [ADR Index](./adr/README.md)
+5. Individual ADRs as needed
 
 ## Notes
 
