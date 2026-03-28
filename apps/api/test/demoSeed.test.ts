@@ -5,6 +5,7 @@ const userCreateMock = vi.fn();
 const reviewerRelationCreateMock = vi.fn();
 const trackingItemCreateMock = vi.fn();
 const trackingCompletionCreateMock = vi.fn();
+const trackingItemActionCreateMock = vi.fn();
 const retrospectiveCreateMock = vi.fn();
 const retrospectiveContributionCreateMock = vi.fn();
 const transactionMock = vi.fn();
@@ -26,6 +27,7 @@ describe('demoSeed', () => {
       id: `item_${data.ownerId}_${trackingItemCreateMock.mock.calls.length}`,
     }));
     trackingCompletionCreateMock.mockResolvedValue({ id: 'completion_1' });
+    trackingItemActionCreateMock.mockResolvedValue({ id: 'item_action_1' });
     reviewerRelationCreateMock
       .mockResolvedValueOnce({ id: 'rel_admin_jordan' })
       .mockResolvedValueOnce({ id: 'rel_admin_morgan' })
@@ -47,6 +49,9 @@ describe('demoSeed', () => {
         },
         trackingCompletion: {
           create: trackingCompletionCreateMock,
+        },
+        trackingItemAction: {
+          create: trackingItemActionCreateMock,
         },
         retrospective: {
           create: retrospectiveCreateMock,

@@ -42,6 +42,7 @@ export type Item = {
   scheduleKind: ScheduleKind;
   scheduleData?: Record<string, unknown>;
   completions?: ItemCompletion[];
+  actions?: ItemAction[];
   notificationEnabled?: boolean;
   notificationHardToDismiss?: boolean;
   notificationRepeatMinutes?: number;
@@ -52,11 +53,21 @@ export type Item = {
 export type ItemCompletion = {
   id: string;
   occurredAt: string;
+  targetAt?: string | null;
+  note?: string | null;
+};
+
+export type ItemAction = {
+  id: string;
+  kind: 'skip' | 'note';
+  occurredAt: string;
+  targetAt: string;
   note?: string | null;
 };
 
 export type MemberItem = Item & {
   completions: ItemCompletion[];
+  actions: ItemAction[];
 };
 
 export type MemberWorkspace = {
@@ -187,6 +198,7 @@ export type ActionSummary = {
   status: string;
   detail: string;
   dueAt?: number;
+  occurrenceAt?: string;
 };
 
 export type ActionableItem = {

@@ -7,7 +7,7 @@ import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { App } from './App';
-import type { RetrospectiveEntry } from './appTypes';
+import type { Item, RetrospectiveEntry } from './appTypes';
 
 const { apiFetchMock, getTokenMock, setTokenMock, setRefreshTokenMock, clearTokenMock, tokenState } = vi.hoisted(() => ({
   apiFetchMock: vi.fn(),
@@ -708,6 +708,111 @@ describe('App routes', () => {
     expect(await screen.findByText('Created by User for User and Jordan')).toBeInTheDocument();
     expect(apiFetchMock).toHaveBeenCalledWith(
       '/retrospectives',
+      expect.objectContaining({ method: 'POST' }),
+    );
+  });
+
+  it('works the my items queue with inline note and completion actions', async () => {
+    let items: Item[] = [
+      {
+        id: 'i1',
+        title: 'Morning meds',
+        category: 'health',
+        scheduleKind: 'DAILY',
+        scheduleData: { kind: 'DAILY', dailyTimes: ['08:00'] },
+        completions: [],
+        actions: [],
+        createdAt: '2026-03-10T08:00:00.000Z',
+        updatedAt: '2026-03-12T08:00:00.000Z',
+      },
+      {
+        id: 'i2',
+        title: 'Upload tax packet',
+        category: 'paperwork',
+        scheduleKind: 'ONE_TIME',
+        scheduleData: { kind: 'ONE_TIME', oneTimeAt: '2099-04-01T16:00:00.000Z', timezone: 'UTC' },
+        completions: [],
+        actions: [],
+        createdAt: '2026-03-10T08:00:00.000Z',
+        updatedAt: '2026-03-12T08:00:00.000Z',
+      },
+    ];
+
+    apiFetchMock.mockImplementation(async (path: string, options?: { method?: string; body?: string }) => {
+      if (path === '/setup/status') return { needsSetup: false };
+      if (path === '/auth/oauth/options') return { providers: [] };
+      if (path === '/me') return meResponse;
+      if (path === '/items') return items;
+      if (path === '/members') return [];
+      if (path === '/history/audit') return [];
+      if (path === '/retrospectives') return [];
+      if (path === '/admin/users') return [];
+      if (path === '/items/i1/actions' && options?.method === 'POST') {
+        const body = JSON.parse(options.body ?? '{}');
+        if (body.kind === 'note') {
+          items = items.map((item) =>
+            item.id === 'i1'
+              ? {
+                  ...item,
+                  actions: [
+                    {
+                      id: 'a1',
+                      kind: 'note',
+                      occurredAt: '2026-03-28T09:00:00.000Z',
+                      targetAt: body.targetAt,
+                      note: body.note,
+                    },
+                  ],
+                }
+              : item,
+          );
+          return { id: 'a1' };
+        }
+
+        if (body.kind === 'complete') {
+          items = items.map((item) =>
+            item.id === 'i1'
+              ? {
+                  ...item,
+                  completions: [
+                    {
+                      id: 'c1',
+                      occurredAt: '2026-03-28T09:05:00.000Z',
+                      targetAt: body.targetAt,
+                      note: body.note,
+                    },
+                  ],
+                  actions: item.actions,
+                }
+              : item,
+          );
+          return { id: 'c1' };
+        }
+      }
+      throw new Error(`Unexpected api path: ${path}`);
+    });
+
+    renderApp('/my-items');
+
+    const user = userEvent.setup();
+    await screen.findAllByRole('heading', { name: 'My Items' });
+    expect(screen.getByRole('heading', { name: 'Now' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Upcoming One-Time Work' })).toBeInTheDocument();
+
+    await user.type(screen.getByLabelText('Occurrence note for Morning meds'), 'Take with breakfast');
+    await user.click(screen.getByRole('button', { name: 'Save note for Morning meds' }));
+
+    expect(await screen.findByText('Current note')).toBeInTheDocument();
+    expect(screen.getAllByText('Take with breakfast').length).toBeGreaterThan(0);
+
+    await user.click(screen.getByRole('button', { name: 'Complete Morning meds' }));
+
+    await waitFor(() => {
+      expect(screen.getByText('Nothing is due right now.')).toBeInTheDocument();
+    });
+    expect(screen.getAllByText('Upload tax packet').length).toBeGreaterThan(0);
+    expect(apiFetchMock).toHaveBeenCalledWith(
+      '/items/i1/actions',
       expect.objectContaining({ method: 'POST' }),
     );
   });

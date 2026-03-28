@@ -58,6 +58,14 @@ export const trackingItemCreateSchema = z.object({
 
 export type TrackingItemCreateInput = z.infer<typeof trackingItemCreateSchema>;
 
+export const trackingOccurrenceActionSchema = z.object({
+  kind: z.enum(['complete', 'skip', 'note']),
+  targetAt: z.string().datetime(),
+  note: z.string().trim().max(2000).optional(),
+});
+
+export type TrackingOccurrenceActionInput = z.infer<typeof trackingOccurrenceActionSchema>;
+
 export const loginSchema = z.object({
   email: z.string().email(),
   password: z.string().min(8),
