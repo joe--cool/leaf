@@ -26,6 +26,8 @@ const retrospectiveContributionCreateMock = vi.fn();
 const trackingItemFindUniqueMock = vi.fn();
 const trackingItemFindManyMock = vi.fn();
 const trackingItemUpdateMock = vi.fn();
+const trackingItemActionUpsertMock = vi.fn();
+const trackingCompletionCreateMock = vi.fn();
 
 vi.mock('../src/auth.js', () => ({
   hashPassword: hashPasswordMock,
@@ -79,7 +81,10 @@ vi.mock('../src/prisma.js', () => ({
       update: trackingItemUpdateMock,
     },
     trackingCompletion: {
-      create: vi.fn(),
+      create: trackingCompletionCreateMock,
+    },
+    trackingItemAction: {
+      upsert: trackingItemActionUpsertMock,
     },
     retrospective: {
       findMany: retrospectiveFindManyMock,
@@ -250,6 +255,88 @@ describe('auth/guide routes', () => {
     expect(res.statusCode).toBe(400);
     expect(trackingItemFindUniqueMock).not.toHaveBeenCalled();
     expect(trackingItemUpdateMock).not.toHaveBeenCalled();
+    await app.close();
+  });
+
+  it('records a skip occurrence action for the owner', async () => {
+    const { registerRoutes } = await import('../src/routes.js');
+
+    trackingItemFindUniqueMock.mockResolvedValue({
+      id: 'item_1',
+      ownerId: 'u1',
+    });
+    trackingItemActionUpsertMock.mockResolvedValue({ id: 'act_1', kind: 'SKIP' });
+
+    const app = Fastify();
+    await app.register(sensible);
+    app.decorate('authenticate', async (request: { user?: { id: string; email: string; roles: string[] } }) => {
+      request.user = { id: 'u1', email: 'u1@example.com', roles: ['USER'] };
+    });
+    await app.register(registerRoutes);
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/items/item_1/actions',
+      payload: {
+        kind: 'skip',
+        targetAt: '2026-03-29T16:00:00.000Z',
+        note: 'Handled elsewhere today.',
+      },
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(trackingItemActionUpsertMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          itemId_userId_kind_targetAt: {
+            itemId: 'item_1',
+            userId: 'u1',
+            kind: 'SKIP',
+            targetAt: new Date('2026-03-29T16:00:00.000Z'),
+          },
+        },
+      }),
+    );
+    await app.close();
+  });
+
+  it('records a completion occurrence action with target attribution', async () => {
+    const { registerRoutes } = await import('../src/routes.js');
+
+    trackingItemFindUniqueMock.mockResolvedValue({
+      id: 'item_1',
+      ownerId: 'u1',
+    });
+    trackingCompletionCreateMock.mockResolvedValue({ id: 'cmp_1' });
+
+    const app = Fastify();
+    await app.register(sensible);
+    app.decorate('authenticate', async (request: { user?: { id: string; email: string; roles: string[] } }) => {
+      request.user = { id: 'u1', email: 'u1@example.com', roles: ['USER'] };
+    });
+    await app.register(registerRoutes);
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/items/item_1/actions',
+      payload: {
+        kind: 'complete',
+        targetAt: '2026-03-29T16:00:00.000Z',
+        note: 'Finished from My Items.',
+      },
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(trackingCompletionCreateMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          itemId: 'item_1',
+          userId: 'u1',
+          targetAt: new Date('2026-03-29T16:00:00.000Z'),
+          note: 'Finished from My Items.',
+        }),
+      }),
+    );
     await app.close();
   });
 
@@ -441,6 +528,7 @@ describe('auth/guide routes', () => {
                     note: 'Handled before school',
                   },
                 ],
+                actions: [],
               },
             ],
           },
@@ -482,6 +570,7 @@ describe('auth/guide routes', () => {
                   note: 'Handled before school',
                 },
               ],
+              actions: [],
             },
           ],
         },
@@ -509,6 +598,7 @@ describe('auth/guide routes', () => {
                 note: 'Handled before school',
               },
             ],
+            actions: [],
           },
         ],
       },
@@ -560,8 +650,10 @@ describe('auth/guide routes', () => {
                     },
                   },
                 ],
+                actions: [],
               },
             ],
+            retrospectivesOwned: [],
           },
         },
       ],
@@ -581,8 +673,10 @@ describe('auth/guide routes', () => {
               },
             },
           ],
+          actions: [],
         },
       ],
+      retrospectivesOwned: [],
       sentInvites: [
         {
           id: 'inv_1',

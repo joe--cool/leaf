@@ -47,6 +47,13 @@ export async function registerHistoryRoutes(app: FastifyInstance): Promise<void>
                       orderBy: { occurredAt: 'desc' },
                       take: 10,
                     },
+                    actions: {
+                      include: {
+                        user: true,
+                      },
+                      orderBy: { occurredAt: 'desc' },
+                      take: 10,
+                    },
                   },
                   orderBy: { createdAt: 'desc' },
                   take: 10,
@@ -63,6 +70,13 @@ export async function registerHistoryRoutes(app: FastifyInstance): Promise<void>
         items: {
           include: {
             completions: {
+              include: {
+                user: true,
+              },
+              orderBy: { occurredAt: 'desc' },
+              take: 20,
+            },
+            actions: {
               include: {
                 user: true,
               },
@@ -161,6 +175,25 @@ export async function registerHistoryRoutes(app: FastifyInstance): Promise<void>
               visibility: baseVisibility,
             })),
           ),
+          ...relation.reviewee.items.flatMap((item) =>
+            item.actions.map((action) => ({
+              id: `member-action-${action.id}`,
+              occurredAt: action.occurredAt.toISOString(),
+              category: 'activity' as const,
+              scope: 'member' as const,
+              subjectName: relation.reviewee.name,
+              title:
+                action.kind === 'SKIP'
+                  ? `${relation.reviewee.name} skipped ${item.title}`
+                  : `${relation.reviewee.name} added a note on ${item.title}`,
+              detail:
+                action.kind === 'SKIP'
+                  ? action.note?.trim() || 'Occurrence skipped without an added note.'
+                  : action.note?.trim() || 'Occurrence note added without extra detail.',
+              actorName: action.user.name,
+              visibility: baseVisibility,
+            })),
+          ),
           ...(relation.reviewee.retrospectivesOwned ?? []).flatMap((retrospective) => [
             {
               id: `member-retrospective-${retrospective.id}`,
@@ -208,6 +241,22 @@ export async function registerHistoryRoutes(app: FastifyInstance): Promise<void>
           title: `Recorded activity on ${item.title}`,
           detail: completion.note?.trim() ? completion.note.trim() : 'Completion recorded without a note.',
           actorName: completion.user.name,
+          visibility: 'Visible in your own account history and to permitted guides.',
+        })),
+      ),
+      ...user.items.flatMap((item) =>
+        item.actions.map((action) => ({
+          id: `action-${action.id}`,
+          occurredAt: action.occurredAt.toISOString(),
+          category: 'activity' as const,
+          scope: 'self' as const,
+          subjectName: user.name,
+          title: action.kind === 'SKIP' ? `Skipped ${item.title}` : `Added a note on ${item.title}`,
+          detail:
+            action.kind === 'SKIP'
+              ? action.note?.trim() || 'Occurrence skipped without an added note.'
+              : action.note?.trim() || 'Occurrence note added without extra detail.',
+          actorName: action.user.name,
           visibility: 'Visible in your own account history and to permitted guides.',
         })),
       ),

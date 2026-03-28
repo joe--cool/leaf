@@ -38,6 +38,7 @@ model User {
   roles            UserRole[]
   items            TrackingItem[]
   completions      TrackingCompletion[]
+  itemActions      TrackingItemAction[]
   reviewTargets    ReviewerRelation[] @relation("reviewer")
   reviewers        ReviewerRelation[] @relation("reviewee")
   sentInvites      Invite[]           @relation("inviter")
@@ -132,6 +133,7 @@ model TrackingItem {
 
   owner       User                 @relation(fields: [ownerId], references: [id], onDelete: Cascade)
   completions TrackingCompletion[]
+  actions     TrackingItemAction[]
 }
 
 model TrackingCompletion {
@@ -139,6 +141,7 @@ model TrackingCompletion {
   itemId     String
   userId     String
   occurredAt DateTime
+  targetAt   DateTime?
   note       String?
   createdAt  DateTime @default(now())
 
@@ -146,6 +149,24 @@ model TrackingCompletion {
   user User         @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([itemId, occurredAt])
+}
+
+model TrackingItemAction {
+  id         String   @id @default(cuid())
+  itemId     String
+  userId     String
+  kind       String
+  occurredAt DateTime @default(now())
+  targetAt   DateTime
+  note       String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  item TrackingItem @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  user User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([itemId, userId, kind, targetAt])
+  @@index([itemId, targetAt])
 }
 
 model Invite {

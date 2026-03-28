@@ -27,7 +27,8 @@ async function createTrackingItem(
     category: string;
     scheduleKind: 'ONE_TIME' | 'DAILY' | 'WEEKLY' | 'INTERVAL_DAYS' | 'CUSTOM_DATES';
     scheduleData: Prisma.InputJsonValue;
-    completions?: Array<{ occurredAt: string; note?: string }>;
+    completions?: Array<{ occurredAt: string; targetAt?: string; note?: string }>;
+    actions?: Array<{ kind: 'SKIP' | 'NOTE'; occurredAt: string; targetAt: string; note?: string }>;
     notificationHardToDismiss?: boolean;
     notificationRepeatMinutes?: number;
   },
@@ -53,7 +54,25 @@ async function createTrackingItem(
             itemId: item.id,
             userId: ownerId,
             occurredAt: new Date(completion.occurredAt),
+            targetAt: completion.targetAt ? new Date(completion.targetAt) : undefined,
             note: completion.note,
+          },
+        }),
+      ),
+    );
+  }
+
+  if (data.actions?.length) {
+    await Promise.all(
+      data.actions.map((action) =>
+        tx.trackingItemAction.create({
+          data: {
+            itemId: item.id,
+            userId: ownerId,
+            kind: action.kind,
+            occurredAt: new Date(action.occurredAt),
+            targetAt: new Date(action.targetAt),
+            note: action.note,
           },
         }),
       ),
@@ -224,8 +243,16 @@ export async function seedDemoWorkspace(admin: UserShape, sharedPasswordHash: st
         timezone: 'America/Los_Angeles',
       },
       completions: [
-        { occurredAt: isoDaysFromNow(-2, 8, 3), note: 'On time before breakfast.' },
-        { occurredAt: isoDaysFromNow(-1, 8, 6), note: 'Took with water.' },
+        {
+          occurredAt: isoDaysFromNow(-2, 8, 3),
+          targetAt: isoDaysFromNow(-2, 8, 0),
+          note: 'On time before breakfast.',
+        },
+        {
+          occurredAt: isoDaysFromNow(-1, 8, 6),
+          targetAt: isoDaysFromNow(-1, 8, 0),
+          note: 'Took with water.',
+        },
       ],
       notificationHardToDismiss: true,
       notificationRepeatMinutes: 10,
@@ -241,7 +268,13 @@ export async function seedDemoWorkspace(admin: UserShape, sharedPasswordHash: st
         weekdays: [1, 3, 5],
         timezone: 'America/Los_Angeles',
       },
-      completions: [{ occurredAt: isoDaysFromNow(-3, 18, 0), note: 'Short but finished.' }],
+      completions: [
+        {
+          occurredAt: isoDaysFromNow(-3, 18, 0),
+          targetAt: isoDaysFromNow(-3, 12, 0),
+          note: 'Short but finished.',
+        },
+      ],
     });
 
     await createTrackingItem(tx, admin.id, {
@@ -254,6 +287,14 @@ export async function seedDemoWorkspace(admin: UserShape, sharedPasswordHash: st
         oneTimeAt: isoDaysFromNow(1, 14, 30),
         timezone: 'America/Los_Angeles',
       },
+      actions: [
+        {
+          kind: 'NOTE',
+          occurredAt: isoDaysFromNow(0, 9, 15),
+          targetAt: isoDaysFromNow(1, 14, 30),
+          note: 'Need to pull the W-2 and mileage notes before uploading.',
+        },
+      ],
     });
 
     await createTrackingItem(tx, admin.id, {
@@ -278,7 +319,21 @@ export async function seedDemoWorkspace(admin: UserShape, sharedPasswordHash: st
           },
         ],
       },
-      completions: [{ occurredAt: isoDaysFromNow(-1, 19, 5), note: 'Counters and table done.' }],
+      completions: [
+        {
+          occurredAt: isoDaysFromNow(-1, 19, 5),
+          targetAt: isoDaysFromNow(-1, 19, 0),
+          note: 'Counters and table done.',
+        },
+      ],
+      actions: [
+        {
+          kind: 'NOTE',
+          occurredAt: isoDaysFromNow(0, 7, 45),
+          targetAt: isoDaysFromNow(0, 19, 0),
+          note: 'Trash night too, so reset the island first.',
+        },
+      ],
     });
 
     await createTrackingItem(tx, jordan.id, {
@@ -292,8 +347,16 @@ export async function seedDemoWorkspace(admin: UserShape, sharedPasswordHash: st
         timezone: 'America/Los_Angeles',
       },
       completions: [
-        { occurredAt: isoDaysFromNow(-1, 20, 4), note: 'Homework folder included.' },
-        { occurredAt: isoDaysFromNow(-2, 20, 9), note: 'Added sports shoes too.' },
+        {
+          occurredAt: isoDaysFromNow(-1, 20, 4),
+          targetAt: isoDaysFromNow(-1, 20, 0),
+          note: 'Homework folder included.',
+        },
+        {
+          occurredAt: isoDaysFromNow(-2, 20, 9),
+          targetAt: isoDaysFromNow(-2, 20, 0),
+          note: 'Added sports shoes too.',
+        },
       ],
     });
 
@@ -308,7 +371,13 @@ export async function seedDemoWorkspace(admin: UserShape, sharedPasswordHash: st
         intervalAnchor: isoDaysFromNow(-4, 17, 0),
         timezone: 'America/Los_Angeles',
       },
-      completions: [{ occurredAt: isoDaysFromNow(-2, 17, 2), note: 'Focused session.' }],
+      completions: [
+        {
+          occurredAt: isoDaysFromNow(-2, 17, 2),
+          targetAt: isoDaysFromNow(-2, 17, 0),
+          note: 'Focused session.',
+        },
+      ],
     });
 
     await createTrackingItem(tx, morgan.id, {
@@ -333,7 +402,13 @@ export async function seedDemoWorkspace(admin: UserShape, sharedPasswordHash: st
         weekdays: [1, 2, 4],
         timezone: 'America/New_York',
       },
-      completions: [{ occurredAt: isoDaysFromNow(-1, 13, 15), note: '20 minutes outside.' }],
+      completions: [
+        {
+          occurredAt: isoDaysFromNow(-1, 13, 15),
+          targetAt: isoDaysFromNow(-1, 12, 0),
+          note: '20 minutes outside.',
+        },
+      ],
     });
 
     const retrospectiveSeeds = [

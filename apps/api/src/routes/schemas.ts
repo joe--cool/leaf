@@ -3,7 +3,14 @@ import { z } from 'zod';
 
 export const completeSchema = z.object({
   occurredAt: z.string().optional(),
+  targetAt: z.string().optional(),
   note: z.string().optional(),
+});
+
+export const occurrenceActionSchema = z.object({
+  kind: z.enum(['complete', 'skip', 'note']),
+  targetAt: z.string().datetime(),
+  note: z.string().trim().max(2000).optional(),
 });
 
 export const inviteSchema = z.object({

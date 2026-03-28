@@ -2,7 +2,17 @@ import type { FastifyInstance } from 'fastify';
 import { trackingItemCreateSchema } from '@leaf/shared';
 import { prisma } from '../prisma.js';
 import { authUser, normalizeRelationship, scheduleKindForStorage } from './shared.js';
-import { completeSchema, idParamSchema, preferencesSchema } from './schemas.js';
+import { completeSchema, idParamSchema, occurrenceActionSchema, preferencesSchema } from './schemas.js';
+
+function serializeItem<T extends { actions: Array<{ kind: string }> }>(item: T) {
+  return {
+    ...item,
+    actions: item.actions.map((action) => ({
+      ...action,
+      kind: action.kind.toLowerCase(),
+    })),
+  };
+}
 
 export async function registerUserItemRoutes(app: FastifyInstance): Promise<void> {
   app.get('/me', { preHandler: [app.authenticate] }, async (request) => {
@@ -48,6 +58,10 @@ export async function registerUserItemRoutes(app: FastifyInstance): Promise<void
                       orderBy: { occurredAt: 'desc' },
                       take: 5,
                     },
+                    actions: {
+                      orderBy: { occurredAt: 'desc' },
+                      take: 10,
+                    },
                   },
                   orderBy: { createdAt: 'desc' },
                 },
@@ -65,7 +79,7 @@ export async function registerUserItemRoutes(app: FastifyInstance): Promise<void
           ...normalizeRelationship(relation),
           createdAt: relation.createdAt,
         },
-        items: relation.reviewee.items,
+        items: relation.reviewee.items.map(serializeItem),
       })) ?? []
     );
   });
@@ -95,15 +109,20 @@ export async function registerUserItemRoutes(app: FastifyInstance): Promise<void
 
   app.get('/items', { preHandler: [app.authenticate] }, async (request) => {
     const actor = authUser(request);
-    return prisma.trackingItem.findMany({
+    const items = await prisma.trackingItem.findMany({
       where: { ownerId: actor.id },
       include: {
         completions: {
           orderBy: { occurredAt: 'desc' },
           take: 10,
         },
+        actions: {
+          orderBy: { occurredAt: 'desc' },
+          take: 20,
+        },
       },
     });
+    return items.map(serializeItem);
   });
 
   app.put('/items/:id', { preHandler: [app.authenticate] }, async (request) => {
@@ -148,7 +167,52 @@ export async function registerUserItemRoutes(app: FastifyInstance): Promise<void
         itemId: params.id,
         userId: actor.id,
         occurredAt: body.occurredAt ? new Date(body.occurredAt) : new Date(),
+        targetAt: body.targetAt ? new Date(body.targetAt) : undefined,
         note: body.note,
+      },
+    });
+  });
+
+  app.post('/items/:id/actions', { preHandler: [app.authenticate] }, async (request) => {
+    const actor = authUser(request);
+    const params = idParamSchema.parse(request.params);
+    const body = occurrenceActionSchema.parse(request.body ?? {});
+    const item = await prisma.trackingItem.findUnique({ where: { id: params.id } });
+    if (!item || item.ownerId !== actor.id) {
+      throw app.httpErrors.notFound('Item not found');
+    }
+
+    if (body.kind === 'complete') {
+      return prisma.trackingCompletion.create({
+        data: {
+          itemId: params.id,
+          userId: actor.id,
+          occurredAt: new Date(),
+          targetAt: new Date(body.targetAt),
+          note: body.note,
+        },
+      });
+    }
+
+    return prisma.trackingItemAction.upsert({
+      where: {
+        itemId_userId_kind_targetAt: {
+          itemId: params.id,
+          userId: actor.id,
+          kind: body.kind.toUpperCase(),
+          targetAt: new Date(body.targetAt),
+        },
+      },
+      create: {
+        itemId: params.id,
+        userId: actor.id,
+        kind: body.kind.toUpperCase(),
+        targetAt: new Date(body.targetAt),
+        note: body.note,
+      },
+      update: {
+        note: body.note,
+        occurredAt: new Date(),
       },
     });
   });
