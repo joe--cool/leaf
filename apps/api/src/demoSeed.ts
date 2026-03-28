@@ -27,8 +27,8 @@ async function createTrackingItem(
     category: string;
     scheduleKind: 'ONE_TIME' | 'DAILY' | 'WEEKLY' | 'INTERVAL_DAYS' | 'CUSTOM_DATES';
     scheduleData: Prisma.InputJsonValue;
-    completions?: Array<{ occurredAt: string; targetAt?: string; note?: string }>;
-    actions?: Array<{ kind: 'SKIP' | 'NOTE'; occurredAt: string; targetAt: string; note?: string }>;
+    completions?: Array<{ occurredAt: string; targetAt?: string; note?: string; userId?: string }>;
+    actions?: Array<{ kind: 'SKIP' | 'NOTE'; occurredAt: string; targetAt: string; note?: string; userId?: string }>;
     notificationHardToDismiss?: boolean;
     notificationRepeatMinutes?: number;
   },
@@ -52,7 +52,7 @@ async function createTrackingItem(
         tx.trackingCompletion.create({
           data: {
             itemId: item.id,
-            userId: ownerId,
+            userId: completion.userId ?? ownerId,
             occurredAt: new Date(completion.occurredAt),
             targetAt: completion.targetAt ? new Date(completion.targetAt) : undefined,
             note: completion.note,
@@ -68,7 +68,7 @@ async function createTrackingItem(
         tx.trackingItemAction.create({
           data: {
             itemId: item.id,
-            userId: ownerId,
+            userId: action.userId ?? ownerId,
             kind: action.kind,
             occurredAt: new Date(action.occurredAt),
             targetAt: new Date(action.targetAt),
@@ -356,6 +356,15 @@ export async function seedDemoWorkspace(admin: UserShape, sharedPasswordHash: st
           occurredAt: isoDaysFromNow(-2, 20, 9),
           targetAt: isoDaysFromNow(-2, 20, 0),
           note: 'Added sports shoes too.',
+        },
+      ],
+      actions: [
+        {
+          kind: 'NOTE',
+          occurredAt: isoDaysFromNow(0, 7, 20),
+          targetAt: isoDaysFromNow(0, 20, 0),
+          note: 'Guide note: pack the signed permission slip in the front pocket.',
+          userId: admin.id,
         },
       ],
     });

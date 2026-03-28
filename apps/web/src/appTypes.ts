@@ -55,6 +55,7 @@ export type ItemCompletion = {
   occurredAt: string;
   targetAt?: string | null;
   note?: string | null;
+  actorName?: string;
 };
 
 export type ItemAction = {
@@ -63,6 +64,7 @@ export type ItemAction = {
   occurredAt: string;
   targetAt: string;
   note?: string | null;
+  actorName?: string;
 };
 
 export type MemberItem = Item & {

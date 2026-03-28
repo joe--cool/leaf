@@ -315,6 +315,10 @@ function skipMatchesTarget(item: Item, targetAt: string): boolean {
 }
 
 function noteForTarget(item: Item, targetAt: string): string | null {
+  return noteDetailsForTarget(item, targetAt)?.note ?? null;
+}
+
+function noteDetailsForTarget(item: Item, targetAt: string): { note: string; actorName?: string } | null {
   const normalizedTarget = normalizeTimestamp(targetAt);
   if (!normalizedTarget) return null;
 
@@ -322,8 +326,10 @@ function noteForTarget(item: Item, targetAt: string): string | null {
     ...(item.actions ?? [])
       .filter((entry) => entry.kind === 'note' && normalizeTimestamp(entry.targetAt) === normalizedTarget)
       .sort((left, right) => right.occurredAt.localeCompare(left.occurredAt))
-      .map((entry) => entry.note?.trim())
-      .filter((value): value is string => Boolean(value)),
+      .flatMap((entry) => {
+        const note = entry.note?.trim();
+        return note ? [{ note, actorName: entry.actorName }] : [];
+      }),
     ...(item.completions ?? [])
       .filter((entry) => {
         const explicitTarget = normalizeTimestamp(entry.targetAt ?? undefined);
@@ -332,8 +338,10 @@ function noteForTarget(item: Item, targetAt: string): string | null {
         return occurredAt ? isSameLocalDay(new Date(occurredAt), new Date(normalizedTarget)) : false;
       })
       .sort((left, right) => right.occurredAt.localeCompare(left.occurredAt))
-      .map((entry) => entry.note?.trim())
-      .filter((value): value is string => Boolean(value)),
+      .flatMap((entry) => {
+        const note = entry.note?.trim();
+        return note ? [{ note, actorName: entry.actorName }] : [];
+      }),
   ];
 
   return candidateNotes[0] ?? null;
@@ -341,6 +349,13 @@ function noteForTarget(item: Item, targetAt: string): string | null {
 
 export function summarizeOccurrenceNote(item: Item, occurrenceAt?: string): string | null {
   return occurrenceAt ? noteForTarget(item, occurrenceAt) : null;
+}
+
+export function summarizeOccurrenceNoteDetails(
+  item: Item,
+  occurrenceAt?: string,
+): { note: string; actorName?: string } | null {
+  return occurrenceAt ? noteDetailsForTarget(item, occurrenceAt) : null;
 }
 
 function resolveTimeParts(value: string | undefined, fallbackHours = 12, fallbackMinutes = 0) {
@@ -665,7 +680,7 @@ export function summarizeActionableState(item: Item, now = new Date()): ActionSu
 export function summarizeRecentRevieweeActivity(items: MemberItem[]) {
   return items
     .flatMap((item) =>
-      item.completions.map((completion: MemberItem['completions'][number]) => ({
+      (item.completions ?? []).map((completion: MemberItem['completions'][number]) => ({
         id: completion.id,
         itemTitle: item.title,
         occurredAt: completion.occurredAt,
@@ -675,4 +690,29 @@ export function summarizeRecentRevieweeActivity(items: MemberItem[]) {
     .filter((entry) => !Number.isNaN(new Date(entry.occurredAt).valueOf()))
     .sort((left, right) => new Date(right.occurredAt).getTime() - new Date(left.occurredAt).getTime())
     .slice(0, 3);
+}
+
+export function summarizeRecentMemberContext(items: MemberItem[]) {
+  return items
+    .flatMap((item) => [
+      ...(item.completions ?? []).map((completion) => ({
+        id: `completion-${completion.id}`,
+        itemTitle: item.title,
+        occurredAt: completion.occurredAt,
+        note: completion.note,
+        actorName: completion.actorName,
+        kind: 'complete' as const,
+      })),
+      ...(item.actions ?? []).map((action) => ({
+        id: `action-${action.id}`,
+        itemTitle: item.title,
+        occurredAt: action.occurredAt,
+        note: action.note,
+        actorName: action.actorName,
+        kind: action.kind,
+      })),
+    ])
+    .filter((entry) => !Number.isNaN(new Date(entry.occurredAt).valueOf()))
+    .sort((left, right) => new Date(right.occurredAt).getTime() - new Date(left.occurredAt).getTime())
+    .slice(0, 6);
 }

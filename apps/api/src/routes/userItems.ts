@@ -2,16 +2,72 @@ import type { FastifyInstance } from 'fastify';
 import { trackingItemCreateSchema } from '@leaf/shared';
 import { prisma } from '../prisma.js';
 import { authUser, normalizeRelationship, scheduleKindForStorage } from './shared.js';
-import { completeSchema, idParamSchema, occurrenceActionSchema, preferencesSchema } from './schemas.js';
+import {
+  completeSchema,
+  idParamSchema,
+  memberItemParamsSchema,
+  occurrenceActionSchema,
+  preferencesSchema,
+} from './schemas.js';
 
-function serializeItem<T extends { actions: Array<{ kind: string }> }>(item: T) {
+function serializeItem<
+  T extends {
+    completions: Array<{ user?: { name: string } | null }>;
+    actions: Array<{ kind: string; user?: { name: string } | null }>;
+  },
+>(item: T) {
   return {
     ...item,
+    completions: item.completions.map((completion) => ({
+      ...completion,
+      actorName: completion.user?.name,
+    })),
     actions: item.actions.map((action) => ({
       ...action,
       kind: action.kind.toLowerCase(),
+      actorName: action.user?.name,
     })),
   };
+}
+
+async function applyOccurrenceActionForItem(
+  itemId: string,
+  actorId: string,
+  body: { kind: 'complete' | 'skip' | 'note'; targetAt: string; note?: string },
+) {
+  if (body.kind === 'complete') {
+    return prisma.trackingCompletion.create({
+      data: {
+        itemId,
+        userId: actorId,
+        occurredAt: new Date(),
+        targetAt: new Date(body.targetAt),
+        note: body.note,
+      },
+    });
+  }
+
+  return prisma.trackingItemAction.upsert({
+    where: {
+      itemId_userId_kind_targetAt: {
+        itemId,
+        userId: actorId,
+        kind: body.kind.toUpperCase(),
+        targetAt: new Date(body.targetAt),
+      },
+    },
+    create: {
+      itemId,
+      userId: actorId,
+      kind: body.kind.toUpperCase(),
+      targetAt: new Date(body.targetAt),
+      note: body.note,
+    },
+    update: {
+      note: body.note,
+      occurredAt: new Date(),
+    },
+  });
 }
 
 export async function registerUserItemRoutes(app: FastifyInstance): Promise<void> {
@@ -55,10 +111,16 @@ export async function registerUserItemRoutes(app: FastifyInstance): Promise<void
                 items: {
                   include: {
                     completions: {
+                      include: {
+                        user: true,
+                      },
                       orderBy: { occurredAt: 'desc' },
                       take: 5,
                     },
                     actions: {
+                      include: {
+                        user: true,
+                      },
                       orderBy: { occurredAt: 'desc' },
                       take: 10,
                     },
@@ -113,10 +175,16 @@ export async function registerUserItemRoutes(app: FastifyInstance): Promise<void
       where: { ownerId: actor.id },
       include: {
         completions: {
+          include: {
+            user: true,
+          },
           orderBy: { occurredAt: 'desc' },
           take: 10,
         },
         actions: {
+          include: {
+            user: true,
+          },
           orderBy: { occurredAt: 'desc' },
           take: 20,
         },
@@ -183,38 +251,39 @@ export async function registerUserItemRoutes(app: FastifyInstance): Promise<void
     }
 
     if (body.kind === 'complete') {
-      return prisma.trackingCompletion.create({
-        data: {
-          itemId: params.id,
-          userId: actor.id,
-          occurredAt: new Date(),
-          targetAt: new Date(body.targetAt),
-          note: body.note,
-        },
-      });
+      return applyOccurrenceActionForItem(params.id, actor.id, body);
     }
 
-    return prisma.trackingItemAction.upsert({
+    return applyOccurrenceActionForItem(params.id, actor.id, body);
+  });
+
+  app.post('/members/:memberId/items/:itemId/actions', { preHandler: [app.authenticate] }, async (request, reply) => {
+    const actor = authUser(request);
+    const params = memberItemParamsSchema.parse(request.params);
+    const body = occurrenceActionSchema.parse(request.body ?? {});
+    const relation = await prisma.reviewerRelation.findUnique({
       where: {
-        itemId_userId_kind_targetAt: {
-          itemId: params.id,
-          userId: actor.id,
-          kind: body.kind.toUpperCase(),
-          targetAt: new Date(body.targetAt),
+        reviewerId_revieweeId: {
+          reviewerId: actor.id,
+          revieweeId: params.memberId,
         },
       },
-      create: {
-        itemId: params.id,
-        userId: actor.id,
-        kind: body.kind.toUpperCase(),
-        targetAt: new Date(body.targetAt),
-        note: body.note,
-      },
-      update: {
-        note: body.note,
-        occurredAt: new Date(),
-      },
     });
+
+    if (!relation) {
+      throw reply.forbidden('You do not guide this member');
+    }
+
+    if (!relation.canActOnItems) {
+      throw reply.forbidden('This relationship cannot act on member items');
+    }
+
+    const item = await prisma.trackingItem.findUnique({ where: { id: params.itemId } });
+    if (!item || item.ownerId !== params.memberId) {
+      throw app.httpErrors.notFound('Item not found');
+    }
+
+    return applyOccurrenceActionForItem(params.itemId, actor.id, body);
   });
 
   app.patch('/me/preferences', { preHandler: [app.authenticate] }, async (request) => {
