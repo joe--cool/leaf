@@ -68,7 +68,6 @@ import { RetrospectivesPage } from './pages/RetrospectivesPage';
 import { RoutinesPage } from './pages/RoutinesPage';
 import { AuditLogPage } from './pages/AuditLogPage';
 import { WelcomePage } from './pages/WelcomePage';
-import { cadenceWindowForDate } from './reflectionUtils';
 
 function startsWithPath(pathname: string, path: string): boolean {
   return pathname === path || pathname.startsWith(`${path}/`);
