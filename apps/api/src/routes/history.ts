@@ -1,4 +1,5 @@
 import type { FastifyInstance } from 'fastify';
+import { relationshipHistoryWindowLabel, type RelationshipHistoryWindow } from '@leaf/shared';
 import { prisma } from '../prisma.js';
 import { authUser } from './shared.js';
 
@@ -132,12 +133,12 @@ export async function registerHistoryRoutes(app: FastifyInstance): Promise<void>
         scope: 'guide' as const,
         subjectName: relation.reviewer.name,
         title: `${relation.reviewer.name} became your guide`,
-        detail: `Relationship opened with ${relation.historyWindow ?? 'Future only'} visibility and ${relation.mode === 'active' ? 'active' : 'passive'} guide permissions.`,
+        detail: `Relationship opened with ${relationshipHistoryWindowLabel((relation.historyWindow as RelationshipHistoryWindow) ?? 'future-only')} visibility and ${relation.mode === 'active' ? 'active' : 'passive'} guide permissions.`,
         actorName: relation.reviewer.name,
         visibility: 'Visible because this relationship affects your accountability history.',
       })),
       ...user.reviewTargets.flatMap((relation) => {
-        const baseVisibility = `Visible because ${relation.reviewee.name} is in your guide workspace (${relation.historyWindow ?? 'Future only'}).`;
+        const baseVisibility = `Visible because ${relation.reviewee.name} is in your guide workspace (${relationshipHistoryWindowLabel((relation.historyWindow as RelationshipHistoryWindow) ?? 'future-only')}).`;
 
         return [
           {

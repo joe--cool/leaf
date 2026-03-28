@@ -39,20 +39,24 @@ type MeResponse = {
   reflectionMonthDay: number;
   roles: Array<{ role: string }>;
   members: Array<{
+    templateId?: string;
     mode?: 'active' | 'passive';
     canActOnItems?: boolean;
     canManageRoutines?: boolean;
     canManageFollowThrough?: boolean;
     historyWindow?: string;
+    hiddenItemVisibility?: string;
     hiddenItemCount?: number;
     member: { id: string; email: string; name: string };
   }>;
   guides: Array<{
+    templateId?: string;
     mode?: 'active' | 'passive';
     canActOnItems?: boolean;
     canManageRoutines?: boolean;
     canManageFollowThrough?: boolean;
     historyWindow?: string;
+    hiddenItemVisibility?: string;
     hiddenItemCount?: number;
     guide: { id: string; email: string; name: string };
   }>;
@@ -168,11 +172,13 @@ describe('App routes', () => {
               reflectionMonthDay: 1,
             },
             relationship: {
+              templateId: 'active-guide',
               mode: 'active',
               canActOnItems: true,
               canManageRoutines: true,
               canManageFollowThrough: true,
-              historyWindow: 'Last 30 days and upcoming items',
+              historyWindow: 'last-30-days-and-upcoming',
+              hiddenItemVisibility: 'show-count',
               hiddenItemCount: 1,
             },
             items: [
@@ -272,7 +278,7 @@ describe('App routes', () => {
               canActOnItems: false,
               canManageRoutines: false,
               canManageFollowThrough: false,
-              historyWindow: 'Future only',
+              historyWindow: 'future-only',
               hiddenItemCount: 0,
             },
             items: [
@@ -514,7 +520,6 @@ describe('App routes', () => {
     expect(screen.getByText('You have both member and guide work to review')).toBeInTheDocument();
     expect(screen.getByText('Recent Shared Completions')).toBeInTheDocument();
     expect(screen.getAllByText(/% accountability/).length).toBeGreaterThan(0);
-    expect(screen.getByText('Some items are hidden from this view.')).toBeInTheDocument();
   });
 
   it('keeps preferences and admin out of the main app navigation', async () => {
@@ -556,7 +561,7 @@ describe('App routes', () => {
               canActOnItems: true,
               canManageRoutines: true,
               canManageFollowThrough: true,
-              historyWindow: 'Last 30 days + next due',
+              historyWindow: 'last-30-days-and-upcoming',
               hiddenItemCount: 1,
               createdAt: '2026-03-10T08:00:00.000Z',
               member: { id: 'u2', email: 'member@example.com', name: 'Alex' },
@@ -568,7 +573,7 @@ describe('App routes', () => {
               canActOnItems: true,
               canManageRoutines: true,
               canManageFollowThrough: true,
-              historyWindow: 'Last 30 days + next due',
+              historyWindow: 'last-30-days-and-upcoming',
               hiddenItemCount: 0,
               createdAt: '2026-03-09T08:00:00.000Z',
               guide: { id: 'u3', email: 'guide@example.com', name: 'Jordan' },
@@ -611,7 +616,7 @@ describe('App routes', () => {
               canActOnItems: true,
               canManageRoutines: true,
               canManageFollowThrough: true,
-              historyWindow: 'Last 30 days + next due',
+              historyWindow: 'last-30-days-and-upcoming',
               hiddenItemCount: 1,
               createdAt: '2026-03-10T08:00:00.000Z',
             },
@@ -738,7 +743,7 @@ describe('App routes', () => {
               canActOnItems: true,
               canManageRoutines: true,
               canManageFollowThrough: true,
-              historyWindow: 'Last 30 days + next due',
+              historyWindow: 'last-30-days-and-upcoming',
               hiddenItemCount: 0,
               guide: { id: 'u3', email: 'guide@example.com', name: 'Jordan' },
             },
@@ -973,7 +978,7 @@ describe('App routes', () => {
               canActOnItems: true,
               canManageRoutines: true,
               canManageFollowThrough: true,
-              historyWindow: 'Last 30 days + next due',
+              historyWindow: 'last-30-days-and-upcoming',
               hiddenItemCount: 0,
               guide: { id: 'u3', email: 'guide@example.com', name: 'Jordan' },
             },
@@ -984,7 +989,7 @@ describe('App routes', () => {
               canActOnItems: true,
               canManageRoutines: true,
               canManageFollowThrough: true,
-              historyWindow: 'Last 30 days + next due',
+              historyWindow: 'last-30-days-and-upcoming',
               hiddenItemCount: 0,
               member: { id: 'u2', email: 'member@example.com', name: 'Alex' },
             },
@@ -1075,7 +1080,7 @@ describe('App routes', () => {
               canActOnItems: true,
               canManageRoutines: true,
               canManageFollowThrough: true,
-              historyWindow: 'Last 30 days + next due',
+              historyWindow: 'last-30-days-and-upcoming',
               hiddenItemCount: 0,
               member: { id: 'u2', email: 'member@example.com', name: 'Alex' },
             },
@@ -1170,22 +1175,26 @@ describe('App routes', () => {
     mockAuthedApi({
       guides: [
         {
+          templateId: 'active-guide',
           mode: 'active',
           canActOnItems: true,
           canManageRoutines: true,
           canManageFollowThrough: true,
-          historyWindow: 'Last 30 days + next due',
+          historyWindow: 'last-30-days-and-upcoming',
+          hiddenItemVisibility: 'show-count',
           hiddenItemCount: 1,
           guide: { id: 'u3', email: 'guide@example.com', name: 'Jordan' },
         },
       ],
       members: [
         {
+          templateId: 'passive-guide',
           mode: 'passive',
           canActOnItems: false,
           canManageRoutines: false,
           canManageFollowThrough: false,
-          historyWindow: 'Future only',
+          historyWindow: 'future-only',
+          hiddenItemVisibility: 'show-count',
           hiddenItemCount: 0,
           member: { id: 'u2', email: 'member@example.com', name: 'Alex' },
         },
@@ -1203,8 +1212,81 @@ describe('App routes', () => {
     expect(screen.getByRole('button', { name: /Active Guide/i })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Your Guides' })).toBeInTheDocument();
     expect(screen.getByText('Jordan')).toBeInTheDocument();
-    expect(screen.getByText("1 hidden item stays outside this guide's view.")).toBeInTheDocument();
+    expect(screen.getAllByText("1 hidden item stays outside this guide's view.").length).toBeGreaterThan(0);
+    expect(screen.getByText('Template defaults')).toBeInTheDocument();
+    expect(screen.getByText('Current saved relationship')).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Your Members' })).toBeInTheDocument();
+  });
+
+  it('saves edited relationship controls from the profile page', async () => {
+    apiFetchMock.mockImplementation(async (path: string, options?: { body?: string }) => {
+      if (path === '/setup/status') return { needsSetup: false };
+      if (path === '/auth/oauth/options') return { providers: [] };
+      if (path === '/me') {
+        return {
+          ...meResponse,
+          guides: [
+            {
+              templateId: 'active-guide',
+              mode: 'active',
+              canActOnItems: true,
+              canManageRoutines: true,
+              canManageFollowThrough: true,
+              historyWindow: 'last-30-days-and-upcoming',
+              hiddenItemVisibility: 'show-count',
+              hiddenItemCount: 1,
+              guide: { id: 'u3', email: 'guide@example.com', name: 'Jordan' },
+            },
+          ],
+        };
+      }
+      if (path === '/items') return [];
+      if (path === '/members') return [];
+      if (path === '/history/audit') return [];
+      if (path === '/retrospectives') return [];
+      if (path === '/admin/users') return [];
+      if (path === '/relationships/guides/u3') {
+        expect(JSON.parse(options?.body ?? '{}')).toEqual({
+          mode: 'passive',
+          canActOnItems: false,
+          canManageRoutines: false,
+          canManageFollowThrough: false,
+          historyWindow: 'full-history',
+          hiddenItemVisibility: 'show-existence',
+        });
+
+        return {
+          templateId: 'active-guide',
+          mode: 'passive',
+          canActOnItems: false,
+          canManageRoutines: false,
+          canManageFollowThrough: false,
+          historyWindow: 'full-history',
+          historyWindowLabel: 'Full history',
+          hiddenItemVisibility: 'show-existence',
+          hiddenItemCount: 1,
+          createdAt: '2026-03-10T07:00:00.000Z',
+          guide: { id: 'u3', email: 'guide@example.com', name: 'Jordan' },
+        };
+      }
+      throw new Error(`Unexpected api path: ${path}`);
+    });
+
+    renderApp('/profile');
+
+    const user = userEvent.setup();
+    await screen.findByRole('heading', { name: 'Your Guides' });
+
+    await user.selectOptions(screen.getByLabelText('Guide mode'), 'passive');
+    await user.selectOptions(screen.getByLabelText('History access'), 'full-history');
+    await user.selectOptions(screen.getByLabelText('Hidden-item boundary'), 'show-existence');
+    await user.click(screen.getByRole('button', { name: 'Save relationship' }));
+
+    await screen.findByText('Current: passive guide');
+    expect(
+      screen.getAllByText('Full history. All visible item, reflection, and audit history stays available.').length,
+    ).toBeGreaterThan(0);
+    expect(screen.getAllByText('Some items stay outside this guide view, but the count stays private.').length).toBeGreaterThan(0);
   });
 
   it('updates the account menu immediately after saving profile changes', async () => {
@@ -1339,7 +1421,7 @@ describe('App routes', () => {
             canActOnItems: true,
             canManageRoutines: true,
             canManageFollowThrough: true,
-            historyWindow: 'Last 30 days + next due',
+            historyWindow: 'last-30-days-and-upcoming',
           },
         };
       }
@@ -1367,7 +1449,7 @@ describe('App routes', () => {
               canActOnItems: true,
               canManageRoutines: true,
               canManageFollowThrough: true,
-              historyWindow: 'Last 30 days + next due',
+              historyWindow: 'last-30-days-and-upcoming',
               hiddenItemCount: 0,
               member: { id: 'u2', email: 'jordan@example.com', name: 'Jordan' },
             },
@@ -1386,7 +1468,7 @@ describe('App routes', () => {
 
     expect(await screen.findByText('Alex invited you into Leaf')).toBeInTheDocument();
     expect(screen.getByText('Alex is asking you to guide Jordan.')).toBeInTheDocument();
-    expect(screen.getByText(/Last 30 days \+ next due/)).toBeInTheDocument();
+    expect(screen.getByText(/Last 30 days \+ upcoming items/)).toBeInTheDocument();
 
     const user = userEvent.setup();
     const registerSection = screen.getByRole('heading', { name: 'Create your account and accept' }).closest('form')!;

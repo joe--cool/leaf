@@ -17,6 +17,7 @@ import {
 import { Link as RouterLink } from 'react-router-dom';
 import { buildAccountabilitySummary } from '../accountabilityUtils';
 import { AccountabilitySummaryBlock, PrivacyDisclosure } from '../components/AccountabilitySummary';
+import { hiddenItemsBoundaryText, relationshipHistoryWindowLabel } from '../relationshipUi';
 import { getCategoryLabel, summarizeSchedule } from '../scheduleUtils';
 import type { ActionableItem, Item, MemberPortfolio, User } from '../appTypes';
 
@@ -239,11 +240,15 @@ export function DashboardPage({
                         <Text fontSize="sm" color={subtleText} mt={2}>
                           {entry.recentActivity[0]
                             ? `Recent completion: ${entry.recentActivity[0].itemTitle}`
-                            : `Visibility: ${entry.relationship.historyWindow}`}
+                            : `Visibility: ${relationshipHistoryWindowLabel(entry.relationship.historyWindow)}`}
                         </Text>
                         {entry.relationship.hiddenItemCount > 0 ? (
                           <Text fontSize="sm" color={subtleText} mt={1}>
-                            Some items stay hidden from this guide view.
+                            {hiddenItemsBoundaryText(
+                              entry.relationship.hiddenItemCount,
+                              entry.relationship.hiddenItemVisibility,
+                              'Some items stay hidden from this guide view.',
+                            )}
                           </Text>
                         ) : null}
                       </Box>
@@ -269,7 +274,8 @@ export function DashboardPage({
             {canReviewOthers && firstMember ? (
               <Box mt={4}>
                 <PrivacyDisclosure
-                  hidden={memberPortfolios.some((entry) => entry.relationship.hiddenItemCount > 0)}
+                  hiddenItemCount={firstMember.relationship.hiddenItemCount}
+                  hiddenItemVisibility={firstMember.relationship.hiddenItemVisibility}
                   historyWindow={firstMember.relationship.historyWindow}
                   mutedText={mutedText}
                   subtleText={subtleText}

@@ -1,4 +1,16 @@
-import type { ProposedRelationship, RelationshipTemplateId } from '@leaf/shared';
+import type {
+  HiddenItemVisibility,
+  ProposedRelationship,
+  RelationshipHistoryWindow,
+  RelationshipTemplateId,
+} from '@leaf/shared';
+import {
+  hiddenItemVisibilitySchema,
+  relationshipHistoryWindowLabel,
+  relationshipHistoryWindowSchema,
+  relationshipTemplateSettings,
+  relationshipTemplateIdSchema,
+} from '@leaf/shared';
 
 export type AuthenticatedUser = {
   id: string;
@@ -26,73 +38,52 @@ export function scheduleKindForStorage(schedule: {
 
 export function relationshipDefaults() {
   return {
+    templateId: 'passive-guide' as const,
     mode: 'passive' as const,
     canActOnItems: false,
     canManageRoutines: false,
     canManageFollowThrough: false,
-    historyWindow: 'Future only',
+    historyWindow: 'future-only' as const,
+    hiddenItemVisibility: 'show-count' as const,
     hiddenItemCount: 0,
   };
 }
 
 export function relationshipTemplate(templateId: RelationshipTemplateId): ProposedRelationship {
-  switch (templateId) {
-    case 'active-guide':
-      return {
-        templateId,
-        mode: 'active',
-        canActOnItems: true,
-        canManageRoutines: true,
-        canManageFollowThrough: true,
-        historyWindow: 'Last 30 days + next due',
-      };
-    case 'parent':
-      return {
-        templateId,
-        mode: 'active',
-        canActOnItems: true,
-        canManageRoutines: true,
-        canManageFollowThrough: true,
-        historyWindow: 'Last 90 days + upcoming items',
-      };
-    case 'accountability-partner':
-      return {
-        templateId,
-        mode: 'active',
-        canActOnItems: true,
-        canManageRoutines: false,
-        canManageFollowThrough: true,
-        historyWindow: 'Future only',
-      };
-    case 'passive-guide':
-    default:
-      return {
-        templateId: 'passive-guide',
-        mode: 'passive',
-        canActOnItems: false,
-        canManageRoutines: false,
-        canManageFollowThrough: false,
-        historyWindow: 'Future only',
-      };
-  }
+  return relationshipTemplateSettings(templateId);
 }
 
 type RelationshipLike = {
+  templateId?: string | null;
   mode?: string | null;
   canActOnItems?: boolean | null;
   canManageRoutines?: boolean | null;
   canManageAccountability?: boolean | null;
   historyWindow?: string | null;
+  hiddenItemVisibility?: string | null;
   hiddenItemCount?: number | null;
 };
 
 export function normalizeRelationship(relation: RelationshipLike) {
+  const historyWindow = relationshipHistoryWindowSchema.safeParse(relation.historyWindow).success
+    ? (relation.historyWindow as RelationshipHistoryWindow)
+    : relationshipDefaults().historyWindow;
+  const hiddenItemVisibility = hiddenItemVisibilitySchema.safeParse(relation.hiddenItemVisibility).success
+    ? (relation.hiddenItemVisibility as HiddenItemVisibility)
+    : relationshipDefaults().hiddenItemVisibility;
+  const templateId = relationshipTemplateIdSchema.safeParse(relation.templateId).success
+    ? relation.templateId
+    : relationshipDefaults().templateId;
+
   return {
+    templateId,
     mode: relation.mode === 'active' ? 'active' : 'passive',
     canActOnItems: relation.canActOnItems ?? false,
     canManageRoutines: relation.canManageRoutines ?? false,
     canManageFollowThrough: relation.canManageAccountability ?? false,
-    historyWindow: relation.historyWindow ?? 'Future only',
+    historyWindow,
+    historyWindowLabel: relationshipHistoryWindowLabel(historyWindow),
+    hiddenItemVisibility,
     hiddenItemCount: relation.hiddenItemCount ?? 0,
   };
 }

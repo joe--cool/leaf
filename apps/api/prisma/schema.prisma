@@ -60,16 +60,18 @@ model UserRole {
 }
 
 model ReviewerRelation {
-  id         String   @id @default(cuid())
-  reviewerId String
-  revieweeId String
-  mode       String   @default("passive")
-  canActOnItems Boolean @default(false)
-  canManageRoutines Boolean @default(false)
-  canManageAccountability Boolean @default(false)
-  historyWindow String @default("Future only")
-  hiddenItemCount Int @default(0)
-  createdAt  DateTime @default(now())
+  id                      String   @id @default(cuid())
+  reviewerId              String
+  revieweeId              String
+  templateId              String   @default("passive-guide")
+  mode                    String   @default("passive")
+  canActOnItems           Boolean  @default(false)
+  canManageRoutines       Boolean  @default(false)
+  canManageAccountability Boolean  @default(false)
+  historyWindow           String   @default("future-only")
+  hiddenItemVisibility    String   @default("show-count")
+  hiddenItemCount         Int      @default(0)
+  createdAt               DateTime @default(now())
 
   reviewer User @relation("reviewer", fields: [reviewerId], references: [id], onDelete: Cascade)
   reviewee User @relation("reviewee", fields: [revieweeId], references: [id], onDelete: Cascade)
@@ -170,22 +172,23 @@ model TrackingItemAction {
 }
 
 model Invite {
-  id                     String   @id @default(cuid())
-  inviterId              String
-  inviteeId              String?
-  inviteeMail            String
-  token                  String   @unique
-  type                   String
-  targetUserId           String?
-  relationshipTemplateId String?
-  relationshipMode       String?
-  canActOnItems          Boolean?
-  canManageRoutines      Boolean?
+  id                      String   @id @default(cuid())
+  inviterId               String
+  inviteeId               String?
+  inviteeMail             String
+  token                   String   @unique
+  type                    String
+  targetUserId            String?
+  relationshipTemplateId  String?
+  relationshipMode        String?
+  canActOnItems           Boolean?
+  canManageRoutines       Boolean?
   canManageAccountability Boolean?
-  historyWindow          String?
-  acceptedAt             DateTime?
-  expiresAt              DateTime
-  createdAt              DateTime @default(now())
+  historyWindow           String?
+  hiddenItemVisibility    String?
+  acceptedAt              DateTime?
+  expiresAt               DateTime
+  createdAt               DateTime @default(now())
 
   inviter User  @relation("inviter", fields: [inviterId], references: [id], onDelete: Cascade)
   invitee User? @relation("invitee", fields: [inviteeId], references: [id], onDelete: SetNull)

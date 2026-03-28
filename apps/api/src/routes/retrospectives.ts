@@ -2,9 +2,11 @@ import type { Prisma } from '@prisma/client';
 import type { FastifyInstance } from 'fastify';
 import {
   defaultReflectionWritingPrompt,
+  relationshipHistoryWindowLabel,
   retrospectiveContributionSchema,
   retrospectiveCreateSchema,
   retrospectiveUpdateSchema,
+  type RelationshipHistoryWindow,
   type RetrospectivePromptPreset,
 } from '@leaf/shared';
 import { prisma } from '../prisma.js';
@@ -91,7 +93,7 @@ export async function registerRetrospectiveRoutes(app: FastifyInstance): Promise
           ? `${subject.name}, plus permitted guides`
           : `${subject.name} only`;
       const visibilitySummary = relation
-        ? `Visible while ${relation.reviewer.name}'s relationship window includes ${subject.name}'s reflection period (${relation.historyWindow}).`
+        ? `Visible while ${relation.reviewer.name}'s relationship window includes ${subject.name}'s reflection period (${relationshipHistoryWindowLabel(relation.historyWindow as RelationshipHistoryWindow)}).`
         : subject.reviewers.length > 0
           ? 'Visible to you and any current guide whose relationship history window includes this reflection period.'
           : 'Private to your own account until you add a guide.';
@@ -244,18 +246,20 @@ function canViewRetrospective(retrospective: RetrospectiveRecord, actorId: strin
 function relationWindowAllows(historyWindow: string, relationCreatedAt: Date, periodEnd: Date, now = new Date()) {
   const effectiveStart = relationCreatedAt.getTime();
   const retrospectiveEnd = periodEnd.getTime();
-  const normalized = historyWindow.toLowerCase();
 
-  if (normalized.includes('future only')) {
+  if (historyWindow === 'future-only' || historyWindow === 'since-relationship-start') {
     return retrospectiveEnd >= effectiveStart;
   }
 
-  const dayMatch = normalized.match(/last\s+(\d+)\s+days?/);
-  if (!dayMatch) {
+  if (historyWindow === 'full-history') {
+    return true;
+  }
+
+  const lookbackDays = historyWindow === 'last-30-days-and-upcoming' ? 30 : 0;
+  if (lookbackDays === 0) {
     return retrospectiveEnd >= effectiveStart;
   }
 
-  const lookbackDays = Number(dayMatch[1]);
   const cutoff = now.getTime() - lookbackDays * 24 * 60 * 60 * 1000;
   return retrospectiveEnd >= cutoff;
 }

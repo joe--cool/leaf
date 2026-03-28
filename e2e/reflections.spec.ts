@@ -55,6 +55,17 @@ test.describe.serial('reflection workflow', () => {
       await page.getByRole('button', { name: 'Save Looking Back Schedule' }).click();
     });
 
+    await page.getByLabel('Guide mode').selectOption('passive');
+    await page.getByLabel('History access').selectOption('full-history');
+    await page.getByLabel('Hidden-item boundary').selectOption('show-existence');
+    await expectSuccessfulMutation(page, isRelationshipPatch, async () => {
+      await page.getByRole('button', { name: 'Save relationship' }).click();
+    });
+    await expect(page.getByText('Current: passive guide')).toBeVisible();
+    await expect(
+      page.getByText('Full history. All visible item, reflection, and audit history stays available.').first(),
+    ).toBeVisible();
+
     await page.goto('/my-items');
     await page.getByRole('link', { name: 'Open reflection for myself' }).click();
     await expect(
@@ -142,4 +153,8 @@ function isRetrospectiveCreate(response: Response) {
 
 function isRetrospectivePatch(response: Response) {
   return /\/retrospectives\/[^/]+$/.test(response.url()) && response.request().method() === 'PATCH';
+}
+
+function isRelationshipPatch(response: Response) {
+  return /\/relationships\/guides\/[^/]+$/.test(response.url()) && response.request().method() === 'PATCH';
 }

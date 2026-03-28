@@ -22,6 +22,7 @@ import { Link as RouterLink } from 'react-router-dom';
 import { buildAccountabilitySummary } from '../accountabilityUtils';
 import { buildReflectionDraftPath, cadenceLabel, scheduledReflectionDue } from '../reflectionUtils';
 import { AccountabilitySummaryBlock, PrivacyDisclosure } from '../components/AccountabilitySummary';
+import { relationshipHistoryWindowLabel } from '../relationshipUi';
 import {
   getCategoryLabel,
   summarizeOccurrenceNoteDetails,
@@ -91,7 +92,6 @@ export function MembersPage({
 
   const selectedWorkspace = memberPortfolios.find((workspace) => workspace.member.id === selectedMemberId) ?? memberPortfolios[0]!;
   const guideSummary = buildAccountabilitySummary(memberPortfolios.flatMap((entry) => entry.items));
-  const hasHiddenItems = memberPortfolios.some((entry) => entry.relationship.hiddenItemCount > 0);
   const nowItems = selectedWorkspace.actionable.filter((entry) => entry.action.bucket === 'due');
   const upcomingItems = selectedWorkspace.actionable.filter((entry) => entry.action.bucket === 'upcoming');
   const recentContext = useMemo(() => summarizeRecentMemberContext(selectedWorkspace.items), [selectedWorkspace.items]);
@@ -187,7 +187,8 @@ export function MembersPage({
       </Grid>
 
       <PrivacyDisclosure
-        hidden={hasHiddenItems}
+        hiddenItemCount={selectedWorkspace.relationship.hiddenItemCount}
+        hiddenItemVisibility={selectedWorkspace.relationship.hiddenItemVisibility}
         historyWindow={selectedWorkspace.relationship.historyWindow}
         mutedText={mutedText}
         subtleText={subtleText}
@@ -297,7 +298,8 @@ export function MembersPage({
                     </Badge>
                   </HStack>
                   <Text color={mutedText} fontSize="sm" mt={3}>
-                    Visibility: {selectedWorkspace.relationship.historyWindow}. Guide actions stay attributed to the acting person.
+                    Visibility: {relationshipHistoryWindowLabel(selectedWorkspace.relationship.historyWindow)}. Guide actions
+                    stay attributed to the acting person.
                   </Text>
                 </Box>
                 <HStack spacing={3} flexWrap="wrap">
@@ -386,7 +388,8 @@ export function MembersPage({
               />
               <Box mt={3}>
                 <PrivacyDisclosure
-                  hidden={selectedWorkspace.relationship.hiddenItemCount > 0}
+                  hiddenItemCount={selectedWorkspace.relationship.hiddenItemCount}
+                  hiddenItemVisibility={selectedWorkspace.relationship.hiddenItemVisibility}
                   historyWindow={selectedWorkspace.relationship.historyWindow}
                   mutedText={mutedText}
                   subtleText={subtleText}

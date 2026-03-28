@@ -26,6 +26,7 @@ import type {
   NotificationFeedEntry,
   User,
 } from '../appTypes';
+import { hiddenItemsBoundaryText } from '../relationshipUi';
 
 type MailboxEntry = NotificationFeedEntry & {
   ctaLabel: string;
@@ -108,7 +109,7 @@ function buildMailboxEntries({
         title: `${direction}: ${personName}`,
         detail:
           hasHiddenItems
-            ? 'Some items stay outside this relationship view.'
+            ? hiddenItemsBoundaryText(entry.hiddenItemCount ?? 0, entry.hiddenItemVisibility ?? 'show-count')
             : 'This relationship is visibility-first, so updates stay summary-oriented.',
         timestamp: entry.createdAt,
         status: entry.mode === 'active' ? 'Visibility boundary' : 'Observation only',

@@ -1,4 +1,10 @@
-import type { RelationshipTemplateId, ProposedRelationship, ScheduleKind } from '@leaf/shared';
+import type {
+  HiddenItemVisibility,
+  ProposedRelationship,
+  RelationshipHistoryWindow,
+  RelationshipTemplateId,
+  ScheduleKind,
+} from '@leaf/shared';
 
 export type User = {
   id: string;
@@ -26,11 +32,14 @@ export type User = {
 };
 
 export type RelationshipDetails = {
+  templateId?: RelationshipTemplateId;
   mode?: 'active' | 'passive';
   canActOnItems?: boolean;
   canManageRoutines?: boolean;
   canManageFollowThrough?: boolean;
-  historyWindow?: string;
+  historyWindow?: RelationshipHistoryWindow;
+  historyWindowLabel?: string;
+  hiddenItemVisibility?: HiddenItemVisibility;
   hiddenItemCount?: number;
   createdAt?: string;
 };
@@ -83,11 +92,14 @@ export type MemberWorkspace = {
     reflectionPrompt?: string | null;
   };
   relationship: {
+    templateId: RelationshipTemplateId;
     mode: 'active' | 'passive';
     canActOnItems: boolean;
     canManageRoutines: boolean;
     canManageFollowThrough: boolean;
-    historyWindow: string;
+    historyWindow: RelationshipHistoryWindow;
+    historyWindowLabel: string;
+    hiddenItemVisibility: HiddenItemVisibility;
     hiddenItemCount: number;
     createdAt?: string;
   };

@@ -14,6 +14,7 @@ import {
   Text,
   useToast,
 } from '@chakra-ui/react';
+import { relationshipHistoryWindowLabel } from '@leaf/shared';
 import type { FormEvent } from 'react';
 import type { InvitePreview, OAuthProvider } from '../appTypes';
 import { relationshipTemplateFromProposal } from '../relationshipTemplates';
@@ -102,7 +103,7 @@ export function InviteAcceptancePage({
                 <strong>What you receive:</strong> {template.guideReceives}
               </Text>
               <Text>
-                <strong>History by default:</strong> {invite.proposedRelationship.historyWindow}
+                <strong>History by default:</strong> {relationshipHistoryWindowLabel(invite.proposedRelationship.historyWindow)}
               </Text>
               <Text>
                 <strong>Privacy boundary:</strong> {template.privacy}

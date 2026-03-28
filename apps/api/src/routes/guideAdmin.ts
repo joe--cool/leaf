@@ -1,15 +1,18 @@
 import crypto from 'node:crypto';
 import type { FastifyInstance } from 'fastify';
 import type { ProposedRelationship } from '@leaf/shared';
+import { hiddenItemVisibilitySchema, relationshipHistoryWindowSchema } from '@leaf/shared';
 import { prisma } from '../prisma.js';
 import { sendEmail } from '../email.js';
 import { userRoles } from '../auth.js';
-import { authUser, hasRole, relationshipDefaults, relationshipTemplate } from './shared.js';
+import { authUser, hasRole, normalizeRelationship, relationshipDefaults, relationshipTemplate } from './shared.js';
 import {
   acceptInviteSchema,
   adminGuideSchema,
   bootstrapAdminSchema,
+  guideRelationshipParamsSchema,
   inviteSchema,
+  relationshipUpdateBodySchema,
 } from './schemas.js';
 import { env } from '../env.js';
 
@@ -20,6 +23,7 @@ function invitedRelationshipFromRecord(invite: {
   canManageRoutines?: boolean | null;
   canManageAccountability?: boolean | null;
   historyWindow?: string | null;
+  hiddenItemVisibility?: string | null;
 }): ProposedRelationship {
   const defaults = relationshipDefaults();
   return {
@@ -34,7 +38,8 @@ function invitedRelationshipFromRecord(invite: {
     canActOnItems: invite.canActOnItems ?? defaults.canActOnItems,
     canManageRoutines: invite.canManageRoutines ?? defaults.canManageRoutines,
     canManageFollowThrough: invite.canManageAccountability ?? defaults.canManageFollowThrough,
-    historyWindow: invite.historyWindow ?? defaults.historyWindow,
+    historyWindow: relationshipHistoryWindowSchema.parse(invite.historyWindow ?? defaults.historyWindow),
+    hiddenItemVisibility: hiddenItemVisibilitySchema.parse(invite.hiddenItemVisibility ?? defaults.hiddenItemVisibility),
   };
 }
 
@@ -63,6 +68,7 @@ export async function registerGuideAdminRoutes(app: FastifyInstance): Promise<vo
         canManageRoutines: proposedRelationship.canManageRoutines,
         canManageAccountability: proposedRelationship.canManageFollowThrough,
         historyWindow: proposedRelationship.historyWindow,
+        hiddenItemVisibility: proposedRelationship.hiddenItemVisibility,
         expiresAt: new Date(Date.now() + 1000 * 60 * 60 * 24 * 7),
       },
     });
@@ -130,18 +136,22 @@ export async function registerGuideAdminRoutes(app: FastifyInstance): Promise<vo
         create: {
           reviewerId: actor.id,
           revieweeId: invite.targetUserId!,
+          templateId: proposedRelationship.templateId,
           mode: proposedRelationship.mode,
           canActOnItems: proposedRelationship.canActOnItems,
           canManageRoutines: proposedRelationship.canManageRoutines,
           canManageAccountability: proposedRelationship.canManageFollowThrough,
           historyWindow: proposedRelationship.historyWindow,
+          hiddenItemVisibility: proposedRelationship.hiddenItemVisibility,
         },
         update: {
+          templateId: proposedRelationship.templateId,
           mode: proposedRelationship.mode,
           canActOnItems: proposedRelationship.canActOnItems,
           canManageRoutines: proposedRelationship.canManageRoutines,
           canManageAccountability: proposedRelationship.canManageFollowThrough,
           historyWindow: proposedRelationship.historyWindow,
+          hiddenItemVisibility: proposedRelationship.hiddenItemVisibility,
         },
       }),
       prisma.invite.update({
@@ -154,6 +164,52 @@ export async function registerGuideAdminRoutes(app: FastifyInstance): Promise<vo
     ]);
 
     return { accepted: true, proposedRelationship };
+  });
+
+  app.patch('/relationships/guides/:guideId', { preHandler: [app.authenticate] }, async (request) => {
+    const actor = authUser(request);
+    const params = guideRelationshipParamsSchema.parse(request.params);
+    const body = relationshipUpdateBodySchema.parse(request.body ?? {});
+
+    const existingRelation = await prisma.reviewerRelation.findUnique({
+      where: {
+        reviewerId_revieweeId: {
+          reviewerId: params.guideId,
+          revieweeId: actor.id,
+        },
+      },
+      include: {
+        reviewer: {
+          select: {
+            id: true,
+            email: true,
+            name: true,
+          },
+        },
+      },
+    });
+
+    if (!existingRelation) {
+      throw app.httpErrors.notFound('Relationship not found');
+    }
+
+    const updatedRelation = await prisma.reviewerRelation.update({
+      where: { id: existingRelation.id },
+      data: {
+        mode: body.mode,
+        canActOnItems: body.canActOnItems,
+        canManageRoutines: body.canManageRoutines,
+        canManageAccountability: body.canManageFollowThrough,
+        historyWindow: body.historyWindow,
+        hiddenItemVisibility: body.hiddenItemVisibility,
+      },
+    });
+
+    return {
+      ...normalizeRelationship(updatedRelation),
+      createdAt: updatedRelation.createdAt,
+      guide: existingRelation.reviewer,
+    };
   });
 
   app.post('/admin/guides', { preHandler: [app.authenticate] }, async (request, reply) => {
@@ -169,11 +225,13 @@ export async function registerGuideAdminRoutes(app: FastifyInstance): Promise<vo
       create: {
         reviewerId: body.guideId,
         revieweeId: body.memberId,
+        templateId: 'passive-guide',
         mode: 'passive',
         canActOnItems: false,
         canManageRoutines: false,
         canManageAccountability: false,
-        historyWindow: 'Future only',
+        historyWindow: 'future-only',
+        hiddenItemVisibility: 'show-count',
         hiddenItemCount: 0,
       },
       update: {},

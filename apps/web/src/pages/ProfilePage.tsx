@@ -19,12 +19,29 @@ import {
   Text,
   useToast,
 } from '@chakra-ui/react';
-import { useMemo } from 'react';
+import {
+  hiddenItemVisibilityOptions,
+  relationshipHistoryWindowOptions,
+  relationshipTemplateSettings,
+  type RelationshipUpdateInput,
+} from '@leaf/shared';
+import type { ChangeEvent } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { weekdayOptions } from '../appConstants';
 import type { AdminUser, RelationshipDetails, RelationshipTemplateCard, User } from '../appTypes';
 import { relationshipTemplates } from '../relationshipTemplates';
+import {
+  hiddenItemVisibilityDescription,
+  hiddenItemVisibilityLabel,
+  hiddenItemsBoundaryText,
+  relationshipHistorySummary,
+} from '../relationshipUi';
 
 function relationshipTemplateFromDetails(details: RelationshipDetails): RelationshipTemplateCard {
+  if (details.templateId) {
+    const template = relationshipTemplates.find((entry) => entry.id === details.templateId);
+    if (template) return template;
+  }
   if (details.mode === 'active' && details.canManageRoutines && details.canManageFollowThrough) {
     return relationshipTemplates[0]!;
   }
@@ -60,12 +77,340 @@ function capabilityLines(details: RelationshipDetails): string[] {
 
 function visibilityLines(details: RelationshipDetails): string[] {
   return [
-    `History window: ${details.historyWindow ?? 'Future only'}.`,
-    details.hiddenItemCount && details.hiddenItemCount > 0
-      ? `${details.hiddenItemCount} hidden item${details.hiddenItemCount === 1 ? ' stays' : 's stay'} outside this guide's view.`
-      : 'No hidden-item limit is currently recorded for this relationship.',
+    `History window: ${details.historyWindow ? relationshipHistorySummary(details.historyWindow) : 'Future only.'}`,
+    hiddenItemsBoundaryText(details.hiddenItemCount ?? 0, details.hiddenItemVisibility ?? 'show-count'),
     'Digest and reminder delivery should match the relationship role rather than a single global guide setting.',
   ];
+}
+
+function receivesLine(details: RelationshipDetails) {
+  if (details.mode === 'active') {
+    return details.canManageFollowThrough
+      ? 'Receives action-oriented updates, accountability context, and relationship review expectations.'
+      : 'Receives action-oriented updates without accountability-setting controls.';
+  }
+
+  return 'Receives visibility-first summaries and digest context without intervention-heavy prompts.';
+}
+
+function draftFromRelationship(details: RelationshipDetails): RelationshipUpdateInput {
+  return {
+    mode: details.mode === 'active' ? 'active' : 'passive',
+    canActOnItems: details.mode === 'active' ? (details.canActOnItems ?? false) : false,
+    canManageRoutines: details.mode === 'active' ? (details.canManageRoutines ?? false) : false,
+    canManageFollowThrough: details.mode === 'active' ? (details.canManageFollowThrough ?? false) : false,
+    historyWindow: details.historyWindow ?? 'future-only',
+    hiddenItemVisibility: details.hiddenItemVisibility ?? 'show-count',
+  };
+}
+
+function settingsMatch(left: RelationshipUpdateInput, right: RelationshipUpdateInput) {
+  return (
+    left.mode === right.mode &&
+    left.canActOnItems === right.canActOnItems &&
+    left.canManageRoutines === right.canManageRoutines &&
+    left.canManageFollowThrough === right.canManageFollowThrough &&
+    left.historyWindow === right.historyWindow &&
+    left.hiddenItemVisibility === right.hiddenItemVisibility
+  );
+}
+
+function EditableGuideRelationshipCard({
+  entry,
+  inputBg,
+  panelBorder,
+  mutedText,
+  onSave,
+}: {
+  entry: User['guides'][number];
+  inputBg: string;
+  panelBorder: string;
+  mutedText: string;
+  onSave: (guideId: string, input: RelationshipUpdateInput) => Promise<void>;
+}) {
+  const toast = useToast();
+  const template = relationshipTemplateFromDetails(entry);
+  const templateDefaults = relationshipTemplateSettings(template.id);
+  const savedState = draftFromRelationship(entry);
+  const [draft, setDraft] = useState<RelationshipUpdateInput>(savedState);
+  const [isSaving, setIsSaving] = useState(false);
+
+  useEffect(() => {
+    setDraft(draftFromRelationship(entry));
+  }, [entry]);
+
+  const effectiveDraft =
+    draft.mode === 'active'
+      ? draft
+      : {
+          ...draft,
+          canActOnItems: false,
+          canManageRoutines: false,
+          canManageFollowThrough: false,
+        };
+  const differsFromTemplate = !settingsMatch(savedState, templateDefaults);
+  const hasUnsavedChanges = !settingsMatch(savedState, effectiveDraft);
+
+  return (
+    <Box borderRadius="2xl" border="1px solid" borderColor={panelBorder} p={4}>
+      <HStack justify="space-between" align="start" spacing={3} mb={3}>
+        <Box>
+          <Text fontWeight="semibold">{entry.guide.name}</Text>
+          <Text fontSize="sm" color={mutedText}>
+            {entry.guide.email}
+          </Text>
+        </Box>
+        <Stack spacing={2} align="end">
+          <Badge
+            bg={effectiveDraft.mode === 'active' ? 'leaf.100' : 'blackAlpha.100'}
+            color={effectiveDraft.mode === 'active' ? 'leaf.800' : 'inherit'}
+            _dark={{
+              bg: effectiveDraft.mode === 'active' ? 'leaf.800' : 'whiteAlpha.160',
+              color: effectiveDraft.mode === 'active' ? 'leaf.100' : 'inherit',
+            }}
+            borderRadius="full"
+            px={3}
+            py={1}
+          >
+            {template.label}
+          </Badge>
+          <Badge variant="subtle" borderRadius="full" px={3} py={1}>
+            {effectiveDraft.mode === 'active' ? 'Current: active guide' : 'Current: passive guide'}
+          </Badge>
+        </Stack>
+      </HStack>
+
+      <SimpleGrid columns={{ base: 1, lg: 2 }} spacing={4} mb={4}>
+        <Box borderRadius="xl" bg="blackAlpha.50" p={3}>
+          <Text fontWeight="medium" mb={2}>
+            Template defaults
+          </Text>
+          <Text fontSize="sm" color={mutedText}>
+            {template.label} starts with {template.mode === 'active' ? 'an active guide role' : 'a passive guide role'}.
+          </Text>
+          <Text fontSize="sm" color={mutedText} mt={2}>
+            {template.guideCanDo}
+          </Text>
+          <Text fontSize="sm" color={mutedText} mt={2}>
+            {template.guideReceives}
+          </Text>
+          <Text fontSize="sm" color={mutedText} mt={2}>
+            {template.history}
+          </Text>
+        </Box>
+        <Box borderRadius="xl" bg="blackAlpha.50" p={3}>
+          <Text fontWeight="medium" mb={2}>
+            Current saved relationship
+          </Text>
+          <Text fontSize="sm" color={mutedText}>
+            {savedState.mode === 'active' ? 'Active guide permissions are enabled.' : 'Passive guide visibility is enabled.'}
+          </Text>
+          <Text fontSize="sm" color={mutedText} mt={2}>
+            {receivesLine(entry)}
+          </Text>
+          <Text fontSize="sm" color={mutedText} mt={2}>
+            {entry.historyWindow ? relationshipHistorySummary(entry.historyWindow) : 'Future only.'}
+          </Text>
+          <Text fontSize="sm" color={mutedText} mt={2}>
+            {hiddenItemsBoundaryText(entry.hiddenItemCount ?? 0, entry.hiddenItemVisibility ?? 'show-count')}
+          </Text>
+        </Box>
+      </SimpleGrid>
+
+      {differsFromTemplate ? (
+        <Alert status="info" borderRadius="2xl" mb={4}>
+          <AlertIcon />
+          This relationship no longer matches the original {template.label} defaults. Saved settings below are the source
+          of truth.
+        </Alert>
+      ) : null}
+
+      {entry.templateId === 'parent' ? (
+        <Alert status="warning" borderRadius="2xl" mb={4}>
+          <AlertIcon />
+          Parent relationships are a special case. Keep family oversight explicit, and use broader history only when the
+          member expects it.
+        </Alert>
+      ) : null}
+
+      <Stack spacing={4}>
+        <SimpleGrid columns={{ base: 1, md: 2 }} spacing={4}>
+          <FormControl>
+            <FormLabel>Guide mode</FormLabel>
+            <Select
+              bg={inputBg}
+              value={draft.mode}
+              onChange={(event) =>
+                setDraft((current) =>
+                  event.target.value === 'active'
+                    ? { ...current, mode: 'active' }
+                    : {
+                        ...current,
+                        mode: 'passive',
+                        canActOnItems: false,
+                        canManageRoutines: false,
+                        canManageFollowThrough: false,
+                      },
+                )
+              }
+            >
+              <option value="active">Active guide</option>
+              <option value="passive">Passive guide</option>
+            </Select>
+            <FormHelperText color={mutedText}>
+              Active guides can receive operational context. Passive guides stay summary-oriented.
+            </FormHelperText>
+          </FormControl>
+
+          <FormControl>
+            <FormLabel>History access</FormLabel>
+            <Select
+              bg={inputBg}
+              value={draft.historyWindow}
+              onChange={(event) =>
+                setDraft((current) => ({
+                  ...current,
+                  historyWindow: event.target.value as RelationshipUpdateInput['historyWindow'],
+                }))
+              }
+            >
+              {relationshipHistoryWindowOptions.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </Select>
+            <FormHelperText color={mutedText}>
+              {relationshipHistoryWindowOptions.find((option) => option.value === draft.historyWindow)?.description}
+            </FormHelperText>
+          </FormControl>
+        </SimpleGrid>
+
+        <FormControl>
+          <FormLabel>Permission groups</FormLabel>
+          <Stack spacing={3}>
+            <Box as="label" display="flex" alignItems="center" gap={3} cursor={draft.mode === 'active' ? 'pointer' : 'not-allowed'}>
+              <Box
+                as="input"
+                type="checkbox"
+                checked={effectiveDraft.canActOnItems}
+                disabled={draft.mode !== 'active'}
+                onChange={(event: ChangeEvent<HTMLInputElement>) =>
+                  setDraft((current) => ({ ...current, canActOnItems: event.target.checked }))
+                }
+              />
+              <Text>Can act on items</Text>
+            </Box>
+            <Box as="label" display="flex" alignItems="center" gap={3} cursor={draft.mode === 'active' ? 'pointer' : 'not-allowed'}>
+              <Box
+                as="input"
+                type="checkbox"
+                checked={effectiveDraft.canManageRoutines}
+                disabled={draft.mode !== 'active'}
+                onChange={(event: ChangeEvent<HTMLInputElement>) =>
+                  setDraft((current) => ({ ...current, canManageRoutines: event.target.checked }))
+                }
+              />
+              <Text>Can manage routines</Text>
+            </Box>
+            <Box as="label" display="flex" alignItems="center" gap={3} cursor={draft.mode === 'active' ? 'pointer' : 'not-allowed'}>
+              <Box
+                as="input"
+                type="checkbox"
+                checked={effectiveDraft.canManageFollowThrough}
+                disabled={draft.mode !== 'active'}
+                onChange={(event: ChangeEvent<HTMLInputElement>) =>
+                  setDraft((current) => ({ ...current, canManageFollowThrough: event.target.checked }))
+                }
+              />
+              <Text>Can manage accountability settings</Text>
+            </Box>
+          </Stack>
+          <FormHelperText color={mutedText}>
+            Passive guide mode removes operational controls even if this template started as active.
+          </FormHelperText>
+        </FormControl>
+
+        <FormControl>
+          <FormLabel>Hidden-item boundary</FormLabel>
+          <Select
+            bg={inputBg}
+            value={draft.hiddenItemVisibility}
+            onChange={(event) =>
+              setDraft((current) => ({
+                ...current,
+                hiddenItemVisibility: event.target.value as RelationshipUpdateInput['hiddenItemVisibility'],
+              }))
+            }
+          >
+            {hiddenItemVisibilityOptions.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </Select>
+          <FormHelperText color={mutedText}>
+            {hiddenItemVisibilityOptions.find((option) => option.value === draft.hiddenItemVisibility)?.description}
+          </FormHelperText>
+        </FormControl>
+
+        <SimpleGrid columns={{ base: 1, md: 2 }} spacing={4}>
+          <Box borderRadius="xl" bg="blackAlpha.50" p={3}>
+            <Text fontWeight="medium" mb={2}>
+              What this guide can see
+            </Text>
+            <Text fontSize="sm" color={mutedText}>
+              {relationshipHistorySummary(effectiveDraft.historyWindow)}
+            </Text>
+            <Text fontSize="sm" color={mutedText} mt={2}>
+              {hiddenItemVisibilityLabel(effectiveDraft.hiddenItemVisibility)}.{' '}
+              {hiddenItemVisibilityDescription(effectiveDraft.hiddenItemVisibility)}
+            </Text>
+          </Box>
+          <Box borderRadius="xl" bg="blackAlpha.50" p={3}>
+            <Text fontWeight="medium" mb={2}>
+              What this guide can do and receive
+            </Text>
+            {capabilityLines(effectiveDraft).map((line) => (
+              <Text key={line} fontSize="sm" color={mutedText}>
+                {line}
+              </Text>
+            ))}
+            <Text fontSize="sm" color={mutedText} mt={2}>
+              {receivesLine(effectiveDraft)}
+            </Text>
+          </Box>
+        </SimpleGrid>
+
+        <HStack justify="space-between" align="center" flexWrap="wrap">
+          <Button
+            variant="ghost"
+            onClick={() => setDraft(templateDefaults)}
+            isDisabled={isSaving}
+          >
+            Reset to template defaults
+          </Button>
+          <Button
+            colorScheme="leaf"
+            isLoading={isSaving}
+            isDisabled={!hasUnsavedChanges}
+            onClick={async () => {
+              setIsSaving(true);
+              try {
+                await onSave(entry.guide.id, effectiveDraft);
+              } catch (error) {
+                toast({ status: 'error', title: String(error) });
+              } finally {
+                setIsSaving(false);
+              }
+            }}
+          >
+            Save relationship
+          </Button>
+        </HStack>
+      </Stack>
+    </Box>
+  );
 }
 
 export function ProfilePage({
@@ -102,6 +447,7 @@ export function ProfilePage({
   onUpdateProfile,
   onUpdateNotificationPreferences,
   onInviteReviewer,
+  onUpdateGuideRelationship,
   onAvatarSelected,
 }: {
   user: User;
@@ -137,6 +483,7 @@ export function ProfilePage({
   onUpdateProfile: () => Promise<void>;
   onUpdateNotificationPreferences: () => Promise<void>;
   onInviteReviewer: () => Promise<void>;
+  onUpdateGuideRelationship: (guideId: string, input: RelationshipUpdateInput) => Promise<void>;
   onAvatarSelected: (file: File | null) => Promise<void>;
 }) {
   const toast = useToast();
@@ -433,57 +780,16 @@ export function ProfilePage({
                   </Text>
                 </Box>
               ) : (
-                user.guides.map((entry) => {
-                  const template = relationshipTemplateFromDetails(entry);
-                  return (
-                    <Box key={entry.guide.id} borderRadius="2xl" border="1px solid" borderColor={panelBorder} p={4}>
-                      <HStack justify="space-between" align="start" spacing={3} mb={3}>
-                        <Box>
-                          <Text fontWeight="semibold">{entry.guide.name}</Text>
-                          <Text fontSize="sm" color={mutedText}>
-                            {entry.guide.email}
-                          </Text>
-                        </Box>
-                        <Stack spacing={2} align="end">
-                          <Badge
-                            bg={entry.mode === 'active' ? 'leaf.100' : 'blackAlpha.100'}
-                            color={entry.mode === 'active' ? 'leaf.800' : 'inherit'}
-                            _dark={{
-                              bg: entry.mode === 'active' ? 'leaf.800' : 'whiteAlpha.160',
-                              color: entry.mode === 'active' ? 'leaf.100' : 'inherit',
-                            }}
-                            borderRadius="full"
-                            px={3}
-                            py={1}
-                          >
-                            {template.label}
-                          </Badge>
-                          <Badge variant="subtle" borderRadius="full" px={3} py={1}>
-                            {entry.mode === 'active' ? 'Can take action' : 'Visibility only'}
-                          </Badge>
-                        </Stack>
-                      </HStack>
-                      <SimpleGrid columns={{ base: 1, md: 2 }} spacing={4}>
-                        <Stack spacing={2}>
-                          <Text fontWeight="medium">What this guide can do</Text>
-                          {capabilityLines(entry).map((line) => (
-                            <Text key={line} fontSize="sm" color={mutedText}>
-                              {line}
-                            </Text>
-                          ))}
-                        </Stack>
-                        <Stack spacing={2}>
-                          <Text fontWeight="medium">Visibility and notifications</Text>
-                          {visibilityLines(entry).map((line) => (
-                            <Text key={line} fontSize="sm" color={mutedText}>
-                              {line}
-                            </Text>
-                          ))}
-                        </Stack>
-                      </SimpleGrid>
-                    </Box>
-                  );
-                })
+                user.guides.map((entry) => (
+                  <EditableGuideRelationshipCard
+                    key={entry.guide.id}
+                    entry={entry}
+                    inputBg={inputBg}
+                    panelBorder={panelBorder}
+                    mutedText={mutedText}
+                    onSave={onUpdateGuideRelationship}
+                  />
+                ))
               )}
             </Stack>
           </Box>
@@ -514,30 +820,46 @@ export function ProfilePage({
                           {entry.member.email}
                         </Text>
                       </Box>
-                      <Badge
-                        bg={entry.mode === 'active' ? 'leaf.100' : 'blackAlpha.100'}
-                        color={entry.mode === 'active' ? 'leaf.800' : 'inherit'}
-                        _dark={{
-                          bg: entry.mode === 'active' ? 'leaf.800' : 'whiteAlpha.160',
-                          color: entry.mode === 'active' ? 'leaf.100' : 'inherit',
-                        }}
-                        borderRadius="full"
-                        px={3}
-                        py={1}
-                      >
-                        {entry.mode === 'active' ? 'Active guide' : 'Passive guide'}
-                      </Badge>
+                      <Stack spacing={2} align="end">
+                        <Badge
+                          bg={entry.mode === 'active' ? 'leaf.100' : 'blackAlpha.100'}
+                          color={entry.mode === 'active' ? 'leaf.800' : 'inherit'}
+                          _dark={{
+                            bg: entry.mode === 'active' ? 'leaf.800' : 'whiteAlpha.160',
+                            color: entry.mode === 'active' ? 'leaf.100' : 'inherit',
+                          }}
+                          borderRadius="full"
+                          px={3}
+                          py={1}
+                        >
+                          {relationshipTemplateFromDetails(entry).label}
+                        </Badge>
+                        <Badge variant="subtle" borderRadius="full" px={3} py={1}>
+                          {entry.mode === 'active' ? 'Active guide' : 'Passive guide'}
+                        </Badge>
+                      </Stack>
                     </HStack>
-                    <Stack spacing={2}>
+                    <SimpleGrid columns={{ base: 1, md: 2 }} spacing={4}>
+                      <Stack spacing={2}>
+                        <Text fontWeight="medium">What you can do</Text>
                       {capabilityLines(entry).map((line) => (
                         <Text key={line} fontSize="sm" color={mutedText}>
                           {line}
                         </Text>
                       ))}
                       <Text fontSize="sm" color={mutedText}>
-                        History window: {entry.historyWindow ?? 'Future only'}.
+                        {receivesLine(entry)}
                       </Text>
-                    </Stack>
+                      </Stack>
+                      <Stack spacing={2}>
+                        <Text fontWeight="medium">Visibility and privacy</Text>
+                        {visibilityLines(entry).map((line) => (
+                          <Text key={line} fontSize="sm" color={mutedText}>
+                            {line}
+                          </Text>
+                        ))}
+                      </Stack>
+                    </SimpleGrid>
                   </Box>
                 ))
               )}

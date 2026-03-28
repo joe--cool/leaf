@@ -18,7 +18,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Link as RouterLink, matchPath, useLocation, useNavigate } from 'react-router-dom';
 import 'react-day-picker/dist/style.css';
 import './app.css';
-import { defaultReflectionWritingPrompt } from '@leaf/shared';
+import { defaultReflectionWritingPrompt, relationshipHistoryWindowLabel, type RelationshipUpdateInput } from '@leaf/shared';
 import { apiFetch, clearToken, getToken, setRefreshToken, setToken } from './api';
 import { categoryOptions, createDraftSchedule } from './appConstants';
 import { resolveTemplateDraft } from './itemTemplates';
@@ -724,6 +724,24 @@ export function App() {
     toast({ status: 'success', title: 'Notification preferences updated' });
   }
 
+  async function updateGuideRelationship(guideId: string, input: RelationshipUpdateInput) {
+    const updatedRelationship = await apiFetch<User['guides'][number]>(`/relationships/guides/${guideId}`, {
+      method: 'PATCH',
+      body: JSON.stringify(input),
+    });
+
+    setUser((current) =>
+      current
+        ? {
+            ...current,
+            guides: current.guides.map((entry) => (entry.guide.id === guideId ? updatedRelationship : entry)),
+          }
+        : current,
+    );
+
+    toast({ status: 'success', title: 'Relationship updated' });
+  }
+
   async function updateReflectionPrompt(targetUserId: string, reflectionPrompt: string | null) {
     const updatedUser = await apiFetch<{ id: string; reflectionPrompt?: string | null; name?: string; avatarUrl?: string | null }>(
       '/me/preferences',
@@ -950,6 +968,7 @@ export function App() {
           onUpdateProfile={updateProfile}
           onUpdateNotificationPreferences={updateNotificationPreferences}
           onInviteReviewer={inviteReviewer}
+          onUpdateGuideRelationship={updateGuideRelationship}
           onAvatarSelected={onAvatarSelected}
         />
       );
@@ -992,7 +1011,7 @@ export function App() {
               return {
                 id: entry.member.id,
                 label: entry.member.name,
-                detail: `Guide review · ${entry.historyWindow}`,
+                detail: `Guide review · ${relationshipHistoryWindowLabel(entry.historyWindow ?? 'future-only')}`,
                 name: entry.member.name,
                 cadence: workspace?.member.reflectionCadence ?? 'weekly',
                 writingPrompt: workspace?.member.reflectionPrompt,
