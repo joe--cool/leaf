@@ -173,6 +173,15 @@ Keep Playwright intentionally small and high-signal.
 
 ## Current Testing Commands
 
+Before committing, run the baseline quality checks that protect the PR `quality` job on a clean runner:
+
+```bash
+pnpm lint
+pnpm typecheck
+```
+
+If you changed a feature or route, also run the smallest relevant test slice locally before commit. If you are closing a UX iteration, run the full verification stack required by `UX_REVIEW.md`, not just a targeted subset.
+
 Fast local checks:
 
 ```bash
