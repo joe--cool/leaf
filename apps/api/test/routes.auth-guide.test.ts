@@ -340,6 +340,92 @@ describe('auth/guide routes', () => {
     await app.close();
   });
 
+  it('allows an active guide to record an occurrence action for a member item', async () => {
+    const { registerRoutes } = await import('../src/routes.js');
+
+    reviewerRelationFindUniqueMock.mockResolvedValue({
+      reviewerId: 'u1',
+      revieweeId: 'member_1',
+      canActOnItems: true,
+    });
+    trackingItemFindUniqueMock.mockResolvedValue({
+      id: 'item_1',
+      ownerId: 'member_1',
+    });
+    trackingItemActionUpsertMock.mockResolvedValue({ id: 'act_1', kind: 'NOTE' });
+
+    const app = Fastify();
+    await app.register(sensible);
+    app.decorate('authenticate', async (request: { user?: { id: string; email: string; roles: string[] } }) => {
+      request.user = { id: 'u1', email: 'guide@example.com', roles: ['USER'] };
+    });
+    await app.register(registerRoutes);
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/members/member_1/items/item_1/actions',
+      payload: {
+        kind: 'note',
+        targetAt: '2026-03-29T16:00:00.000Z',
+        note: 'Guide follow-up note.',
+      },
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(reviewerRelationFindUniqueMock).toHaveBeenCalledWith({
+      where: {
+        reviewerId_revieweeId: {
+          reviewerId: 'u1',
+          revieweeId: 'member_1',
+        },
+      },
+    });
+    expect(trackingItemActionUpsertMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          itemId_userId_kind_targetAt: {
+            itemId: 'item_1',
+            userId: 'u1',
+            kind: 'NOTE',
+            targetAt: new Date('2026-03-29T16:00:00.000Z'),
+          },
+        },
+      }),
+    );
+    await app.close();
+  });
+
+  it('forbids member actions for passive guide relationships', async () => {
+    const { registerRoutes } = await import('../src/routes.js');
+
+    reviewerRelationFindUniqueMock.mockResolvedValue({
+      reviewerId: 'u1',
+      revieweeId: 'member_1',
+      canActOnItems: false,
+    });
+
+    const app = Fastify();
+    await app.register(sensible);
+    app.decorate('authenticate', async (request: { user?: { id: string; email: string; roles: string[] } }) => {
+      request.user = { id: 'u1', email: 'guide@example.com', roles: ['USER'] };
+    });
+    await app.register(registerRoutes);
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/members/member_1/items/item_1/actions',
+      payload: {
+        kind: 'skip',
+        targetAt: '2026-03-29T16:00:00.000Z',
+      },
+    });
+
+    expect(res.statusCode).toBe(403);
+    expect(trackingItemFindUniqueMock).not.toHaveBeenCalled();
+    expect(trackingItemActionUpsertMock).not.toHaveBeenCalled();
+    await app.close();
+  });
+
   it('seeds demo workspace when first admin setup enables demo mode', async () => {
     const { prisma } = await import('../src/prisma.js');
     const { registerRoutes } = await import('../src/routes.js');

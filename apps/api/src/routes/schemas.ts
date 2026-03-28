@@ -52,3 +52,7 @@ export const inviteRegistrationSchema = loginSchema.extend({
   name: z.string().min(1),
   token: z.string().min(1),
 });
+export const memberItemParamsSchema = z.object({
+  memberId: z.string(),
+  itemId: z.string(),
+});

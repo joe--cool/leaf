@@ -20,6 +20,7 @@ Item format:
 ## Working rules
 
 - Implement one item at a time.
+- Before starting an item, update local `main` from `origin/main` and create or refresh the feature branch from that latest `main` commit.
 - After an item is completed and validated, remove that item from this document rather than leaving it checked off.
 - Run relevant tests after every completed item before closing the work.
 - Before calling an iteration complete, run the full verification stack expected by `docs/DEVELOPMENT.md`, including complete web, API, and browser-backed coverage where applicable, not just a narrow targeted subset.
@@ -50,22 +51,6 @@ Main UX gaps:
 - Recommended execution order is the same as the section order in this document.
 
 ## Open Items
-
-### Turn the guide workspace into a real member review flow instead of summary cards
-
-`Members` now has the right top-level direction, but it is still mostly a dashboard card stack. The docs call for a guide-specific oversight experience with member-level drill-in, attribution, and support workflows.
-
-Deliver:
-
-- Add a member detail flow from the `Members` workspace with urgency-first occurrence review, recent notes, and accountability context for one person.
-- Expose only the controls the current guide is allowed to use, including support actions when permitted and observation-only states when not.
-- Make guide actions visibly attributed in the member context and in the audit/history surfaces.
-
-Review before closing:
-
-- Guides can move from portfolio view to a focused single-member view without losing urgency context.
-- Passive guides never see operational controls.
-- Active-guide actions are demoable end to end and visibly attributed afterward.
 
 ### Replace the relationship page with editable permissions, visibility, and history controls
 
@@ -184,6 +169,7 @@ Review before closing:
 
 ## UX Review Notes
 
+- 2026-03-28: Reworked `Members` into a true single-member review flow with urgency-first occurrence queues, attributed recent notes and activity, active-guide occurrence actions backed by a guide-specific API path, observation-only passive states, and demo seed data that now shows guide-authored member context immediately.
 - 2026-03-28: Reworked `My Items` into a real action queue with `Now`, `This Week`, and upcoming one-time sections, inline complete/skip/note handling, server-backed occurrence targeting for member actions, audit-visible skip and note records, and demo seed updates so the queue opens with due, upcoming, and annotated work.
 - 2026-03-27: Replaced the builder-first `Routines` form with a unified tracked-item flow that starts from life-area templates or scratch, branches into recurring versus one-time setup in place, keeps advanced scheduling/reminders behind disclosure, and adds in-surface item editing backed by a real `PUT /items/:id` update path.
 - 2026-03-14: Replaced the admin-flavored first-run form with workspace setup, added tokenless invite acceptance at `/join/:token` with visible relationship consent details, and routed newly authenticated users through a role-aware welcome step that points them to item creation, guide invitation, or member review while keeping demo mode visibly useful.

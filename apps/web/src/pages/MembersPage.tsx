@@ -13,19 +13,30 @@ import {
   StatLabel,
   StatNumber,
   Text,
+  Textarea,
+  useToast,
 } from '@chakra-ui/react';
-import { useEffect, useState } from 'react';
+import type { Dispatch, SetStateAction } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link as RouterLink } from 'react-router-dom';
 import { buildAccountabilitySummary } from '../accountabilityUtils';
 import { buildReflectionDraftPath, cadenceLabel, scheduledReflectionDue } from '../reflectionUtils';
 import { AccountabilitySummaryBlock, PrivacyDisclosure } from '../components/AccountabilitySummary';
-import { getCategoryLabel } from '../scheduleUtils';
-import type { MemberPortfolio, RetrospectiveEntry } from '../appTypes';
+import {
+  getCategoryLabel,
+  summarizeOccurrenceNoteDetails,
+  summarizeRecentMemberContext,
+  summarizeSchedule,
+} from '../scheduleUtils';
+import type { ActionableItem, MemberPortfolio, RetrospectiveEntry } from '../appTypes';
+
+type OccurrenceActionKind = 'complete' | 'skip' | 'note';
 
 export function MembersPage({
   canReviewOthers,
   memberPortfolios,
   retrospectiveEntries,
+  onOccurrenceAction,
   modeGradient,
   panelBgStrong,
   panelBorder,
@@ -37,6 +48,13 @@ export function MembersPage({
   canReviewOthers: boolean;
   memberPortfolios: MemberPortfolio[];
   retrospectiveEntries: RetrospectiveEntry[];
+  onOccurrenceAction: (input: {
+    memberId: string;
+    itemId: string;
+    kind: OccurrenceActionKind;
+    targetAt: string;
+    note?: string;
+  }) => Promise<void>;
   modeGradient: string;
   panelBgStrong: string;
   panelBorder: string;
@@ -45,7 +63,10 @@ export function MembersPage({
   mutedText: string;
   panelBg: string;
 }) {
+  const toast = useToast();
   const [selectedMemberId, setSelectedMemberId] = useState(memberPortfolios[0]?.member.id ?? '');
+  const [noteDrafts, setNoteDrafts] = useState<Record<string, string>>({});
+  const [busyKey, setBusyKey] = useState<string | null>(null);
 
   useEffect(() => {
     if (!selectedMemberId && memberPortfolios[0]?.member.id) {
@@ -71,6 +92,9 @@ export function MembersPage({
   const selectedWorkspace = memberPortfolios.find((workspace) => workspace.member.id === selectedMemberId) ?? memberPortfolios[0]!;
   const guideSummary = buildAccountabilitySummary(memberPortfolios.flatMap((entry) => entry.items));
   const hasHiddenItems = memberPortfolios.some((entry) => entry.relationship.hiddenItemCount > 0);
+  const nowItems = selectedWorkspace.actionable.filter((entry) => entry.action.bucket === 'due');
+  const upcomingItems = selectedWorkspace.actionable.filter((entry) => entry.action.bucket === 'upcoming');
+  const recentContext = useMemo(() => summarizeRecentMemberContext(selectedWorkspace.items), [selectedWorkspace.items]);
   const memberReflections = retrospectiveEntries
     .filter((entry) => entry.subjectUserId === selectedWorkspace.member.id)
     .sort((left, right) => right.periodEnd.localeCompare(left.periodEnd));
@@ -78,12 +102,38 @@ export function MembersPage({
   const latestScheduled = memberReflections.find((entry) => entry.kind === 'scheduled') ?? null;
   const scheduledDue = scheduledReflectionDue(selectedWorkspace.member.reflectionCadence, latestScheduled);
   const canManageReflections = selectedWorkspace.relationship.canManageFollowThrough;
+  const canActOnItems = selectedWorkspace.relationship.canActOnItems;
   const reflectionPath = buildReflectionDraftPath({
     id: selectedWorkspace.member.id,
     name: selectedWorkspace.member.name,
     cadence: selectedWorkspace.member.reflectionCadence,
     retrospectives: memberReflections,
   });
+
+  async function submitOccurrenceAction(entry: ActionableItem, kind: OccurrenceActionKind) {
+    const targetAt = entry.action.occurrenceAt;
+    if (!targetAt) return;
+
+    const key = `${selectedWorkspace.member.id}:${entry.item.id}:${kind}`;
+    setBusyKey(key);
+    try {
+      const note = noteDrafts[`${selectedWorkspace.member.id}:${entry.item.id}`]?.trim() || undefined;
+      await onOccurrenceAction({
+        memberId: selectedWorkspace.member.id,
+        itemId: entry.item.id,
+        kind,
+        targetAt,
+        note,
+      });
+      if (kind === 'note') {
+        toast({ status: 'success', title: 'Member occurrence note saved' });
+      }
+    } catch (error) {
+      toast({ status: 'error', title: String(error) });
+    } finally {
+      setBusyKey(null);
+    }
+  }
 
   return (
     <Stack spacing={5}>
@@ -197,7 +247,7 @@ export function MembersPage({
                         : workspace.nextUrgent?.action.detail ?? 'No visible urgent items'}
                     </Text>
                     <Text fontSize="sm" color={subtleText} mt={1}>
-                      {latest ? `Latest: ${latest.title}` : due ? 'Scheduled reflection due' : 'No reflection yet'}
+                      {latest ? `Latest reflection: ${latest.title}` : due ? 'Scheduled reflection due' : 'No reflection yet'}
                     </Text>
                   </Box>
                 );
@@ -225,17 +275,43 @@ export function MembersPage({
                   <Text color={mutedText} mt={2}>
                     {selectedWorkspace.member.email}
                   </Text>
-                  <Text color={mutedText} fontSize="sm" mt={1}>
-                    Visibility: {selectedWorkspace.relationship.historyWindow}.
+                  <HStack spacing={2} mt={3} flexWrap="wrap">
+                    <Badge borderRadius="full" px={3} py={1} colorScheme={canActOnItems ? 'leaf' : 'gray'}>
+                      {canActOnItems ? 'Can act on items' : 'Observation only'}
+                    </Badge>
+                    <Badge
+                      borderRadius="full"
+                      px={3}
+                      py={1}
+                      colorScheme={selectedWorkspace.relationship.canManageFollowThrough ? 'clay' : 'gray'}
+                    >
+                      {selectedWorkspace.relationship.canManageFollowThrough ? 'Can manage accountability' : 'No accountability changes'}
+                    </Badge>
+                    <Badge
+                      borderRadius="full"
+                      px={3}
+                      py={1}
+                      colorScheme={selectedWorkspace.relationship.canManageRoutines ? 'leaf' : 'gray'}
+                    >
+                      {selectedWorkspace.relationship.canManageRoutines ? 'Routine support allowed' : 'No routine changes'}
+                    </Badge>
+                  </HStack>
+                  <Text color={mutedText} fontSize="sm" mt={3}>
+                    Visibility: {selectedWorkspace.relationship.historyWindow}. Guide actions stay attributed to the acting person.
                   </Text>
                 </Box>
-                <Button
-                  as={RouterLink}
-                  to={`/retrospectives?subject=${encodeURIComponent(selectedWorkspace.member.id)}`}
-                  variant="outline"
-                >
-                  Open in Looking Back
-                </Button>
+                <HStack spacing={3} flexWrap="wrap">
+                  <Button
+                    as={RouterLink}
+                    to={`/retrospectives?subject=${encodeURIComponent(selectedWorkspace.member.id)}`}
+                    variant="outline"
+                  >
+                    Open in Looking Back
+                  </Button>
+                  <Button as={RouterLink} to="/audit-log" variant="ghost">
+                    Open Audit Log
+                  </Button>
+                </HStack>
               </Flex>
             </Box>
 
@@ -278,7 +354,9 @@ export function MembersPage({
                 <Text color={mutedText} mt={2}>
                   {scheduledDue
                     ? 'Create the scheduled reflection now so the member has a current looking-back artifact for this cadence window.'
-                    : 'If you need an off-cycle check-in, create an impromptu reflection instead.'}
+                    : canManageReflections
+                      ? 'If you need an off-cycle check-in, create an impromptu reflection instead.'
+                      : 'Reflection creation is limited on this relationship, but history remains visible here.'}
                 </Text>
                 <HStack mt={4} spacing={3} flexWrap="wrap">
                   {canManageReflections ? (
@@ -316,82 +394,123 @@ export function MembersPage({
               </Box>
             </Box>
 
-            <Grid templateColumns={{ base: '1fr', xl: '1fr 1fr' }} gap={4}>
+            <Grid templateColumns={{ base: '1fr', xl: '1.08fr 0.92fr' }} gap={4}>
+              <OccurrenceReviewSection
+                title="Needs review now"
+                count={nowItems.length}
+                items={nowItems}
+                panelBg={panelBg}
+                panelBgStrong={panelBgStrong}
+                panelBorder={panelBorder}
+                statGlow={statGlow}
+                subtleText={subtleText}
+                mutedText={mutedText}
+                noteDrafts={noteDrafts}
+                onNoteDraftChange={setNoteDrafts}
+                busyKey={busyKey}
+                memberId={selectedWorkspace.member.id}
+                canActOnItems={canActOnItems}
+                onSubmitAction={submitOccurrenceAction}
+                emptyText={
+                  selectedWorkspace.items.length === 0
+                    ? 'No visible tracked items are in this relationship yet.'
+                    : 'No visible occurrences need action right now.'
+                }
+              />
+
               <Box bg={panelBgStrong} borderRadius="3xl" p={5} border="1px solid" borderColor={panelBorder} boxShadow={statGlow}>
                 <Heading size="sm" mb={3}>
-                  Urgent and upcoming
+                  Recent notes and activity
                 </Heading>
                 <Stack spacing={3}>
-                  {selectedWorkspace.actionable.slice(0, 4).map(({ item, action }) => (
-                    <Box key={item.id} borderRadius="xl" border="1px solid" borderColor={panelBorder} p={3}>
+                  {recentContext.map((entry) => (
+                    <Box key={entry.id} borderRadius="xl" border="1px solid" borderColor={panelBorder} p={3} bg={panelBg}>
                       <HStack spacing={2} flexWrap="wrap" mb={2}>
                         <Badge
-                          bg={
-                            action.status === 'Overdue'
-                              ? 'clay.300'
-                              : action.bucket === 'due'
-                                ? 'clay.200'
-                                : 'leaf.100'
+                          colorScheme={
+                            entry.kind === 'complete' ? 'green' : entry.kind === 'skip' ? 'orange' : 'purple'
                           }
-                          color={
-                            action.status === 'Overdue'
-                              ? 'clay.900'
-                              : action.bucket === 'due'
-                                ? 'clay.900'
-                                : 'leaf.800'
-                          }
-                          _dark={{
-                            bg:
-                              action.status === 'Overdue'
-                                ? 'clay.700'
-                                : action.bucket === 'due'
-                                  ? 'clay.700'
-                                  : 'leaf.800',
-                            color:
-                              action.status === 'Overdue'
-                                ? 'clay.50'
-                                : action.bucket === 'due'
-                                  ? 'clay.50'
-                                  : 'leaf.100',
-                          }}
                           borderRadius="full"
                           px={3}
                           py={1}
                         >
-                          {action.status}
+                          {entry.kind === 'complete'
+                            ? 'Completed'
+                            : entry.kind === 'skip'
+                              ? 'Skipped'
+                              : 'Note added'}
                         </Badge>
-                        <Badge variant="subtle" borderRadius="full" px={3} py={1}>
-                          {getCategoryLabel(item.category)}
-                        </Badge>
+                        <Text fontSize="sm" color={subtleText}>
+                          {new Date(entry.occurredAt).toLocaleString()}
+                        </Text>
                       </HStack>
-                      <Text fontWeight="semibold">{item.title}</Text>
-                      <Text fontSize="sm" color={mutedText} mt={1}>
-                        {action.detail}
-                      </Text>
-                    </Box>
-                  ))}
-                </Stack>
-              </Box>
-
-              <Box bg={panelBgStrong} borderRadius="3xl" p={5} border="1px solid" borderColor={panelBorder} boxShadow={statGlow}>
-                <Heading size="sm" mb={3}>
-                  Recent context
-                </Heading>
-                <Stack spacing={3}>
-                  {selectedWorkspace.recentActivity.map((entry) => (
-                    <Box key={entry.id} borderRadius="xl" border="1px solid" borderColor={panelBorder} p={3}>
                       <Text fontWeight="semibold">{entry.itemTitle}</Text>
                       <Text fontSize="sm" color={mutedText} mt={1}>
-                        Completed {new Date(entry.occurredAt).toLocaleString()}
+                        {entry.actorName ? `${entry.actorName} recorded this update.` : 'A visible update was recorded.'}
                       </Text>
                       <Text fontSize="sm" color={subtleText} mt={1}>
                         {entry.note?.trim() ? entry.note : 'No note was added.'}
                       </Text>
                     </Box>
                   ))}
-                  {selectedWorkspace.recentActivity.length === 0 ? (
-                    <Text color={mutedText}>No recent completions or notes are visible yet.</Text>
+                  {recentContext.length === 0 ? (
+                    <Text color={mutedText}>No recent completions, skips, or notes are visible yet.</Text>
                   ) : null}
+                </Stack>
+              </Box>
+
+              <OccurrenceReviewSection
+                title="Upcoming visible work"
+                count={upcomingItems.length}
+                items={upcomingItems}
+                panelBg={panelBg}
+                panelBgStrong={panelBgStrong}
+                panelBorder={panelBorder}
+                statGlow={statGlow}
+                subtleText={subtleText}
+                mutedText={mutedText}
+                noteDrafts={noteDrafts}
+                onNoteDraftChange={setNoteDrafts}
+                busyKey={busyKey}
+                memberId={selectedWorkspace.member.id}
+                canActOnItems={canActOnItems}
+                onSubmitAction={submitOccurrenceAction}
+                emptyText={
+                  selectedWorkspace.items.length === 0
+                    ? 'No visible future work is in this relationship yet.'
+                    : 'No visible upcoming occurrences are queued yet.'
+                }
+              />
+
+              <Box bg={panelBgStrong} borderRadius="3xl" p={5} border="1px solid" borderColor={panelBorder} boxShadow={statGlow}>
+                <Heading size="sm" mb={3}>
+                  Accountability context
+                </Heading>
+                <Stack spacing={3}>
+                  <Box borderRadius="xl" border="1px solid" borderColor={panelBorder} p={3} bg={panelBg}>
+                    <Text fontWeight="semibold">Visible urgency</Text>
+                    <Text fontSize="sm" color={mutedText} mt={1}>
+                      {nowItems.length > 0
+                        ? `${nowItems.length} visible occurrence${nowItems.length === 1 ? '' : 's'} need attention now.`
+                        : 'No visible due work is waiting right now.'}
+                    </Text>
+                  </Box>
+                  <Box borderRadius="xl" border="1px solid" borderColor={panelBorder} p={3} bg={panelBg}>
+                    <Text fontWeight="semibold">Upcoming support window</Text>
+                    <Text fontSize="sm" color={mutedText} mt={1}>
+                      {upcomingItems.length > 0
+                        ? `${upcomingItems.length} upcoming visible occurrence${upcomingItems.length === 1 ? '' : 's'} are next in line for review.`
+                        : 'Upcoming visible work will appear here as the next occurrences approach.'}
+                    </Text>
+                  </Box>
+                  <Box borderRadius="xl" border="1px solid" borderColor={panelBorder} p={3} bg={panelBg}>
+                    <Text fontWeight="semibold">Latest reflection</Text>
+                    <Text fontSize="sm" color={mutedText} mt={1}>
+                      {latestReflection
+                        ? `${latestReflection.title} is the current looking-back artifact for this member.`
+                        : 'No reflection artifact is visible for this member yet.'}
+                    </Text>
+                  </Box>
                 </Stack>
               </Box>
             </Grid>
@@ -406,4 +525,170 @@ function formatRange(periodStart: string, periodEnd: string) {
   const start = new Date(periodStart).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
   const end = new Date(new Date(periodEnd).getTime() - 1).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
   return `${start} to ${end}`;
+}
+
+function OccurrenceReviewSection({
+  title,
+  count,
+  items,
+  emptyText,
+  panelBg,
+  panelBgStrong,
+  panelBorder,
+  statGlow,
+  subtleText,
+  mutedText,
+  noteDrafts,
+  onNoteDraftChange,
+  busyKey,
+  memberId,
+  canActOnItems,
+  onSubmitAction,
+}: {
+  title: string;
+  count: number;
+  items: ActionableItem[];
+  emptyText: string;
+  panelBg: string;
+  panelBgStrong: string;
+  panelBorder: string;
+  statGlow: string;
+  subtleText: string;
+  mutedText: string;
+  noteDrafts: Record<string, string>;
+  onNoteDraftChange: Dispatch<SetStateAction<Record<string, string>>>;
+  busyKey: string | null;
+  memberId: string;
+  canActOnItems: boolean;
+  onSubmitAction: (entry: ActionableItem, kind: OccurrenceActionKind) => Promise<void>;
+}) {
+  return (
+    <Box bg={panelBgStrong} borderRadius="3xl" p={5} border="1px solid" borderColor={panelBorder} boxShadow={statGlow}>
+      <HStack justify="space-between" align="center" mb={4}>
+        <Heading size="sm">{title}</Heading>
+        <Badge colorScheme={count > 0 ? 'orange' : 'gray'} borderRadius="full" px={3} py={1}>
+          {count}
+        </Badge>
+      </HStack>
+      <Stack spacing={3}>
+        {items.map((entry) => {
+          const noteDetails = summarizeOccurrenceNoteDetails(entry.item, entry.action.occurrenceAt);
+          const noteKey = `${memberId}:${entry.item.id}`;
+          const draft = noteDrafts[noteKey] ?? noteDetails?.note ?? '';
+
+          return (
+            <Box key={`${entry.item.id}-${entry.action.occurrenceAt ?? entry.action.status}`} borderRadius="2xl" border="1px solid" borderColor={panelBorder} p={4} bg={panelBg}>
+              <HStack spacing={2} flexWrap="wrap" mb={2}>
+                <Badge
+                  colorScheme={
+                    entry.action.status === 'Overdue'
+                      ? 'red'
+                      : entry.action.bucket === 'due'
+                        ? 'orange'
+                        : 'green'
+                  }
+                  borderRadius="full"
+                  px={3}
+                  py={1}
+                >
+                  {entry.action.status}
+                </Badge>
+                <Badge variant="subtle" borderRadius="full" px={3} py={1}>
+                  {getCategoryLabel(entry.item.category)}
+                </Badge>
+              </HStack>
+              <Text fontWeight="semibold">{entry.item.title}</Text>
+              <Text fontSize="sm" color={mutedText} mt={1}>
+                {entry.action.detail}
+              </Text>
+              <Text fontSize="sm" color={subtleText} mt={2}>
+                {summarizeSchedule(entry.item)}
+              </Text>
+              {noteDetails ? (
+                <Box mt={3} borderRadius="xl" px={3} py={2} bg={panelBgStrong}>
+                  <Text fontSize="xs" textTransform="uppercase" letterSpacing="0.12em" color={subtleText}>
+                    Current note{noteDetails.actorName ? ` · ${noteDetails.actorName}` : ''}
+                  </Text>
+                  <Text mt={1} fontSize="sm">
+                    {noteDetails.note}
+                  </Text>
+                </Box>
+              ) : null}
+              {canActOnItems ? (
+                <Stack spacing={3} mt={4}>
+                  <Box>
+                    <Text fontSize="sm" fontWeight="medium" mb={2}>
+                      Support note
+                    </Text>
+                    <Textarea
+                      value={draft}
+                      onChange={(event) =>
+                        onNoteDraftChange((current) => ({
+                          ...current,
+                          [noteKey]: event.target.value,
+                        }))
+                      }
+                      placeholder="Add context, obstacles, or what changed."
+                      aria-label={`Support note for ${entry.item.title}`}
+                      rows={3}
+                      resize="vertical"
+                    />
+                  </Box>
+                  <HStack spacing={3} flexWrap="wrap">
+                    <Button
+                      colorScheme="leaf"
+                      size="sm"
+                      onClick={() => onSubmitAction(entry, 'complete')}
+                      isLoading={busyKey === `${memberId}:${entry.item.id}:complete`}
+                      isDisabled={!entry.action.occurrenceAt}
+                      aria-label={`Complete ${entry.item.title} for ${memberId}`}
+                    >
+                      Complete
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => onSubmitAction(entry, 'skip')}
+                      isLoading={busyKey === `${memberId}:${entry.item.id}:skip`}
+                      isDisabled={!entry.action.occurrenceAt}
+                      aria-label={`Skip ${entry.item.title} for ${memberId}`}
+                    >
+                      Skip
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => onSubmitAction(entry, 'note')}
+                      isLoading={busyKey === `${memberId}:${entry.item.id}:note`}
+                      isDisabled={!entry.action.occurrenceAt}
+                      aria-label={`Save note for ${entry.item.title} for ${memberId}`}
+                    >
+                      Save note
+                    </Button>
+                  </HStack>
+                  <Text fontSize="sm" color={subtleText}>
+                    Support actions stay attributed in this member view and in audit history.
+                  </Text>
+                </Stack>
+              ) : (
+                <Box mt={4} borderRadius="xl" px={3} py={3} bg={panelBgStrong}>
+                  <Text fontSize="sm" fontWeight="medium">
+                    Observation only
+                  </Text>
+                  <Text fontSize="sm" color={mutedText} mt={1}>
+                    This relationship can review context here, but it cannot act on occurrences.
+                  </Text>
+                </Box>
+              )}
+            </Box>
+          );
+        })}
+        {items.length === 0 ? (
+          <Box bg={panelBg} borderRadius="2xl" p={5}>
+            <Text color={mutedText}>{emptyText}</Text>
+          </Box>
+        ) : null}
+      </Stack>
+    </Box>
+  );
 }

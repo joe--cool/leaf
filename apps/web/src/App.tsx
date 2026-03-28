@@ -604,6 +604,30 @@ export function App() {
     await refreshMe();
   }
 
+  async function recordMemberOccurrenceAction(input: {
+    memberId: string;
+    itemId: string;
+    kind: 'complete' | 'skip' | 'note';
+    targetAt: string;
+    note?: string;
+  }) {
+    await apiFetch(`/members/${input.memberId}/items/${input.itemId}/actions`, {
+      method: 'POST',
+      body: JSON.stringify({
+        kind: input.kind,
+        targetAt: input.targetAt,
+        note: input.note,
+      }),
+    });
+    if (input.kind !== 'note') {
+      toast({
+        status: 'success',
+        title: input.kind === 'complete' ? 'Member occurrence completed' : 'Member occurrence skipped',
+      });
+    }
+    await refreshMe();
+  }
+
   function onCategoryChange(nextCategory: string) {
     setCategory(nextCategory);
     setTitle((currentTitle) => {
@@ -1049,6 +1073,7 @@ export function App() {
           canReviewOthers={canGuideMembers}
           memberPortfolios={memberPortfolios}
           retrospectiveEntries={retrospectiveEntries}
+          onOccurrenceAction={recordMemberOccurrenceAction}
           modeGradient={modeGradient}
           panelBgStrong={panelBgStrong}
           panelBorder={panelBorder}

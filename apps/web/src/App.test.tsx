@@ -333,6 +333,108 @@ describe('App routes', () => {
     expect(screen.queryByRole('button', { name: 'Create Impromptu Reflection' })).not.toBeInTheDocument();
   });
 
+  it('lets an active guide act on a member occurrence and shows the attribution afterward', async () => {
+    const now = new Date();
+    const dueTarget = new Date(now);
+    dueTarget.setHours(8, 0, 0, 0);
+    const dueTargetIso = dueTarget.toISOString();
+    let memberActionNote: string | null = null;
+
+    mockAuthedApi({
+      members: [{ member: { id: 'u2', email: 'member@example.com', name: 'Alex' } }],
+    });
+    apiFetchMock.mockImplementation(async (path: string, options?: { method?: string; body?: string }) => {
+      if (path === '/setup/status') return { needsSetup: false };
+      if (path === '/auth/oauth/options') return { providers: [] };
+      if (path === '/me') {
+        return {
+          ...meResponse,
+          members: [{ member: { id: 'u2', email: 'member@example.com', name: 'Alex' } }],
+        };
+      }
+      if (path === '/items') return [];
+      if (path === '/members') {
+        return [
+          {
+            member: {
+              id: 'u2',
+              email: 'member@example.com',
+              name: 'Alex',
+              reflectionCadence: 'weekly',
+              reflectionWeekday: 0,
+              reflectionMonthDay: 1,
+            },
+            relationship: {
+              mode: 'active',
+              canActOnItems: true,
+              canManageRoutines: true,
+              canManageFollowThrough: true,
+              historyWindow: 'Last 30 days and upcoming items',
+              hiddenItemCount: 0,
+            },
+            items: [
+              {
+                id: 'ri1',
+                title: 'Evening stretch',
+                category: 'exercise',
+                scheduleKind: 'DAILY',
+                scheduleData: { kind: 'DAILY', dailyTimes: ['08:00'] },
+                completions: [],
+                actions: memberActionNote
+                  ? [
+                      {
+                        id: 'act_1',
+                        kind: 'note',
+                        occurredAt: new Date(now.getTime() + 60_000).toISOString(),
+                        targetAt: dueTargetIso,
+                        note: memberActionNote,
+                        actorName: 'User',
+                      },
+                    ]
+                  : [],
+              },
+            ],
+          },
+        ];
+      }
+      if (path === '/members/u2/items/ri1/actions') {
+        memberActionNote = JSON.parse(options?.body ?? '{}').note ?? null;
+        return { id: 'act_1' };
+      }
+      if (path === '/history/audit') return [];
+      if (path === '/retrospectives') return [];
+      if (path === '/admin/users') return [];
+      throw new Error(`Unexpected api path: ${path}`);
+    });
+
+    renderApp('/members');
+
+    await screen.findAllByRole('heading', { name: 'Members' });
+
+    const user = userEvent.setup();
+    await user.clear(screen.getByRole('textbox', { name: 'Support note for Evening stretch' }));
+    await user.type(screen.getByRole('textbox', { name: 'Support note for Evening stretch' }), 'Guide follow-up note');
+    await user.click(screen.getByRole('button', { name: 'Save note for Evening stretch for u2' }));
+
+    await waitFor(() => {
+      expect(apiFetchMock).toHaveBeenCalledWith(
+        '/members/u2/items/ri1/actions',
+        expect.objectContaining({
+          method: 'POST',
+          body: JSON.stringify({
+            kind: 'note',
+            targetAt: dueTargetIso,
+            note: 'Guide follow-up note',
+          }),
+        }),
+      );
+    });
+
+    expect(await screen.findByText(/Current note · User/)).toBeInTheDocument();
+    expect(screen.getAllByText('Guide follow-up note').length).toBeGreaterThan(0);
+    expect(screen.getByText('User recorded this update.')).toBeInTheDocument();
+  });
+
   it('shows member actions, guide attention, and next review on the dashboard for dual-role users', async () => {
     mockAuthedApi({
       members: [{ member: { id: 'u2', email: 'member@example.com', name: 'Alex' } }],
