@@ -1,5 +1,7 @@
 import { Badge, Box, HStack, Stack, Text } from '@chakra-ui/react';
+import type { HiddenItemVisibility, RelationshipHistoryWindow } from '@leaf/shared';
 import type { AccountabilitySummary } from '../accountabilityUtils';
+import { hiddenItemsBoundaryText, relationshipHistoryWindowLabel } from '../relationshipUi';
 
 export function AccountabilitySummaryBlock({
   summary,
@@ -37,23 +39,28 @@ export function AccountabilitySummaryBlock({
 }
 
 export function PrivacyDisclosure({
-  hidden,
+  hiddenItemCount,
+  hiddenItemVisibility,
   historyWindow,
   mutedText,
   subtleText,
 }: {
-  hidden: boolean;
-  historyWindow: string;
+  hiddenItemCount: number;
+  hiddenItemVisibility: HiddenItemVisibility;
+  historyWindow: RelationshipHistoryWindow;
   mutedText: string;
   subtleText: string;
 }) {
   return (
     <Box borderRadius="2xl" px={4} py={3} bg="blackAlpha.50">
       <Text fontSize="sm" fontWeight="semibold" color={mutedText}>
-        {hidden ? 'Some items are hidden from this view.' : 'This score only reflects items shared in this relationship.'}
+        {hiddenItemCount > 0
+          ? hiddenItemsBoundaryText(hiddenItemCount, hiddenItemVisibility, 'Some items are hidden from this view.')
+          : 'This score only reflects items shared in this relationship.'}
       </Text>
       <Text fontSize="sm" color={subtleText} mt={1}>
-        Visible status and scoring are limited to {historyWindow}. Hidden item names, categories, and totals stay private.
+        Visible status and scoring are limited to {relationshipHistoryWindowLabel(historyWindow)}. Hidden item names,
+        categories, and totals stay private.
       </Text>
     </Box>
   );

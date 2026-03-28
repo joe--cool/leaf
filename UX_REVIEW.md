@@ -52,22 +52,6 @@ Main UX gaps:
 
 ## Open Items
 
-### Replace the relationship page with editable permissions, visibility, and history controls
-
-`Profile & Relationships` explains the model better than before, but most of the important settings are still descriptive rather than actionable. The docs call for explicit, editable guide-by-guide control.
-
-Deliver:
-
-- Add relationship editing for mode, permission groups, history window, and hidden-item visibility boundaries after a relationship is active.
-- Let members inspect guide-by-guide what each person can see, do, and receive, including future-only versus full-history access.
-- Clarify parent-specific rules and special visibility behavior without collapsing all relationships into a parent model.
-
-Review before closing:
-
-- A member can change a guide relationship after creation without admin intervention.
-- The product clearly distinguishes template defaults from the current saved relationship state.
-- Visibility limits remain explicit to both sides after edits.
-
 ### Build real notifications, escalations, and digest settings across the product
 
 The current mailbox is a useful mock of the desired shape, but notifications, desktop alerts, and digest behavior are still synthesized in the client rather than configured and delivered as real product systems.
@@ -169,6 +153,7 @@ Review before closing:
 
 ## UX Review Notes
 
+- 2026-03-28: Replaced the descriptive `Profile & Relationships` guide cards with saved relationship editors backed by a real member-owned update route, explicit mode/permission/history/hidden-boundary controls, template-default versus current-state comparisons, parent-specific guidance, and browser coverage for editing an active relationship end to end.
 - 2026-03-28: Reworked `Members` into a true single-member review flow with urgency-first occurrence queues, attributed recent notes and activity, active-guide occurrence actions backed by a guide-specific API path, observation-only passive states, and demo seed data that now shows guide-authored member context immediately.
 - 2026-03-28: Reworked `My Items` into a real action queue with `Now`, `This Week`, and upcoming one-time sections, inline complete/skip/note handling, server-backed occurrence targeting for member actions, audit-visible skip and note records, and demo seed updates so the queue opens with due, upcoming, and annotated work.
 - 2026-03-27: Replaced the builder-first `Routines` form with a unified tracked-item flow that starts from life-area templates or scratch, branches into recurring versus one-time setup in place, keeps advanced scheduling/reminders behind disclosure, and adds in-surface item editing backed by a real `PUT /items/:id` update path.

@@ -1,4 +1,4 @@
-import { loginSchema, relationshipTemplateIdSchema } from '@leaf/shared';
+import { loginSchema, relationshipTemplateIdSchema, relationshipUpdateSchema } from '@leaf/shared';
 import { z } from 'zod';
 
 export const completeSchema = z.object({
@@ -35,6 +35,8 @@ export const preferencesSchema = z.object({
 });
 export const bootstrapAdminSchema = z.object({ userId: z.string() });
 export const idParamSchema = z.object({ id: z.string() });
+export const guideRelationshipParamsSchema = z.object({ guideId: z.string() });
+export const relationshipUpdateBodySchema = relationshipUpdateSchema;
 export const oauthStartQuerySchema = z.object({
   returnTo: z.string().url().default('http://localhost:5173/oauth/callback'),
 });
