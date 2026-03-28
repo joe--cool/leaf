@@ -78,6 +78,10 @@ async function openMembers(page: Page) {
 }
 
 async function openReflectionFor(page: Page, subjectName: string) {
+  const reviewButton = page.getByRole('button', { name: `Review ${subjectName}` });
+  if (await reviewButton.isVisible().catch(() => false)) {
+    await reviewButton.click();
+  }
   await page.getByRole('link', { name: `Open reflection for ${subjectName}` }).click();
 }
 

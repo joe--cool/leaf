@@ -24,6 +24,7 @@ Item format:
 - Run relevant tests after every completed item before closing the work.
 - Before calling an iteration complete, run the full verification stack expected by `docs/DEVELOPMENT.md`, including complete web, API, and browser-backed coverage where applicable, not just a narrow targeted subset.
 - Follow the layered testing expectations in `docs/DEVELOPMENT.md` so logic, API, and browser coverage land in the right place.
+- For every item, explicitly consider test impact as part of the implementation: decide whether existing coverage should change, whether new coverage is required, and which test layer should own it before closing the work.
 - After every iteration, once the changes are signed off, add a UX review note here before moving on to the next iteration.
 - Treat each item's `Review before closing` list as the minimum acceptance review.
 - Keep first-run demo mode current with shipped UX: if a new surface needs meaningful data, update `apps/api/src/demoSeed.ts`, prefer relative past/future dates, and add or extend tests so the seeded workspace continues to exercise the feature.
@@ -49,22 +50,6 @@ Main UX gaps:
 - Recommended execution order is the same as the section order in this document.
 
 ## Open Items
-
-### Make `My Items` a true occurrence-first action workspace
-
-The current member page identifies urgency, but it still routes users back to `Routines` and does not let them actually work the queue from the action surface described in the docs.
-
-Deliver:
-
-- Add real occurrence cards for `Now`, `This Week`, and upcoming one-time work with inline complete, skip, and add-note actions.
-- Make occurrence notes editable and visible from the action surface without forcing routine-level navigation.
-- Separate routine management from occurrence action so members can stay in momentum mode unless they intentionally switch to configuration.
-
-Review before closing:
-
-- A user can handle their due work entirely from `My Items`.
-- Skip and note behavior are visible in the UI and reflected consistently in status, summaries, and history.
-- The action surface works with seeded overdue, due-today, and upcoming demo data.
 
 ### Turn the guide workspace into a real member review flow instead of summary cards
 
@@ -199,6 +184,7 @@ Review before closing:
 
 ## UX Review Notes
 
+- 2026-03-28: Reworked `My Items` into a real action queue with `Now`, `This Week`, and upcoming one-time sections, inline complete/skip/note handling, server-backed occurrence targeting for member actions, audit-visible skip and note records, and demo seed updates so the queue opens with due, upcoming, and annotated work.
 - 2026-03-27: Replaced the builder-first `Routines` form with a unified tracked-item flow that starts from life-area templates or scratch, branches into recurring versus one-time setup in place, keeps advanced scheduling/reminders behind disclosure, and adds in-surface item editing backed by a real `PUT /items/:id` update path.
 - 2026-03-14: Replaced the admin-flavored first-run form with workspace setup, added tokenless invite acceptance at `/join/:token` with visible relationship consent details, and routed newly authenticated users through a role-aware welcome step that points them to item creation, guide invitation, or member review while keeping demo mode visibly useful.
 - 2026-03-14: Added account-level `Looking Back` and `Audit Log` surfaces with dedicated navigation, reflective accountability windows for self and guided members, and attributed history for account, relationship, invite, routine, and completion events without collapsing those views into admin tooling.
